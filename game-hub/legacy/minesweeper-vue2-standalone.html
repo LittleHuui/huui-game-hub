@@ -1,0 +1,3584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雷区突围 · Mine Rush</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Ccircle cx='32' cy='36' r='18' fill='%23111827' stroke='%23f8fafc' stroke-width='3'/%3E%3Cpath d='M27 18 L36 8 L40 21' fill='none' stroke='%23facc15' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M43 13 L50 7 M47 18 L58 18 M43 23 L51 31' stroke='%23f97316' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M19 32 H8 V20 H19 Z' fill='%23ef4444'/%3E%3Cpath d='M19 20 V48' stroke='%23e5e7eb' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='25' cy='33' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='39' cy='33' r='3' fill='%23f8fafc'/%3E%3Cpath d='M24 45 Q32 39 40 45' fill='none' stroke='%23f8fafc' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            min-height: 100vh;
+            color: white;
+            padding: 0 0 10px;
+            margin: 0;
+            cursor: default;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+        }
+
+        html {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+        }
+
+        #app {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            cursor: default;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+        }
+
+        .app-main {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 10px 10px 16px;
+            width: 100%;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(8px);
+        }
+
+        h2 {
+            margin-bottom: 15px;
+        }
+
+        .top-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        input,
+        select,
+        button {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: none;
+            outline: none;
+        }
+
+        textarea,
+        input[type="text"],
+        input[type="search"],
+        input[type="password"],
+        input[type="email"],
+        input[type="url"],
+        input[type="tel"],
+        input[type="number"],
+        input:not([type]) {
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            cursor: text;
+        }
+
+        input[type="checkbox"],
+        input[type="radio"] {
+            user-select: none;
+            cursor: pointer;
+        }
+
+        select {
+            user-select: none;
+            cursor: pointer;
+        }
+
+        input {
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        button {
+            cursor: pointer;
+            background: #3b82f6;
+            color: white;
+            transition: all .2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            background: #2563eb;
+        }
+
+        .danger {
+            background: #ef4444;
+        }
+
+        .danger:hover {
+            background: #dc2626;
+        }
+
+        .success {
+            background: #10b981;
+        }
+
+        .success:hover {
+            background: #059669;
+        }
+
+        .warning {
+            background: #f59e0b;
+        }
+
+        .warning:hover {
+            background: #d97706;
+        }
+
+        button.btn-action-start {
+            background: linear-gradient(145deg, #10b981, #059669);
+            color: #fff;
+        }
+
+        button.btn-action-start:hover {
+            background: linear-gradient(145deg, #059669, #047857);
+            transform: translateY(-2px);
+        }
+
+        button.btn-action-safe {
+            background: linear-gradient(145deg, #0ea5e9, #0284c7);
+            color: #fff;
+        }
+
+        button.btn-action-safe:hover {
+            background: linear-gradient(145deg, #0284c7, #0369a1);
+            transform: translateY(-2px);
+        }
+
+        button.btn-action-restart {
+            background: linear-gradient(145deg, #f59e0b, #d97706);
+            color: #1c1917;
+        }
+
+        button.btn-action-restart:hover {
+            background: linear-gradient(145deg, #d97706, #b45309);
+            transform: translateY(-2px);
+        }
+
+        button.btn-action-end {
+            background: linear-gradient(145deg, #ef4444, #dc2626);
+            color: #fff;
+        }
+
+        button.btn-action-end:hover {
+            background: linear-gradient(145deg, #dc2626, #b91c1c);
+            transform: translateY(-2px);
+        }
+
+        .muted-small {
+            font-size: 12px;
+            opacity: .72;
+        }
+
+        .user-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .current-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .nickname-text {
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .nickname-input {
+            width: 180px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .user-name {
+            opacity: .7;
+        }
+
+        .user-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .modal-mask {
+            position: fixed;
+            inset: 0;
+            z-index: 8000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(15, 23, 42, .75);
+        }
+
+        .modal {
+            position: relative;
+            z-index: 8001;
+            width: min(560px, 100%);
+            max-height: 86vh;
+            overflow: auto;
+            border-radius: 16px;
+            padding: 20px;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .user-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .history-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .history-item {
+            display: grid;
+            gap: 4px;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .empty-text {
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+            color: rgba(255, 255, 255, .72);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .difficulty-select {
+            position: relative;
+            max-width: 180px;
+        }
+
+        .difficulty-trigger {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, .9), rgba(37, 99, 235, .85));
+            color: white;
+            cursor: pointer;
+            user-select: none;
+            font-size: 14px;
+        }
+
+        .difficulty-arrow {
+            margin-right: 6px;
+            transition: transform .2s ease;
+        }
+
+        .difficulty-select.open .difficulty-arrow {
+            transform: rotate(180deg);
+        }
+
+        .difficulty-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 5;
+            overflow: hidden;
+            border-radius: 14px;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, .16);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, .28);
+        }
+
+        .difficulty-option {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background .2s ease;
+        }
+
+        .difficulty-option:hover,
+        .difficulty-option.active {
+            background: rgba(59, 130, 246, .35);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        .layout>div {
+            min-width: 0;
+        }
+
+        .board {
+            display: inline-grid;
+            gap: 2px;
+            background: #111827;
+            padding: 10px;
+            border-radius: 14px;
+            overflow: auto;
+            max-width: 100%;
+        }
+
+        .board--adaptive .cell {
+            width: var(--cell, 32px);
+            height: var(--cell, 32px);
+            font-size: clamp(10px, calc(var(--cell, 32px) * 0.42), 16px);
+        }
+
+        .board .cell.cell-neighbor-ring {
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 0 0 2px rgba(186, 230, 253, 0.65);
+            border-radius: 6px;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .settings-row:last-of-type {
+            border-bottom: none;
+        }
+
+        .settings-row-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .settings-row-text strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+
+        .settings-row-text p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.55;
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        .settings-toggle {
+            flex-shrink: 0;
+            padding-top: 4px;
+        }
+
+        .settings-toggle input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .cell {
+            width: 32px;
+            height: 32px;
+            background: #334155;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: all .18s ease;
+            animation: cellPop .2s ease;
+        }
+
+        .cell:hover {
+            background: #93c5fd;
+            transform: scale(1.08);
+            box-shadow: 0 0 12px rgba(147, 197, 253, .8);
+        }
+
+        .opened {
+            background: #e2e8f0;
+            color: #111827;
+            transform: scale(0.96);
+        }
+
+        .mine {
+            background: #ef4444 !important;
+            color: white;
+            animation: boom .4s infinite alternate;
+        }
+
+        .flag {
+            background: #f59e0b;
+        }
+
+        .shake {
+            animation: shake .35s;
+        }
+
+        .victory {
+            animation: glow 1s infinite alternate;
+        }
+
+        @keyframes rankTopPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 12px rgba(250, 204, 21, .25);
+            }
+
+            50% {
+                box-shadow: 0 0 22px rgba(250, 204, 21, .45);
+            }
+        }
+
+        @keyframes rankSecondGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(148, 163, 184, .2);
+            }
+
+            50% {
+                box-shadow: 0 0 18px rgba(226, 232, 240, .35);
+            }
+        }
+
+        @keyframes rankThirdGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(180, 83, 9, .2);
+            }
+
+            50% {
+                box-shadow: 0 0 16px rgba(245, 158, 11, .32);
+            }
+        }
+
+        .ranking-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .ranking-item-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .ranking-item--first {
+            background: linear-gradient(135deg, rgba(250, 204, 21, .22), rgba(255, 255, 255, .06));
+            border: 1px solid rgba(250, 204, 21, .5);
+            animation: rankTopPulse 2.2s ease-in-out infinite;
+        }
+
+        .ranking-item--second {
+            background: linear-gradient(135deg, rgba(226, 232, 240, .16), rgba(255, 255, 255, .05));
+            border: 1px solid rgba(203, 213, 225, .45);
+            animation: rankSecondGlow 2.4s ease-in-out infinite;
+        }
+
+        .ranking-item--third {
+            background: linear-gradient(135deg, rgba(180, 83, 9, .18), rgba(255, 255, 255, .05));
+            border: 1px solid rgba(217, 119, 6, .42);
+            animation: rankThirdGlow 2.5s ease-in-out infinite;
+        }
+
+        .ranking-rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            margin-right: 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            vertical-align: middle;
+            background: rgba(255, 255, 255, .1);
+            color: rgba(255, 255, 255, .85);
+        }
+
+        .ranking-item--first .ranking-rank-badge {
+            background: linear-gradient(145deg, #fde047, #ca8a04);
+            color: #422006;
+        }
+
+        .ranking-item--second .ranking-rank-badge {
+            background: linear-gradient(145deg, #e2e8f0, #94a3b8);
+            color: #1e293b;
+        }
+
+        .ranking-item--third .ranking-rank-badge {
+            background: linear-gradient(145deg, #fdba74, #c2410c);
+            color: #fff7ed;
+        }
+
+        .ranking-name-line {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .ranking-time {
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .ranking-date {
+            font-size: 11px;
+            line-height: 1.35;
+            opacity: .68;
+            word-break: break-all;
+        }
+
+        .user-card {
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .user-card:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .tools {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .tool-item {
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .tool-active {
+            border: 2px solid #facc15;
+            animation: glow 1s infinite alternate;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .game-header {
+            display: flex;
+            align-items: stretch;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .game-stats {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            min-width: 110px;
+            padding: 12px;
+            border-radius: 10px;
+        }
+
+        .stat-score {
+            background: rgba(16, 185, 129, .18);
+            border: 1px solid rgba(16, 185, 129, .3);
+        }
+
+        .stat-mine {
+            background: rgba(239, 68, 68, .18);
+            border: 1px solid rgba(239, 68, 68, .3);
+        }
+
+        .stat-time {
+            background: rgba(245, 158, 11, .18);
+            border: 1px solid rgba(245, 158, 11, .3);
+        }
+
+        .game-message {
+            background: rgba(59, 130, 246, .18);
+            border: 1px solid rgba(59, 130, 246, .3);
+        }
+
+        .stat-label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 12px;
+            opacity: .7;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .game-message {
+            flex: 1 1 240px;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-control {
+            width: 100%;
+        }
+
+        .side-action {
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        button:disabled,
+        .is-disabled {
+            opacity: .45;
+            cursor: not-allowed !important;
+            pointer-events: none;
+            transform: none !important;
+        }
+
+        .difficulty-select.is-locked .difficulty-trigger {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .nickname-text.is-locked {
+            cursor: not-allowed;
+            opacity: .75;
+        }
+
+        .toast-stack {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 9000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: min(360px, calc(100vw - 32px));
+            pointer-events: none;
+        }
+
+        .toast {
+            pointer-events: auto;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.45;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+            border: 1px solid transparent;
+            animation: toastIn .28s ease;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .toast--info {
+            background: rgba(30, 41, 59, .95);
+            border-color: rgba(148, 163, 184, .45);
+            color: #f1f5f9;
+        }
+
+        .toast--success {
+            background: rgba(6, 78, 59, .95);
+            border-color: rgba(52, 211, 153, .55);
+            color: #ecfdf5;
+        }
+
+        .toast--warning {
+            background: rgba(120, 53, 15, .95);
+            border-color: rgba(251, 191, 36, .55);
+            color: #fffbeb;
+        }
+
+        .toast--error {
+            background: rgba(127, 29, 29, .95);
+            border-color: rgba(248, 113, 113, .55);
+            color: #fef2f2;
+        }
+
+        .toast--hint-safe {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-height: 56px;
+            padding: 14px 16px;
+            background: linear-gradient(135deg, rgba(21, 128, 61, .98), rgba(5, 46, 22, .96));
+            border: 3px solid #4ade80;
+            box-shadow: 0 0 0 1px rgba(187, 247, 208, .5), 0 12px 32px rgba(34, 197, 94, .35);
+            color: #ecfdf5;
+        }
+
+        .toast--hint-mine {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-height: 56px;
+            padding: 14px 16px;
+            background: linear-gradient(135deg, rgba(153, 27, 27, .98), rgba(69, 10, 10, .96));
+            border: 3px solid #f87171;
+            box-shadow: 0 0 0 1px rgba(254, 202, 202, .45), 0 12px 32px rgba(239, 68, 68, .4);
+            color: #fef2f2;
+        }
+
+        .toast-hint-glyph {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .toast--hint-safe .toast-hint-glyph {
+            background: rgba(255, 255, 255, .2);
+            color: #bbf7d0;
+        }
+
+        .toast--hint-mine .toast-hint-glyph {
+            background: rgba(0, 0, 0, .25);
+            color: #fecaca;
+        }
+
+        .toast-hint-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .toast--hint-safe .toast-level {
+            color: #bbf7d0;
+            opacity: 1;
+            font-weight: 700;
+        }
+
+        .toast--hint-mine .toast-level {
+            color: #fecaca;
+            opacity: 1;
+            font-weight: 700;
+        }
+
+        .toast-level {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            opacity: .75;
+            margin-bottom: 4px;
+        }
+
+        .revive-offer-mask {
+            z-index: 8500;
+        }
+
+        .revive-countdown {
+            font-size: 28px;
+            font-weight: 800;
+            color: #fbbf24;
+            text-align: center;
+            margin: 12px 0;
+        }
+
+        .revive-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .checkbox-row .checkbox-caption {
+            font-size: 11px;
+            line-height: 1.45;
+            opacity: .88;
+        }
+
+        .checkbox-row input {
+            width: auto;
+            cursor: pointer;
+        }
+
+        .log-list {
+            display: grid;
+            gap: 8px;
+            max-height: 50vh;
+            overflow: auto;
+        }
+
+        .log-item {
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, .07);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .history-prop-line {
+            margin-top: 6px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, .78);
+        }
+
+        .site-topbar {
+            position: sticky;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 200;
+            margin: 0 0 12px;
+            padding: 10px 16px;
+            border-radius: 0;
+            background: rgba(15, 23, 42, 0.92);
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(10px);
+        }
+
+        .site-topbar-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .site-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .site-logo-mark {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 2px solid rgba(250, 204, 21, .55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .site-brand-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .site-title {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: .04em;
+        }
+
+        .site-tag {
+            font-size: 12px;
+            opacity: .72;
+        }
+
+        .site-user-bar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .site-user-meta {
+            display: flex;
+            align-items: center;
+        }
+
+        .site-nickname-text {
+            font-size: 18px;
+        }
+
+        .site-nickname-input {
+            width: 160px;
+        }
+
+        .site-user-trail {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .site-username {
+            font-size: 14px;
+        }
+
+        .user-menu-anchor {
+            position: relative;
+        }
+
+        .user-menu-trigger {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(248, 250, 252, 0.88);
+            font-size: 14px;
+            line-height: 1;
+            transform: none;
+        }
+
+        .user-menu-trigger:hover {
+            background: rgba(59, 130, 246, 0.38);
+            border-color: rgba(148, 163, 184, 0.45);
+            color: #f8fafc;
+        }
+
+        .user-menu-panel {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            min-width: 240px;
+            padding: 8px 0;
+            border-radius: 14px;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, .16);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, .4);
+            z-index: 220;
+        }
+
+        .user-menu-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+            padding: 12px 16px;
+            background: transparent;
+            color: #f8fafc;
+            border: none;
+            border-radius: 0;
+            text-align: left;
+            font-size: 14px;
+            cursor: pointer;
+            transform: none;
+        }
+
+        .user-menu-item:hover:not(:disabled) {
+            background: rgba(59, 130, 246, .22);
+        }
+
+        .user-menu-item:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .user-menu-label {
+            font-weight: 600;
+        }
+
+        .user-menu-value {
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: 13px;
+            opacity: .9;
+        }
+
+        .user-menu-divider {
+            height: 1px;
+            margin: 6px 12px;
+            background: rgba(255, 255, 255, .12);
+        }
+
+        .user-menu-item--bottom {
+            color: rgba(248, 250, 252, .88);
+        }
+
+        .shop-score-strip {
+            margin-bottom: 16px;
+        }
+
+        .shop-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .shop-panel-head h2 {
+            margin: 0;
+        }
+
+        .shop-link-records {
+            padding: 0;
+            border: none;
+            background: none;
+            color: rgba(191, 219, 254, 0.95);
+            font-size: 12px;
+            text-decoration: underline;
+            cursor: pointer;
+            transform: none;
+        }
+
+        .shop-link-records:hover {
+            color: #fff;
+        }
+
+        .panel-heading-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .panel-heading-row h2 {
+            margin: 0;
+        }
+
+        .info-tip-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            cursor: help;
+            /* 高于 .site-topbar(200) / .user-menu-panel(220)，避免气泡被顶栏盖住 */
+            z-index: 380;
+        }
+
+        .info-tip-btn {
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border-radius: 50%;
+            border: 1px solid rgba(148, 163, 184, 0.55);
+            background: rgba(30, 41, 59, 0.9);
+            color: #e2e8f0;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1;
+            cursor: help;
+            transform: none;
+        }
+
+        .info-tip-btn:hover {
+            background: rgba(59, 130, 246, 0.35);
+            border-color: rgba(147, 197, 253, 0.65);
+        }
+
+        .info-tip-bubble {
+            position: absolute;
+            left: 50%;
+            top: calc(100% + 10px);
+            transform: translateX(-50%);
+            width: max(220px, min(320px, 70vw));
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+            font-size: 12px;
+            line-height: 1.55;
+            color: rgba(248, 250, 252, 0.92);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            z-index: 400;
+            text-align: left;
+        }
+
+        .info-tip-wrap:hover .info-tip-bubble,
+        .info-tip-wrap:focus-within .info-tip-bubble {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .shop-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .shop-card {
+            padding: 14px 16px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, .45);
+            border: 1px solid rgba(255, 255, 255, .1);
+        }
+
+        .shop-card-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .shop-card-name {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .shop-card-bag {
+            font-size: 12px;
+            opacity: .78;
+            white-space: nowrap;
+        }
+
+        .shop-card-desc {
+            margin: 0 0 12px;
+            font-size: 13px;
+            line-height: 1.55;
+            color: rgba(255, 255, 255, .78);
+        }
+
+        .shop-card-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .shop-card-price {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fde68a;
+        }
+
+        .battle-panel {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            overflow: visible;
+        }
+
+        .battle-quota-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .battle-quota-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, .55);
+            border: 1px solid rgba(148, 163, 184, .28);
+            font-size: 12px;
+        }
+
+        .battle-quota-label {
+            opacity: .75;
+        }
+
+        .battle-quota-val {
+            font-weight: 800;
+            font-family: ui-monospace, Consolas, monospace;
+            letter-spacing: .04em;
+        }
+
+        .backpack-bar {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, .12);
+        }
+
+        .backpack-inline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: stretch;
+            gap: 8px 12px;
+        }
+
+        .backpack-inline-label {
+            font-size: 11px;
+            font-weight: 800;
+            opacity: .62;
+            letter-spacing: .04em;
+            align-self: center;
+        }
+
+        /* 背包区内带浏览器 title 或自定义说明的元素：提示可悬停查看 */
+        .backpack-bar [title] {
+            cursor: help;
+        }
+
+        .backpack-slot {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 30px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, .05);
+            border: 1px solid rgba(255, 255, 255, .08);
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+
+        .backpack-slot.is-exhausted {
+            opacity: .42;
+            filter: grayscale(0.35);
+        }
+
+        .backpack-ic {
+            font-size: 16px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .backpack-count {
+            font-family: ui-monospace, Consolas, monospace;
+            font-weight: 700;
+            opacity: .92;
+            line-height: 1;
+        }
+
+        .backpack-use-mini {
+            height: 22px;
+            min-height: 22px;
+            padding: 0 9px;
+            margin-left: 2px;
+            border-radius: 6px;
+            font-size: 11px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            transform: none;
+        }
+
+        .backpack-use-mini:hover {
+            transform: none;
+        }
+
+        .backpack-use-mini.tool-active {
+            border: 1px solid #facc15;
+            box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.35);
+            animation: glow 1s infinite alternate;
+        }
+
+        .backpack-revive-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 22px;
+            margin-left: 2px;
+            font-size: 11px;
+            line-height: 1;
+            cursor: help;
+            user-select: none;
+        }
+
+        .backpack-revive-inline input {
+            width: 14px;
+            height: 14px;
+            min-width: 14px;
+            min-height: 14px;
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
+            flex-shrink: 0;
+            accent-color: #3b82f6;
+        }
+
+        .pause-placeholder {
+            min-height: min(42vh, 360px);
+            max-height: 52vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(20px, 4vw, 28px);
+            font-weight: bold;
+            background: #0f172a;
+            border-radius: 14px;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-6px);
+            }
+
+            50% {
+                transform: translateX(6px);
+            }
+
+            75% {
+                transform: translateX(-6px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes boom {
+            from {
+                filter: brightness(1);
+            }
+
+            to {
+                filter: brightness(1.35);
+            }
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px #facc15;
+            }
+
+            to {
+                box-shadow: 0 0 25px #facc15;
+            }
+        }
+
+        @keyframes cellPop {
+            from {
+                transform: scale(.7);
+                opacity: .5;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 8px 8px 10px;
+            }
+
+            .site-topbar-inner,
+            .site-user-bar,
+            .game-header,
+            .game-stats {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .stat-card {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+
+        <header class="site-topbar">
+            <div class="site-topbar-inner">
+                <div class="site-brand">
+                    <div class="site-logo-mark" aria-hidden="true">⚡</div>
+                    <div class="site-brand-text">
+                        <span class="site-title">雷区突围</span>
+                        <span class="site-tag">Mine Rush</span>
+                    </div>
+                </div>
+                <div class="site-user-bar">
+                    <div class="site-user-meta">
+                        <input v-if="editingNickname" ref="nicknameInput" class="nickname-input site-nickname-input"
+                            v-model="nicknameDraft" @blur="saveNickname" @keyup.enter="$event.target.blur()">
+                        <span v-else class="nickname-text site-nickname-text" :class="{ 'is-locked': isGameInProgress }"
+                            :title="isGameInProgress ? '对局进行中不可修改昵称' : '点击修改昵称'" @click="startNicknameEdit">
+                            {{ currentUser.nickname }}
+                        </span>
+                    </div>
+                    <div class="site-user-trail">
+                        <span class="user-name site-username">{{ currentUser.username }}</span>
+                        <div class="user-menu-anchor" ref="userMenuAnchor">
+                            <button type="button" class="user-menu-trigger"
+                                :aria-expanded="userMenuOpen ? 'true' : 'false'" aria-label="打开菜单"
+                                @click.stop="userMenuOpen = !userMenuOpen">▾</button>
+                            <div v-if="userMenuOpen" class="user-menu-panel" @click.stop>
+                                <button type="button" class="user-menu-item"
+                                    @click="userMenuOpen = false; openModal('ledger')">
+                                    <span class="user-menu-label">积分信息</span>
+                                    <span class="user-menu-value">{{ currentUser.score || 0 }} / {{
+                                        currentUser.totalScore || 0 }}</span>
+                                </button>
+                                <button type="button" class="user-menu-item"
+                                    @click="userMenuOpen = false; openModal('history')">历史对局</button>
+                                <button type="button" class="user-menu-item"
+                                    @click="userMenuOpen = false; openModal('propUsage')">道具使用记录</button>
+                                <button type="button" class="user-menu-item"
+                                    @click="userMenuOpen = false; openModal('purchase')">购买记录</button>
+                                <button type="button" class="user-menu-item"
+                                    @click="userMenuOpen = false; openModal('settings')">设置</button>
+                                <div class="user-menu-divider"></div>
+                                <button type="button" class="user-menu-item user-menu-item--bottom"
+                                    :disabled="isGameInProgress"
+                                    @click="userMenuOpen = false; openModal('user')">切换账户</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="app-main">
+
+            <app-modal :visible="!!activeModal" :title="modalTitle" @close="closeModal">
+                <template v-if="activeModal === 'user'">
+                    <div class="modal-actions">
+                        <input v-model="registerForm.username" placeholder="用户名">
+                        <input v-model="registerForm.nickname" placeholder="昵称">
+                        <button class="success" :disabled="isGameInProgress" @click="createUser">创建用户</button>
+                    </div>
+
+                    <div class="user-list">
+                        <div class="user-card" v-for="user in storage.users" :key="user.userId"
+                            :class="{ 'is-disabled': isGameInProgress }" @click="switchUser(user.userId)">
+                            <strong>{{ user.nickname }}</strong>
+                            <span class="user-name">（{{ user.username }}）</span>
+                            <span class="muted-small">总积分：{{ user.totalScore || 0 }}</span>
+                        </div>
+                    </div>
+                </template>
+
+                <template v-if="activeModal === 'history'">
+                    <div v-if="currentHistory.length === 0" class="empty-text">
+                        暂无历史对局
+                    </div>
+
+                    <div v-else class="history-list">
+                        <div class="history-item" v-for="(item, index) in currentHistory"
+                            :key="item.sessionId || index">
+                            <strong>{{ getHistoryResultText(item.result) }} · {{ getDifficultyText(item.difficulty)
+                                }}</strong>
+                            <span class="muted-small">用时：{{ item.time }} 秒 ｜ 得分：{{ item.score || 0 }} ｜ {{ item.date
+                                }}</span>
+                            <div v-if="item.propUses && item.propUses.length" class="history-prop-line">
+                                本局道具：{{ formatPropUsesLine(item.propUses) }}
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <template v-if="activeModal === 'propUsage'">
+                    <div v-if="currentUserPropUsageLog.length === 0" class="empty-text">暂无道具使用记录</div>
+                    <div v-else class="log-list">
+                        <div class="log-item" v-for="(row, i) in currentUserPropUsageLogReversed" :key="row.id || i">
+                            <span class="muted-small">{{ row.date }}</span>
+                            · {{ row.label }}
+                            <span v-if="row.sessionId" class="muted-small">（对局 {{ row.sessionId }}）</span>
+                        </div>
+                    </div>
+                </template>
+
+                <template v-if="activeModal === 'purchase'">
+                    <div v-if="currentUserPurchaseLog.length === 0" class="empty-text">暂无购买记录</div>
+                    <div v-else class="log-list">
+                        <div class="log-item" v-for="(row, i) in currentUserPurchaseLogReversed" :key="row.id || i">
+                            <span class="muted-small">{{ row.date }}</span>
+                            · {{ row.label }} · 花费 {{ row.cost }} 积分
+                        </div>
+                    </div>
+                </template>
+
+                <template v-if="activeModal === 'ledger'">
+                    <div v-if="currentUserScoreLedger.length === 0" class="empty-text">暂无积分流水</div>
+                    <div v-else class="log-list">
+                        <div class="log-item" v-for="(row, i) in currentUserScoreLedgerReversed" :key="row.id || i">
+                            <span class="muted-small">{{ row.date }}</span>
+                            · {{ row.reason }}
+                            <strong :style="{ color: row.delta >= 0 ? '#6ee7b7' : '#fca5a5' }">
+                                {{ row.delta >= 0 ? '+' : '' }}{{ row.delta }}
+                            </strong>
+                            ｜ 余额 {{ row.scoreAfter }} ｜ 累计 {{ row.totalScoreAfter }}
+                        </div>
+                    </div>
+                </template>
+
+                <template v-if="activeModal === 'settings'">
+                    <div class="settings-row">
+                        <div class="settings-row-text">
+                            <strong>数据模式</strong>
+                            <p>自动模式会探测接口并优先使用远程数据，失败时降级为本地缓存；本地模式仅读写本机；接口模式仅走远程，失败会报错。</p>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start;">
+                            <label class="checkbox-row" style="margin-top:0;">
+                                <input type="radio" name="repoMode" value="auto"
+                                    :checked="repositoryModeModel === 'auto'" @change="setRepositoryMode('auto')">
+                                <span>自动模式（推荐）</span>
+                            </label>
+                            <label class="checkbox-row" style="margin-top:0;">
+                                <input type="radio" name="repoMode" value="local"
+                                    :checked="repositoryModeModel === 'local'" @change="setRepositoryMode('local')">
+                                <span>本地模式</span>
+                            </label>
+                            <label class="checkbox-row" style="margin-top:0;"
+                                :class="{ 'is-disabled': !repositoryRemoteEnabled }">
+                                <input type="radio" name="repoMode" value="remote" :disabled="!repositoryRemoteEnabled"
+                                    :checked="repositoryModeModel === 'remote'" @change="setRepositoryMode('remote')">
+                                <span>接口模式（需接口可用）</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-text">
+                            <strong>数字格邻居高亮</strong>
+                            <p>鼠标悬停在已翻开且带数字的格子上时，为周围 8 格叠加浅色描边（使用阴影，不占布局）。关闭后不再显示。</p>
+                        </div>
+                        <label class="settings-toggle">
+                            <input type="checkbox" :checked="neighborHoverRingEnabled"
+                                @change="setNeighborHoverRingPref($event.target.checked)">
+                        </label>
+                    </div>
+                </template>
+            </app-modal>
+
+            <div class="layout">
+
+                <div>
+
+                    <div class="panel">
+                        <div class="panel-heading-row">
+                            <h2>游戏信息</h2>
+                            <div class="info-tip-wrap" tabindex="0">
+                                <button type="button" class="info-tip-btn" aria-label="积分规则说明">!</button>
+                                <div class="info-tip-bubble" role="tooltip">
+                                    积分规则：胜利直接获得当前难度满积分（初级100 / 中级300 / 高级800）；失败或主动结束时，按正确标记雷数 × 3 结算。
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="difficulty-select"
+                            :class="{ open: difficultyOpen && !isGameInProgress, 'is-locked': isGameInProgress }">
+                            <div class="difficulty-trigger" @click="toggleDifficultyMenu">
+                                <span>{{ difficultyLabel }}</span>
+                                <span class="difficulty-arrow">▼</span>
+                            </div>
+
+                            <div v-if="difficultyOpen && !isGameInProgress" class="difficulty-menu">
+                                <div class="difficulty-option" :class="{ active: difficulty === item.value }"
+                                    v-for="item in difficultyOptions" :key="item.value"
+                                    @click="selectDifficulty(item.value)">
+                                    {{ item.label }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button v-if="isGameInProgress" class="warning side-action" @click="togglePause">
+                            {{ paused ? '继续游戏' : '暂停游戏' }}
+                        </button>
+
+                        <button class="side-action"
+                            :class="isGameInProgress ? 'btn-action-restart' : 'btn-action-start'"
+                            @click="startOrRestartGame">
+                            {{ isGameInProgress ? '重开游戏' : '开始游戏' }}
+                        </button>
+
+                        <button v-if="canUseSafeStartHint" class="side-action btn-action-safe" @click="safeStartHint">
+                            安全开局
+                        </button>
+
+                        <button v-if="isGameInProgress" class="side-action btn-action-end" @click="endCurrentGame">
+                            结束对局
+                        </button>
+                    </div>
+
+                    <div class="panel shop-panel">
+                        <div class="shop-panel-head">
+                            <h2>道具商城</h2>
+                            <button type="button" class="shop-link-records" @click="openModal('purchase')">购买记录</button>
+                        </div>
+                        <div class="shop-score-strip muted-small">
+                            当前积分：{{ currentUser.score || 0 }} ｜ 总积分：{{ currentUser.totalScore || 0 }}
+                        </div>
+
+                        <div class="shop-list">
+                            <article class="shop-card">
+                                <div class="shop-card-head">
+                                    <h3 class="shop-card-name">提示卡</h3>
+                                    <span class="shop-card-bag">背包 {{ currentUser.props.hintCard }} 张</span>
+                                </div>
+                                <p class="shop-card-desc">对局中先点背包内「使用提示卡」，再点棋盘格子，可获知该格是否为雷；每局可用次数随难度不同。</p>
+                                <div class="shop-card-actions">
+                                    <span class="shop-card-price">500 积分 / 张</span>
+                                    <button type="button" class="warning" @click="buyHintCard">购买</button>
+                                </div>
+                            </article>
+
+                            <article class="shop-card">
+                                <div class="shop-card-head">
+                                    <h3 class="shop-card-name">复活卡</h3>
+                                    <span class="shop-card-bag">背包 {{ currentUser.props.reviveCard }} 张</span>
+                                </div>
+                                <p class="shop-card-desc">踩到地雷时可消耗一张复活：本格自动插旗，对局继续（每局最多成功触发一次复活流程）。</p>
+                                <div class="shop-card-actions">
+                                    <span class="shop-card-price">1500 积分 / 张</span>
+                                    <button type="button" class="warning" @click="buyReviveCard">购买</button>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <h2>总排行榜</h2>
+                        <div class="muted-small" style="margin-bottom: 10px;">
+                            {{ difficultyLabel }} · 全服前十名（按用时升序）
+                        </div>
+
+                        <div v-if="currentRankings.length === 0" class="empty-text" style="margin-bottom: 0;">
+                            该难度暂无上榜记录
+                        </div>
+
+                        <div v-else class="ranking-item" v-for="(item, index) in currentRankings"
+                            :key="item.entryId || index" :class="{
+                            'ranking-item--first': index === 0,
+                            'ranking-item--second': index === 1,
+                            'ranking-item--third': index === 2
+                        }">
+                            <div class="ranking-item-left">
+                                <span class="ranking-name-line">
+                                    <span class="ranking-rank-badge">{{ index + 1 }}</span>
+                                    {{ item.nickname }}
+                                </span>
+                                <span v-if="item.date" class="ranking-date">{{ item.date }}</span>
+                            </div>
+
+                            <span class="ranking-time">{{ item.time }} 秒</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div>
+                    <div class="panel battle-panel" :class="{
+                    shake: boardShake,
+                    victory: gameWin
+                }">
+
+                        <div class="battle-quota-row">
+                            <div class="battle-quota-pill">
+                                <span class="battle-quota-label">提示卡本局</span>
+                                <span class="battle-quota-val">{{ hintMatchRemaining }}/{{ hintMatchLimit }}</span>
+                            </div>
+                            <div class="battle-quota-pill">
+                                <span class="battle-quota-label">复活本局</span>
+                                <span class="battle-quota-val">{{ reviveMatchRemaining }}/{{ reviveMatchLimit }}</span>
+                            </div>
+                        </div>
+
+                        <div class="game-header">
+                            <div class="game-stats">
+                                <div class="stat-card stat-score">
+                                    <span class="stat-label">当前积分</span>
+                                    <span class="stat-value">{{ currentUser.score || 0 }}</span>
+                                </div>
+                                <div class="stat-card stat-mine">
+                                    <span class="stat-label">剩余雷数</span>
+                                    <span class="stat-value">{{ remainMines }}</span>
+                                </div>
+                                <div class="stat-card stat-time">
+                                    <span class="stat-label">用时</span>
+                                    <span class="stat-value">{{ timer }} 秒</span>
+                                </div>
+                            </div>
+
+                            <div class="message game-message">
+                                {{ gameMessage }}
+                            </div>
+                        </div>
+
+                        <div v-if="paused" class="pause-placeholder">
+                            游戏已暂停
+                        </div>
+
+                        <div v-else class="board board--adaptive" :style="boardWrapStyle"
+                            @mouseleave="clearNeighborRing">
+
+                            <div class="cell" v-for="cell in flatBoard" :key="cell.row + '-' + cell.col" :class="{
+                            opened: cell.opened,
+                            mine: cell.opened && cell.isMine,
+                            flag: cell.flagged,
+                            'cell-neighbor-ring': neighborRingKeys[cell.row + '-' + cell.col]
+                        }" @click="clickCell(cell)" @contextmenu.prevent="rightClick(cell)"
+                                @mouseenter="onNeighborRingCellEnter(cell)" @mouseleave="onNeighborRingCellLeave">
+
+                                <template v-if="cell.opened">
+                                    <span v-if="cell.isMine">💣</span>
+                                    <span v-else-if="cell.mineCount > 0">
+                                        {{ cell.mineCount }}
+                                    </span>
+                                </template>
+
+                                <template v-else>
+                                    <span v-if="cell.flagged">🚩</span>
+                                    <span v-else-if="cell.question">❔</span>
+                                </template>
+
+                            </div>
+
+                        </div>
+
+                        <div class="backpack-bar">
+                            <div class="backpack-inline">
+                                <span class="backpack-inline-label"
+                                    title="本局道具栏；悬停 💡 / 💊 可查看道具名称，「自动」为复活卡说明">背包</span>
+                                <div class="backpack-slot"
+                                    :class="{ 'is-exhausted': hintBackpackExhausted && isGameInProgress }">
+                                    <span class="backpack-ic" title="提示卡">💡</span>
+                                    <span class="backpack-count">×{{ currentUser.props.hintCard }}</span>
+                                    <button type="button" class="backpack-use-mini"
+                                        :class="{ 'tool-active': activeTool === 'hint' }"
+                                        :disabled="!canUseBattleProps || hintBackpackExhausted" @click="useHintCard">
+                                        {{ activeTool === 'hint' ? '选格' : '用' }}
+                                    </button>
+                                </div>
+                                <div class="backpack-slot">
+                                    <span class="backpack-ic" title="复活卡">💊</span>
+                                    <span class="backpack-count">×{{ currentUser.props.reviveCard }}</span>
+                                    <label class="backpack-revive-inline" title="有卡且本局未复活时，踩雷自动消耗一张">
+                                        <input type="checkbox" :checked="!!currentUser.autoRevive"
+                                            @change="setAutoRevive($event.target.checked)">
+                                        <span>自动</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div v-if="reviveOffer.visible" class="modal-mask revive-offer-mask" @click.self="declineReviveOffer">
+            <div class="modal" @click.stop>
+                <h2 style="margin-bottom: 8px;">踩到地雷</h2>
+                <p>是否使用复活卡复活本局？也可等待倒计时结束放弃复活。</p>
+                <div class="revive-countdown">{{ reviveOffer.secondsLeft }} 秒</div>
+                <div class="revive-actions">
+                    <button class="success" :disabled="currentUser.props.reviveCard <= 0"
+                        @click="confirmReviveOffer">使用复活卡</button>
+                    <button class="danger" @click="declineReviveOffer">放弃复活</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="toast-stack" aria-live="polite">
+            <div v-for="t in toasts" :key="t.id" :class="toastRowClass(t)">
+                <span v-if="t.toastKind === 'hint-safe' || t.toastKind === 'hint-mine'" class="toast-hint-glyph">{{
+                    t.toastKind === 'hint-safe' ? '✓' : '✕' }}</span>
+                <div class="toast-hint-body">
+                    <span class="toast-level">{{ toastLevelLine(t) }}</span>
+                    {{ t.message }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* global Vue, fetch, localStorage, AbortController */
+        const STORAGE_KEYS = {
+            AUTH: 'mine_rush_auth',
+            USERS: 'mine_rush_users',
+            RANKINGS: 'mine_rush_rankings',
+            HISTORIES: 'mine_rush_histories',
+            PROP_USAGE_LOGS: 'mine_rush_prop_usage_logs',
+            PURCHASE_LOGS: 'mine_rush_purchase_logs',
+            SCORE_LEDGERS: 'mine_rush_score_ledgers',
+            SETTINGS: 'mine_rush_settings'
+        };
+
+        const API_RESOURCE_PATHS = {
+            health: '/api/mine-rush/health',
+            auth: '/api/mine-rush/auth/current',
+            users: '/api/mine-rush/users',
+            rankings: '/api/mine-rush/rankings',
+            histories: '/api/mine-rush/histories',
+            propUsageLogs: '/api/mine-rush/prop-usage-logs',
+            purchaseLogs: '/api/mine-rush/purchase-logs',
+            scoreLedgers: '/api/mine-rush/score-ledgers',
+            settings: '/api/mine-rush/settings'
+        };
+
+        const MineRushApiClient = {
+            baseUrl: '',
+            timeout: 3000,
+
+            async request(method, url, data) {
+                const base = (MineRushApiClient.baseUrl || '').replace(/\/+$/, '');
+                const path = url.charAt(0) === '/' ? url : '/' + url;
+                const fullUrl = base + path;
+                const controller = new AbortController();
+                const tid = setTimeout(function () {
+                    controller.abort();
+                }, MineRushApiClient.timeout);
+                try {
+                    const opts = {
+                        method: method,
+                        signal: controller.signal,
+                        headers: { 'Content-Type': 'application/json' }
+                    };
+                    if (data != null && method !== 'GET' && method !== 'HEAD') {
+                        opts.body = JSON.stringify(data);
+                    }
+                    const res = await fetch(fullUrl, opts);
+                    clearTimeout(tid);
+                    if (!res.ok) {
+                        throw new Error('HTTP ' + res.status);
+                    }
+                    const ct = res.headers.get('content-type');
+                    if (ct && ct.indexOf('application/json') !== -1) {
+                        return await res.json();
+                    }
+                    const txt = await res.text();
+                    return txt === '' ? null : txt;
+                } catch (e) {
+                    clearTimeout(tid);
+                    if (e.name === 'AbortError') {
+                        throw new Error('请求超时');
+                    }
+                    throw e;
+                }
+            },
+
+            async get(url, params) {
+                let q = '';
+                if (params && typeof params === 'object' && Object.keys(params).length) {
+                    q = '?' + new URLSearchParams(params).toString();
+                }
+                return MineRushApiClient.request('GET', url + q, null);
+            },
+
+            async post(url, data) {
+                return MineRushApiClient.request('POST', url, data);
+            },
+
+            async put(url, data) {
+                return MineRushApiClient.request('PUT', url, data);
+            },
+
+            async delete(url, data) {
+                return MineRushApiClient.request('DELETE', url, data);
+            },
+
+            async pingHealth() {
+                return MineRushApiClient.get(API_RESOURCE_PATHS.health, {});
+            }
+        };
+
+        const MineRushRepository = {
+            mode: 'auto',
+            activeMode: 'local',
+            remoteAvailable: false,
+            vueVm: null,
+            _healthChecked: false,
+            _healthOk: false,
+            _pageLoadHealthPromise: null,
+
+            _toastFallback(msg) {
+                if (MineRushRepository.vueVm && typeof MineRushRepository.vueVm.showToast === 'function') {
+                    MineRushRepository.vueVm.showToast(msg, 'warning', 4200);
+                }
+            },
+
+            _switchToLocalOnRemoteFailure() {
+                if (MineRushRepository.mode === 'auto' && MineRushRepository.activeMode === 'remote') {
+                    MineRushRepository.activeMode = 'local';
+                    MineRushRepository._toastFallback('接口不可用，已切换为本地缓存模式');
+                }
+            },
+
+            _apiPath(resourceName) {
+                const p = API_RESOURCE_PATHS[resourceName];
+                if (!p) {
+                    throw new Error('未知资源: ' + resourceName);
+                }
+                return p;
+            },
+
+            readLocalJson(key, defaultValue) {
+                const raw = localStorage.getItem(key);
+                if (raw == null || raw === '') {
+                    return defaultValue;
+                }
+                try {
+                    return JSON.parse(raw);
+                } catch (e) {
+                    return defaultValue;
+                }
+            },
+
+            writeLocalJson(key, value) {
+                localStorage.setItem(key, JSON.stringify(value));
+            },
+
+            async fetchHealthStatus() {
+                try {
+                    await MineRushApiClient.pingHealth();
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            },
+
+            async checkRemoteAvailable(forceRefresh) {
+                if (forceRefresh) {
+                    MineRushRepository._healthChecked = false;
+                    MineRushRepository._pageLoadHealthPromise = null;
+                }
+                if (!forceRefresh && MineRushRepository._healthChecked) {
+                    return MineRushRepository._healthOk;
+                }
+                if (!forceRefresh && MineRushRepository._pageLoadHealthPromise) {
+                    MineRushRepository._healthOk = await MineRushRepository._pageLoadHealthPromise;
+                    MineRushRepository._pageLoadHealthPromise = null;
+                    MineRushRepository._healthChecked = true;
+                    return MineRushRepository._healthOk;
+                }
+                MineRushRepository._healthOk = await MineRushRepository.fetchHealthStatus();
+                MineRushRepository._healthChecked = true;
+                return MineRushRepository._healthOk;
+            },
+
+            async init(vm, forceHealthRefresh) {
+                MineRushRepository.vueVm = vm;
+                const mode = (vm.storage && vm.storage.settings && vm.storage.settings.repositoryMode) || 'auto';
+                MineRushRepository.mode = mode;
+                if (mode === 'local') {
+                    MineRushRepository.activeMode = 'local';
+                    MineRushRepository.remoteAvailable = false;
+                    return;
+                }
+                if (mode === 'remote') {
+                    MineRushRepository.remoteAvailable = await MineRushRepository.checkRemoteAvailable(!!forceHealthRefresh);
+                    if (!MineRushRepository.remoteAvailable) {
+                        throw new Error('接口模式不可用：远程接口无法访问');
+                    }
+                    MineRushRepository.activeMode = 'remote';
+                    return;
+                }
+                MineRushRepository.remoteAvailable = await MineRushRepository.checkRemoteAvailable(!!forceHealthRefresh);
+                MineRushRepository.activeMode = MineRushRepository.remoteAvailable ? 'remote' : 'local';
+            },
+
+            async readData(resourceName, localKey, defaultValue) {
+                const mode = MineRushRepository.mode;
+                if (mode === 'local') {
+                    return MineRushRepository.readLocalJson(localKey, defaultValue);
+                }
+                if (mode === 'remote') {
+                    const data = await MineRushApiClient.get(MineRushRepository._apiPath(resourceName), {});
+                    MineRushRepository.writeLocalJson(localKey, data);
+                    return data;
+                }
+                if (MineRushRepository.activeMode === 'remote') {
+                    try {
+                        const data = await MineRushApiClient.get(MineRushRepository._apiPath(resourceName), {});
+                        MineRushRepository.writeLocalJson(localKey, data);
+                        return data;
+                    } catch (e) {
+                        MineRushRepository._switchToLocalOnRemoteFailure();
+                        return MineRushRepository.readLocalJson(localKey, defaultValue);
+                    }
+                }
+                return MineRushRepository.readLocalJson(localKey, defaultValue);
+            },
+
+            async writeData(resourceName, localKey, value) {
+                const mode = MineRushRepository.mode;
+                if (mode === 'local') {
+                    MineRushRepository.writeLocalJson(localKey, value);
+                    return;
+                }
+                if (mode === 'remote') {
+                    await MineRushApiClient.put(MineRushRepository._apiPath(resourceName), value);
+                    MineRushRepository.writeLocalJson(localKey, value);
+                    return;
+                }
+                if (MineRushRepository.activeMode === 'remote') {
+                    try {
+                        await MineRushApiClient.put(MineRushRepository._apiPath(resourceName), value);
+                        MineRushRepository.writeLocalJson(localKey, value);
+                    } catch (e) {
+                        MineRushRepository._switchToLocalOnRemoteFailure();
+                        MineRushRepository.writeLocalJson(localKey, value);
+                    }
+                    return;
+                }
+                MineRushRepository.writeLocalJson(localKey, value);
+            },
+
+            async loadAuth() {
+                return MineRushRepository.readData('auth', STORAGE_KEYS.AUTH, { currentUserId: '' });
+            },
+
+            async saveAuth(auth) {
+                return MineRushRepository.writeData('auth', STORAGE_KEYS.AUTH, auth);
+            },
+
+            async loadUsers() {
+                return MineRushRepository.readData('users', STORAGE_KEYS.USERS, []);
+            },
+
+            async saveUsers(users) {
+                return MineRushRepository.writeData('users', STORAGE_KEYS.USERS, users);
+            },
+
+            async loadRankings() {
+                return MineRushRepository.readData('rankings', STORAGE_KEYS.RANKINGS, { easy: [], medium: [], hard: [] });
+            },
+
+            async saveRankings(rankings) {
+                return MineRushRepository.writeData('rankings', STORAGE_KEYS.RANKINGS, rankings);
+            },
+
+            async loadHistories() {
+                return MineRushRepository.readData('histories', STORAGE_KEYS.HISTORIES, {});
+            },
+
+            async saveHistories(histories) {
+                return MineRushRepository.writeData('histories', STORAGE_KEYS.HISTORIES, histories);
+            },
+
+            async loadPropUsageLogs() {
+                return MineRushRepository.readData('propUsageLogs', STORAGE_KEYS.PROP_USAGE_LOGS, {});
+            },
+
+            async savePropUsageLogs(logs) {
+                return MineRushRepository.writeData('propUsageLogs', STORAGE_KEYS.PROP_USAGE_LOGS, logs);
+            },
+
+            async loadPurchaseLogs() {
+                return MineRushRepository.readData('purchaseLogs', STORAGE_KEYS.PURCHASE_LOGS, {});
+            },
+
+            async savePurchaseLogs(logs) {
+                return MineRushRepository.writeData('purchaseLogs', STORAGE_KEYS.PURCHASE_LOGS, logs);
+            },
+
+            async loadScoreLedgers() {
+                return MineRushRepository.readData('scoreLedgers', STORAGE_KEYS.SCORE_LEDGERS, {});
+            },
+
+            async saveScoreLedgers(ledgers) {
+                return MineRushRepository.writeData('scoreLedgers', STORAGE_KEYS.SCORE_LEDGERS, ledgers);
+            },
+
+            async loadSettings() {
+                return MineRushRepository.readData('settings', STORAGE_KEYS.SETTINGS, {
+                    storageVersion: 1,
+                    repositoryMode: 'auto'
+                });
+            },
+
+            async saveSettings(settings) {
+                return MineRushRepository.writeData('settings', STORAGE_KEYS.SETTINGS, settings);
+            }
+        };
+
+        MineRushRepository._pageLoadHealthPromise = MineRushRepository.fetchHealthStatus();
+
+        const MineRushStorage = {
+            async initRepository(forceHealthRefresh) {
+                await MineRushRepository.init(this, !!forceHealthRefresh);
+            },
+
+            async loadStorage() {
+                const auth = await MineRushRepository.loadAuth();
+                const users = await MineRushRepository.loadUsers();
+                const rankings = await MineRushRepository.loadRankings();
+                const histories = await MineRushRepository.loadHistories();
+                const propUsageLogs = await MineRushRepository.loadPropUsageLogs();
+                const purchaseLogs = await MineRushRepository.loadPurchaseLogs();
+                const scoreLedgers = await MineRushRepository.loadScoreLedgers();
+                const settings = await MineRushRepository.loadSettings();
+                this.storage.auth = auth || { currentUserId: '' };
+                this.storage.users = Array.isArray(users) ? users : [];
+                this.storage.rankings = rankings && typeof rankings === 'object' ? rankings : { easy: [], medium: [], hard: [] };
+                this.storage.histories = histories && typeof histories === 'object' ? histories : {};
+                this.storage.propUsageLogs = propUsageLogs && typeof propUsageLogs === 'object' ? propUsageLogs : {};
+                this.storage.purchaseLogs = purchaseLogs && typeof purchaseLogs === 'object' ? purchaseLogs : {};
+                this.storage.scoreLedgers = scoreLedgers && typeof scoreLedgers === 'object' ? scoreLedgers : {};
+                this.storage.settings = settings && typeof settings === 'object' ? settings : { storageVersion: 1, repositoryMode: 'auto' };
+                try {
+                    await MineRushRepository.init(this, false);
+                } catch (err) {
+                    this.$set(this.storage.settings, 'repositoryMode', 'auto');
+                    MineRushRepository.mode = 'auto';
+                    await MineRushRepository.saveSettings(this.storage.settings);
+                    await MineRushRepository.init(this, false);
+                    if (typeof this.showToast === 'function') {
+                        this.showToast('接口模式不可用，已恢复为自动模式', 'warning', 4800);
+                    }
+                }
+            },
+
+            async saveStorage() {
+                await this.saveAuthStorage();
+                await this.saveUsersStorage();
+                await this.saveRankingsStorage();
+                await this.saveHistoriesStorage();
+                await this.savePropUsageLogsStorage();
+                await this.savePurchaseLogsStorage();
+                await this.saveScoreLedgersStorage();
+                await this.saveSettingsStorage();
+            },
+
+            async saveAuthStorage() {
+                await MineRushRepository.saveAuth(this.storage.auth);
+            },
+
+            async saveUsersStorage() {
+                await MineRushRepository.saveUsers(this.storage.users);
+            },
+
+            async saveRankingsStorage() {
+                await MineRushRepository.saveRankings(this.storage.rankings);
+            },
+
+            async saveHistoriesStorage() {
+                await MineRushRepository.saveHistories(this.storage.histories);
+            },
+
+            async savePropUsageLogsStorage() {
+                await MineRushRepository.savePropUsageLogs(this.storage.propUsageLogs);
+            },
+
+            async savePurchaseLogsStorage() {
+                await MineRushRepository.savePurchaseLogs(this.storage.purchaseLogs);
+            },
+
+            async saveScoreLedgersStorage() {
+                await MineRushRepository.saveScoreLedgers(this.storage.scoreLedgers);
+            },
+
+            async saveSettingsStorage() {
+                await MineRushRepository.saveSettings(this.storage.settings);
+            },
+
+            normalizeStorage() {
+                if (!this.storage.rankings) {
+                    this.$set(this.storage, 'rankings', { easy: [], medium: [], hard: [] });
+                }
+                ['easy', 'medium', 'hard'].forEach(function (k) {
+                    if (!Array.isArray(this.storage.rankings[k])) {
+                        this.$set(this.storage.rankings, k, []);
+                    }
+                }, this);
+                if (!this.storage.auth) {
+                    this.$set(this.storage, 'auth', { currentUserId: '' });
+                }
+                if (!Array.isArray(this.storage.users)) {
+                    this.$set(this.storage, 'users', []);
+                }
+                ['histories', 'propUsageLogs', 'purchaseLogs', 'scoreLedgers'].forEach(function (key) {
+                    if (!this.storage[key] || typeof this.storage[key] !== 'object') {
+                        this.$set(this.storage, key, {});
+                    }
+                }, this);
+                if (!this.storage.settings) {
+                    this.$set(this.storage, 'settings', { storageVersion: 1, repositoryMode: 'auto' });
+                }
+                if (typeof this.storage.settings.storageVersion !== 'number') {
+                    this.$set(this.storage.settings, 'storageVersion', 1);
+                }
+                if (!this.storage.settings.repositoryMode) {
+                    this.$set(this.storage.settings, 'repositoryMode', 'auto');
+                }
+                this.storage.users.forEach(function (u) {
+                    this.ensureUserRelatedBuckets(u.userId);
+                    if (!u.props) {
+                        this.$set(u, 'props', { hintCard: 0, reviveCard: 0 });
+                    }
+                    if (typeof u.autoRevive !== 'boolean') {
+                        this.$set(u, 'autoRevive', false);
+                    }
+                    if (!u.prefs) {
+                        this.$set(u, 'prefs', { neighborHoverRing: true });
+                    }
+                }, this);
+            },
+
+            ensureUserRelatedBuckets(userId) {
+                if (!userId) {
+                    return;
+                }
+                if (!this.storage.histories[userId]) {
+                    this.$set(this.storage.histories, userId, []);
+                }
+                if (!this.storage.propUsageLogs[userId]) {
+                    this.$set(this.storage.propUsageLogs, userId, []);
+                }
+                if (!this.storage.purchaseLogs[userId]) {
+                    this.$set(this.storage.purchaseLogs, userId, []);
+                }
+                if (!this.storage.scoreLedgers[userId]) {
+                    this.$set(this.storage.scoreLedgers, userId, []);
+                }
+            }
+        };
+
+        const MineRushUser = {
+            getCurrentUser() {
+                const id = this.storage.auth.currentUserId;
+                return this.storage.users.find(function (u) {
+                    return u.userId === id;
+                });
+            },
+
+            getUserById(userId) {
+                return this.storage.users.find(function (u) {
+                    return u.userId === userId;
+                });
+            },
+
+            buildNewUser(partial) {
+                return {
+                    userId: partial.userId,
+                    username: partial.username,
+                    nickname: partial.nickname,
+                    score: partial.score != null ? partial.score : 0,
+                    totalScore: partial.totalScore != null ? partial.totalScore : 0,
+                    props: partial.props || { hintCard: 0, reviveCard: 0 },
+                    autoRevive: !!partial.autoRevive,
+                    prefs: partial.prefs || { neighborHoverRing: true }
+                };
+            },
+
+            async createDefaultUser() {
+                const uid = 'U_' + Date.now();
+                const user = MineRushUser.buildNewUser.call(this, {
+                    userId: uid,
+                    username: 'guest_' + Math.floor(Math.random() * 9999),
+                    nickname: '游客玩家',
+                    score: 500,
+                    totalScore: 500,
+                    props: { hintCard: 3, reviveCard: 1 }
+                });
+                this.storage.users.push(user);
+                this.storage.auth.currentUserId = uid;
+                this.ensureUserRelatedBuckets(uid);
+                this.storage.scoreLedgers[uid].push({
+                    id: 'L_' + Date.now(),
+                    date: new Date().toLocaleString(),
+                    delta: 500,
+                    reason: '初始赠送积分',
+                    scoreAfter: 500,
+                    totalScoreAfter: 500,
+                    sessionId: null
+                });
+                await this.saveStorage();
+            },
+
+            async createUser() {
+                if (!this.registerForm.username || !this.registerForm.nickname) {
+                    this.showToast('请输入用户名和昵称', 'warning');
+                    return;
+                }
+                const self = this;
+                const exist = this.storage.users.find(function (v) {
+                    return v.username === self.registerForm.username;
+                });
+                if (exist) {
+                    this.showToast('用户名已存在', 'warning');
+                    return;
+                }
+                const uid = 'U_' + Date.now();
+                const user = MineRushUser.buildNewUser.call(this, {
+                    userId: uid,
+                    username: this.registerForm.username,
+                    nickname: this.registerForm.nickname,
+                    score: 0,
+                    totalScore: 0,
+                    props: { hintCard: 0, reviveCard: 0 }
+                });
+                this.storage.users.push(user);
+                this.storage.auth.currentUserId = uid;
+                this.ensureUserRelatedBuckets(uid);
+                this.registerForm.username = '';
+                this.registerForm.nickname = '';
+                await this.saveStorage();
+                this.closeModal();
+                this.showToast('用户已创建并切换', 'success');
+            },
+
+            async switchUser(userId) {
+                if (this.isGameInProgress) {
+                    this.showToast('对局进行中，无法切换用户', 'warning');
+                    return;
+                }
+                this.storage.auth.currentUserId = userId;
+                this.editingNickname = false;
+                this.closeModal();
+                await this.saveStorage();
+            },
+
+            startNicknameEdit() {
+                if (this.isGameInProgress) {
+                    this.showToast('对局进行中，无法修改昵称', 'warning');
+                    return;
+                }
+                this.nicknameDraft = this.currentUser.nickname;
+                this.editingNickname = true;
+                this.$nextTick(function () {
+                    this.$refs.nicknameInput.focus();
+                });
+            },
+
+            async saveNickname() {
+                const nickname = this.nicknameDraft.trim();
+                if (!nickname) {
+                    this.nicknameDraft = this.currentUser.nickname;
+                    this.editingNickname = false;
+                    return;
+                }
+                this.currentUser.nickname = nickname;
+                this.editingNickname = false;
+                await this.saveStorage();
+            }
+        };
+
+        const MineRushModal = {
+            openModal(type) {
+                this.userMenuOpen = false;
+                if (type === 'user' && this.isGameInProgress) {
+                    this.showToast('对局进行中，无法切换或创建用户', 'warning');
+                    return;
+                }
+                this.activeModal = type;
+            },
+
+            closeModal() {
+                this.activeModal = '';
+            }
+        };
+
+        const MineRushToast = {
+            showToast(message, level, duration, toastKind) {
+                const lvl = level || 'info';
+                const ms = typeof duration === 'number' ? duration : 3200;
+                const id = ++this.toastIdSeq;
+                this.toasts.push({
+                    id: id,
+                    level: lvl,
+                    message: message,
+                    toastKind: toastKind || null
+                });
+                const self = this;
+                setTimeout(function () {
+                    self.toasts = self.toasts.filter(function (v) {
+                        return v.id !== id;
+                    });
+                }, ms);
+            },
+
+            toastRowClass(t) {
+                if (t.toastKind === 'hint-safe') {
+                    return { toast: true, 'toast--hint-safe': true };
+                }
+                if (t.toastKind === 'hint-mine') {
+                    return { toast: true, 'toast--hint-mine': true };
+                }
+                return { toast: true, ['toast--' + (t.level || 'info')]: true };
+            },
+
+            toastLevelLine(t) {
+                if (t.toastKind === 'hint-safe') {
+                    return '安全格';
+                }
+                if (t.toastKind === 'hint-mine') {
+                    return '危险格';
+                }
+                return MineRushToast.toastLevelLabel.call(this, t.level);
+            },
+
+            toastLevelLabel(level) {
+                const map = { info: '信息', success: '成功', warning: '提醒', error: '错误' };
+                return map[level] || '信息';
+            },
+
+            removeToast(id) {
+                this.toasts = this.toasts.filter(function (v) {
+                    return v.id !== id;
+                });
+            }
+        };
+
+        const MineRushSetting = {
+            async setNeighborHoverRingPref(value) {
+                this.$set(this.currentUser.prefs, 'neighborHoverRing', !!value);
+                await this.saveStorage();
+                if (!value) {
+                    this.clearNeighborRing();
+                }
+            },
+
+            async setRepositoryMode(mode) {
+                if (mode === 'remote' && !MineRushRepository.remoteAvailable) {
+                    return;
+                }
+                this.$set(this.storage.settings, 'repositoryMode', mode);
+                MineRushRepository.mode = mode;
+                await this.saveSettingsStorage();
+                await this.initRepository(true);
+                await this.loadStorage();
+                this.normalizeStorage();
+            }
+        };
+
+        const MineRushUi = {
+            toggleDifficultyMenu() {
+                if (this.isGameInProgress) {
+                    this.showToast('对局进行中，无法切换难度', 'warning');
+                    return;
+                }
+                this.difficultyOpen = !this.difficultyOpen;
+            },
+
+            selectDifficulty(value) {
+                if (this.isGameInProgress) {
+                    this.showToast('对局进行中，无法切换难度', 'warning');
+                    return;
+                }
+                this.difficulty = value;
+                this.difficultyOpen = false;
+                if (!this.isGameInProgress) {
+                    this.startGame();
+                }
+            },
+
+            getDifficultyText(value) {
+                const current = this.difficultyOptions.find(function (v) {
+                    return v.value === value;
+                });
+                return current ? current.label : '未知难度';
+            },
+
+            getHistoryResultText(result) {
+                const resultMap = { win: '胜利', fail: '失败', end: '主动结束' };
+                return resultMap[result] || '未知结果';
+            },
+
+            handleWindowResize() {
+                this.windowWidth = window.innerWidth;
+            },
+
+            handleDocumentClick(e) {
+                if (!this.userMenuOpen) {
+                    return;
+                }
+                const root = this.$refs.userMenuAnchor;
+                if (root && root.contains(e.target)) {
+                    return;
+                }
+                this.userMenuOpen = false;
+            }
+        };
+
+        const MineRushScore = {
+            addUserScore(score, reason) {
+                if (!score) {
+                    return;
+                }
+                this.currentUser.score += score;
+                this.currentUser.totalScore += score;
+                this.recordScoreLedger(score, reason || '积分变动');
+            },
+
+            reduceUserScore(amount, reason) {
+                if (!amount) {
+                    return;
+                }
+                this.currentUser.score -= amount;
+                this.recordScoreLedger(-amount, reason || '积分变动');
+            },
+
+            recordScoreLedger(delta, reason) {
+                const uid = this.storage.auth.currentUserId;
+                this.ensureUserRelatedBuckets(uid);
+                this.storage.scoreLedgers[uid].push({
+                    id: 'L_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+                    date: new Date().toLocaleString(),
+                    delta: delta,
+                    reason: reason,
+                    scoreAfter: this.currentUser.score,
+                    totalScoreAfter: this.currentUser.totalScore,
+                    sessionId: this.matchSessionId || null
+                });
+            },
+
+            canAfford(cost) {
+                return this.currentUser.score >= cost;
+            }
+        };
+
+        const MineRushRanking = {
+            buildRankingRecord(extra) {
+                return {
+                    entryId: 'R_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+                    userId: this.currentUser.userId,
+                    nickname: this.currentUser.nickname,
+                    username: this.currentUser.username,
+                    time: this.timer,
+                    score: extra.score,
+                    correctFlags: extra.correctFlags,
+                    totalMines: this.mines,
+                    difficulty: this.difficulty,
+                    date: new Date().toLocaleString()
+                };
+            },
+
+            sortRankingList(list) {
+                return list.slice().sort(function (a, b) {
+                    if (a.time !== b.time) {
+                        return a.time - b.time;
+                    }
+                    return String(a.entryId).localeCompare(String(b.entryId));
+                });
+            },
+
+            trimRankingList(list, maxLen) {
+                return list.slice(0, maxLen);
+            },
+
+            addRankingRecord(rankingData) {
+                const diff = rankingData.difficulty;
+                const globalList = this.storage.rankings[diff].concat(rankingData);
+                const sorted = MineRushRanking.sortRankingList.call(this, globalList);
+                this.$set(this.storage.rankings, diff, MineRushRanking.trimRankingList(sorted, 10));
+            }
+        };
+
+        const MineRushProp = {
+            ensureMatchSession() {
+                if (!this.matchSessionId) {
+                    this.matchSessionId = this.createMatchSessionId();
+                    this.currentMatchPropUses = [];
+                }
+            },
+
+            stopReviveOfferTimer() {
+                if (this.reviveOffer.tickTimerId) {
+                    clearInterval(this.reviveOffer.tickTimerId);
+                    this.reviveOffer.tickTimerId = null;
+                }
+            },
+
+            recordPropUsage(type, label) {
+                MineRushProp.ensureMatchSession.call(this);
+                const date = new Date().toLocaleString();
+                const snap = {
+                    type: type,
+                    label: label,
+                    timerSec: this.timer,
+                    date: date
+                };
+                this.currentMatchPropUses.push(snap);
+                const uid = this.storage.auth.currentUserId;
+                this.ensureUserRelatedBuckets(uid);
+                this.storage.propUsageLogs[uid].push({
+                    id: 'PU_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+                    type: type,
+                    label: label,
+                    date: date,
+                    sessionId: this.matchSessionId,
+                    timerSec: this.timer
+                });
+            },
+
+            recordPurchaseLog(label, cost) {
+                const uid = this.storage.auth.currentUserId;
+                this.ensureUserRelatedBuckets(uid);
+                this.storage.purchaseLogs[uid].push({
+                    id: 'B_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+                    date: new Date().toLocaleString(),
+                    label: label,
+                    cost: cost,
+                    sessionId: this.matchSessionId || null
+                });
+            },
+
+            formatPropUsesLine(list) {
+                if (!list || list.length === 0) {
+                    return '无';
+                }
+                return list.map(function (v) {
+                    return v.label || v.type;
+                }).join('；');
+            },
+
+            async setAutoRevive(value) {
+                this.$set(this.currentUser, 'autoRevive', !!value);
+                await this.saveStorage();
+                this.showToast(value ? '已开启踩雷自动复活' : '已关闭踩雷自动复活', 'info');
+            },
+
+            startReviveOffer(cell) {
+                MineRushProp.stopReviveOfferTimer.call(this);
+                this.reviveOffer.visible = true;
+                this.reviveOffer.cell = cell;
+                this.reviveOffer.secondsLeft = 5;
+                const self = this;
+                this.reviveOffer.tickTimerId = setInterval(function () {
+                    self.reviveOffer.secondsLeft--;
+                    if (self.reviveOffer.secondsLeft <= 0) {
+                        self.declineReviveOffer();
+                    }
+                }, 1000);
+            },
+
+            async confirmReviveOffer() {
+                if (!this.reviveOffer.visible || !this.reviveOffer.cell) {
+                    return;
+                }
+                if (this.currentUser.props.reviveCard <= 0) {
+                    this.showToast('没有可用的复活卡', 'warning');
+                    return;
+                }
+                const cell = this.reviveOffer.cell;
+                MineRushProp.stopReviveOfferTimer.call(this);
+                this.reviveOffer.visible = false;
+                this.reviveOffer.cell = null;
+                await MineRushProp.applyReviveFromMine.call(this, cell);
+            },
+
+            async declineReviveOffer() {
+                if (!this.reviveOffer.visible) {
+                    return;
+                }
+                MineRushProp.stopReviveOfferTimer.call(this);
+                this.reviveOffer.visible = false;
+                this.reviveOffer.cell = null;
+                if (this.gameOver) {
+                    return;
+                }
+                this.failGame();
+            },
+
+            async applyReviveFromMine(cell) {
+                this.revived = true;
+                this.currentUser.props.reviveCard--;
+                cell.flagged = true;
+                MineRushProp.recordPropUsage.call(this, 'revive', '复活卡：踩中格已标雷旗');
+                this.gameMessage = '复活卡已触发';
+                this.showToast('已使用复活卡', 'success');
+                await this.saveStorage();
+            },
+
+            async buyHintCard() {
+                if (!this.canAfford(500)) {
+                    this.showToast('积分不足', 'warning');
+                    return;
+                }
+                this.reduceUserScore(500, '购买道具 · 提示卡');
+                this.currentUser.props.hintCard++;
+                MineRushProp.recordPurchaseLog.call(this, '购买提示卡 ×1', 500);
+                await this.saveStorage();
+                this.showToast('已购买 1 张提示卡', 'success');
+            },
+
+            async buyReviveCard() {
+                if (!this.canAfford(1500)) {
+                    this.showToast('积分不足', 'warning');
+                    return;
+                }
+                this.reduceUserScore(1500, '购买道具 · 复活卡');
+                this.currentUser.props.reviveCard++;
+                MineRushProp.recordPurchaseLog.call(this, '购买复活卡 ×1', 1500);
+                await this.saveStorage();
+                this.showToast('已购买 1 张复活卡', 'success');
+            },
+
+            useHintCard() {
+                if (!this.canUseBattleProps) {
+                    this.showToast('对局未开始、已结束或已暂停时不可使用道具', 'warning');
+                    return;
+                }
+                if (this.currentUser.props.hintCard <= 0) {
+                    this.showToast('没有提示卡', 'warning');
+                    return;
+                }
+                const limitMap = { easy: 2, medium: 3, hard: 5 };
+                if (this.usedHintCount >= limitMap[this.difficulty]) {
+                    this.showToast('本局提示次数已达上限', 'warning');
+                    return;
+                }
+                this.activeTool = 'hint';
+                this.gameMessage = '请选择一个格子进行提示';
+            },
+
+            async handleHint(cell) {
+                if (cell.opened) {
+                    return;
+                }
+                this.currentUser.props.hintCard--;
+                this.usedHintCount++;
+                this.activeTool = '';
+                const isMine = cell.isMine;
+                MineRushProp.recordPropUsage.call(this, 'hint', isMine ? '提示卡：目标为雷' : '提示卡：目标安全');
+                if (isMine) {
+                    this.showToast('快看！是大雷！', 'error', 4200, 'hint-mine');
+                } else {
+                    this.showToast('此处安全', 'success', 4200, 'hint-safe');
+                }
+                this.gameMessage = '提示已使用';
+                await this.saveStorage();
+            }
+        };
+
+        const MineRushBoard = {
+            createEmptyBoard(rows, cols) {
+                const board = [];
+                let row;
+                let col;
+                let line;
+                for (row = 0; row < rows; row++) {
+                    line = [];
+                    for (col = 0; col < cols; col++) {
+                        line.push({
+                            row: row,
+                            col: col,
+                            isMine: false,
+                            mineCount: 0,
+                            opened: false,
+                            flagged: false,
+                            question: false
+                        });
+                    }
+                    board.push(line);
+                }
+                return board;
+            },
+
+            placeMines(board, rows, cols, mines) {
+                let count = 0;
+                let row;
+                let col;
+                let cell;
+                while (count < mines) {
+                    row = Math.floor(Math.random() * rows);
+                    col = Math.floor(Math.random() * cols);
+                    cell = board[row][col];
+                    if (!cell.isMine) {
+                        cell.isMine = true;
+                        count++;
+                    }
+                }
+            },
+
+            calculateMineCounts(board, rows, cols) {
+                let row;
+                let col;
+                let cell;
+                let mineCount;
+                let x;
+                let y;
+                let newRow;
+                let newCol;
+                for (row = 0; row < rows; row++) {
+                    for (col = 0; col < cols; col++) {
+                        cell = board[row][col];
+                        if (cell.isMine) {
+                            continue;
+                        }
+                        mineCount = 0;
+                        for (x = -1; x <= 1; x++) {
+                            for (y = -1; y <= 1; y++) {
+                                if (x === 0 && y === 0) {
+                                    continue;
+                                }
+                                newRow = row + x;
+                                newCol = col + y;
+                                if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
+                                    if (board[newRow][newCol].isMine) {
+                                        mineCount++;
+                                    }
+                                }
+                            }
+                        }
+                        cell.mineCount = mineCount;
+                    }
+                }
+            },
+
+            initBoard() {
+                this.board = MineRushBoard.createEmptyBoard(this.rows, this.cols);
+                MineRushBoard.placeMines(this.board, this.rows, this.cols, this.mines);
+                MineRushBoard.calculateMineCounts(this.board, this.rows, this.cols);
+            },
+
+            getNeighbors(row, col) {
+                const out = [];
+                let dr;
+                let dc;
+                let r;
+                let c;
+                for (dr = -1; dr <= 1; dr++) {
+                    for (dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) {
+                            continue;
+                        }
+                        r = row + dr;
+                        c = col + dc;
+                        if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) {
+                            out.push(this.board[r][c]);
+                        }
+                    }
+                }
+                return out;
+            },
+
+            openCell(cell) {
+                if (cell.opened || cell.flagged) {
+                    return;
+                }
+                cell.opened = true;
+                if (cell.mineCount === 0) {
+                    this.expandZero(cell.row, cell.col);
+                }
+            },
+
+            expandZero(row, col) {
+                let x;
+                let y;
+                let newRow;
+                let newCol;
+                let cell;
+                for (x = -1; x <= 1; x++) {
+                    for (y = -1; y <= 1; y++) {
+                        newRow = row + x;
+                        newCol = col + y;
+                        if (newRow >= 0 && newRow < this.rows && newCol >= 0 && newCol < this.cols) {
+                            cell = this.board[newRow][newCol];
+                            if (!cell.opened && !cell.isMine && !cell.flagged) {
+                                cell.opened = true;
+                                if (cell.mineCount === 0) {
+                                    this.expandZero(newRow, newCol);
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
+            rightClick(cell) {
+                if (this.gameOver || this.paused || this.reviveOffer.visible) {
+                    return;
+                }
+                if (cell.opened) {
+                    return;
+                }
+                if (!cell.flagged && !cell.question) {
+                    cell.flagged = true;
+                    return;
+                }
+                if (cell.flagged) {
+                    cell.flagged = false;
+                    cell.question = true;
+                    return;
+                }
+                if (cell.question) {
+                    cell.question = false;
+                }
+            },
+
+            getCorrectFlagCount() {
+                let correctFlags = 0;
+                this.flatBoard.forEach(function (v) {
+                    if (v.flagged && v.isMine) {
+                        correctFlags++;
+                    }
+                });
+                return correctFlags;
+            },
+
+            getOpenedCount() {
+                let openedCount = 0;
+                this.flatBoard.forEach(function (v) {
+                    if (v.opened) {
+                        openedCount++;
+                    }
+                });
+                return openedCount;
+            },
+
+            checkWin() {
+                if (MineRushBoard.getOpenedCount.call(this) === this.rows * this.cols - this.mines) {
+                    this.winGame();
+                }
+            },
+
+            clearNeighborRing() {
+                this.neighborRingKeys = {};
+            },
+
+            applyNeighborRingKeysFromCenter(center) {
+                const next = {};
+                let r;
+                let c;
+                let dr;
+                let dc;
+                for (dr = -1; dr <= 1; dr++) {
+                    for (dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) {
+                            continue;
+                        }
+                        r = center.row + dr;
+                        c = center.col + dc;
+                        if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) {
+                            next[r + '-' + c] = true;
+                        }
+                    }
+                }
+                this.neighborRingKeys = next;
+            },
+
+            onNeighborRingCellEnter(cell) {
+                if (!this.neighborHoverRingEnabled) {
+                    this.neighborRingKeys = {};
+                    return;
+                }
+                if (cell.opened && !cell.isMine && cell.mineCount > 0) {
+                    this.applyNeighborRingKeysFromCenter(cell);
+                } else {
+                    this.neighborRingKeys = {};
+                }
+            },
+
+            onNeighborRingCellLeave() {
+                this.clearNeighborRing();
+            }
+        };
+
+        const MineRushMatch = {
+            createMatchSessionId() {
+                return 'M_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+            },
+
+            startTimer() {
+                this.stopTimer();
+                const self = this;
+                this.timerInstance = setInterval(function () {
+                    self.timer++;
+                }, 1000);
+            },
+
+            stopTimer() {
+                clearInterval(this.timerInstance);
+            },
+
+            handlePageVisibilityChange() {
+                if (document.visibilityState !== 'hidden') {
+                    return;
+                }
+                this.pauseDueToPageHidden();
+            },
+
+            pauseDueToPageHidden() {
+                if (!this.isGameInProgress || this.paused) {
+                    return;
+                }
+                this.paused = true;
+                this.stopTimer();
+                this.gameMessage = '已离开当前页面，游戏已自动暂停。返回后请点击「继续游戏」。';
+            },
+
+            togglePause() {
+                if (this.gameOver) {
+                    return;
+                }
+                this.paused = !this.paused;
+                if (this.paused) {
+                    this.stopTimer();
+                    this.gameMessage = '游戏已暂停';
+                } else {
+                    if (this.gameStarted) {
+                        this.startTimer();
+                    }
+                    this.gameMessage = '游戏继续';
+                }
+            },
+
+            resetMatchRuntimeState(message) {
+                this.stopTimer();
+                this.clearNeighborRing();
+                MineRushProp.stopReviveOfferTimer.call(this);
+                this.reviveOffer.visible = false;
+                this.reviveOffer.cell = null;
+                this.reviveOffer.secondsLeft = 5;
+                this.matchSessionId = null;
+                this.currentMatchPropUses = [];
+                this.difficultyOpen = false;
+                this.timer = 0;
+                this.gameStarted = false;
+                this.gameOver = false;
+                this.gameWin = false;
+                this.boardShake = false;
+                this.usedHintCount = 0;
+                this.revived = false;
+                this.activeTool = '';
+                this.paused = false;
+                this.safeHintUsed = false;
+                this.gameMessage = message || '游戏开始';
+            },
+
+            startGame(message) {
+                MineRushMatch.resetMatchRuntimeState.call(this, message);
+                const config = {
+                    easy: { rows: 9, cols: 9, mines: 10 },
+                    medium: { rows: 16, cols: 16, mines: 40 },
+                    hard: { rows: 16, cols: 30, mines: 100 }
+                };
+                const current = config[this.difficulty];
+                this.rows = current.rows;
+                this.cols = current.cols;
+                this.mines = current.mines;
+                this.initBoard();
+            },
+
+            startOrRestartGame() {
+                this.startGame();
+                MineRushProp.ensureMatchSession.call(this);
+                this.gameStarted = true;
+                this.startTimer();
+            },
+
+            buildMatchHistoryRecord(result, score, correctFlags) {
+                const propUses = JSON.parse(JSON.stringify(this.currentMatchPropUses || []));
+                return {
+                    result: result,
+                    difficulty: this.difficulty,
+                    time: this.timer,
+                    score: score,
+                    correctFlags: correctFlags,
+                    totalMines: this.mines,
+                    date: new Date().toLocaleString(),
+                    sessionId: this.matchSessionId,
+                    propUses: propUses
+                };
+            },
+
+            async endCurrentGame() {
+                if (!this.isGameInProgress) {
+                    return;
+                }
+                this.stopTimer();
+                const correctFlags = this.getCorrectFlagCount();
+                const endScore = correctFlags * 3;
+                this.addUserScore(endScore, '主动结束对局 · 正确标雷奖励');
+                const uid = this.storage.auth.currentUserId;
+                this.ensureUserRelatedBuckets(uid);
+                this.storage.histories[uid].push(MineRushMatch.buildMatchHistoryRecord.call(this, 'end', endScore, correctFlags));
+                await this.saveStorage();
+                this.startGame('已结束对局，获得 ' + endScore + ' 积分');
+            },
+
+            clickCell(cell) {
+                if (this.gameOver || this.paused || this.reviveOffer.visible) {
+                    return;
+                }
+                if (!this.gameStarted) {
+                    MineRushProp.ensureMatchSession.call(this);
+                    this.gameStarted = true;
+                    this.startTimer();
+                }
+                if (this.activeTool === 'hint') {
+                    this.handleHint(cell);
+                    return;
+                }
+                if (cell.flagged || cell.opened) {
+                    return;
+                }
+                if (cell.isMine) {
+                    if (this.revived) {
+                        this.failGame();
+                        return;
+                    }
+                    if (this.currentUser.props.reviveCard > 0) {
+                        if (this.currentUser.autoRevive) {
+                            MineRushProp.applyReviveFromMine.call(this, cell);
+                            return;
+                        }
+                        this.startReviveOffer(cell);
+                        return;
+                    }
+                    this.failGame();
+                    return;
+                }
+                this.openCell(cell);
+                this.checkWin();
+            },
+
+            safeStartHint() {
+                if (!this.canUseSafeStartHint) {
+                    return;
+                }
+                if (this.gameOver || this.safeHintUsed) {
+                    this.startGame();
+                }
+                const safeCells = this.flatBoard.filter(function (v) {
+                    return !v.isMine && !v.opened;
+                });
+                if (safeCells.length === 0) {
+                    return;
+                }
+                const randomCell = safeCells[Math.floor(Math.random() * safeCells.length)];
+                randomCell.opened = true;
+                if (randomCell.mineCount === 0) {
+                    this.expandZero(randomCell.row, randomCell.col);
+                }
+                this.safeHintUsed = true;
+                MineRushProp.ensureMatchSession.call(this);
+                this.gameStarted = true;
+                this.startTimer();
+                this.gameMessage = '已安全开局，计时开始';
+                this.checkWin();
+            },
+
+            async failGame() {
+                MineRushProp.stopReviveOfferTimer.call(this);
+                this.reviveOffer.visible = false;
+                this.reviveOffer.cell = null;
+                this.gameOver = true;
+                this.stopTimer();
+                this.boardShake = true;
+                const correctFlags = this.getCorrectFlagCount();
+                const failScore = correctFlags * 3;
+                this.addUserScore(failScore, '对局失败 · 正确标雷奖励');
+                this.gameMessage = '游戏失败，获得 ' + failScore + ' 积分';
+                const uid = this.storage.auth.currentUserId;
+                this.ensureUserRelatedBuckets(uid);
+                this.storage.histories[uid].push(MineRushMatch.buildMatchHistoryRecord.call(this, 'fail', failScore, correctFlags));
+                this.flatBoard.forEach(function (v) {
+                    if (v.isMine) {
+                        v.opened = true;
+                    }
+                });
+                await this.saveStorage();
+                const self = this;
+                setTimeout(function () {
+                    self.boardShake = false;
+                }, 500);
+            },
+
+            async winGame() {
+                this.gameOver = true;
+                this.gameWin = true;
+                this.stopTimer();
+                const correctFlags = this.getCorrectFlagCount();
+                const baseScoreMap = { easy: 100, medium: 300, hard: 800 };
+                const score = baseScoreMap[this.difficulty];
+                this.addUserScore(score, '对局胜利 · ' + this.getDifficultyText(this.difficulty));
+                const rankingData = MineRushRanking.buildRankingRecord.call(this, {
+                    score: score,
+                    correctFlags: correctFlags
+                });
+                MineRushRanking.addRankingRecord.call(this, rankingData);
+                const uid = this.storage.auth.currentUserId;
+                this.ensureUserRelatedBuckets(uid);
+                const hist = Object.assign({}, rankingData, {
+                    result: 'win',
+                    sessionId: this.matchSessionId,
+                    propUses: JSON.parse(JSON.stringify(this.currentMatchPropUses || []))
+                });
+                this.storage.histories[uid].push(hist);
+                this.gameMessage = '胜利！获得 ' + score + ' 积分';
+                await this.saveStorage();
+                this.showToast('恭喜胜利，积分与总榜已更新', 'success');
+            }
+        };
+
+        Vue.component('app-modal', {
+            props: {
+                visible: {
+                    type: Boolean,
+                    default: false
+                },
+                title: {
+                    type: String,
+                    default: ''
+                }
+            },
+            template:
+                '<div v-if="visible" class="modal-mask" @click.self="$emit(\'close\')">' +
+                '<div class="modal">' +
+                '<div class="modal-header">' +
+                '<h2>{{ title }}</h2>' +
+                '<button class="danger" @click="$emit(\'close\')">关闭</button>' +
+                '</div>' +
+                '<slot></slot>' +
+                '</div>' +
+                '</div>'
+        });
+
+        new Vue({
+            el: '#app',
+
+            data: function () {
+                return {
+                    storage: {
+                        auth: {
+                            currentUserId: ''
+                        },
+                        users: [],
+                        rankings: {
+                            easy: [],
+                            medium: [],
+                            hard: []
+                        },
+                        histories: {},
+                        propUsageLogs: {},
+                        purchaseLogs: {},
+                        scoreLedgers: {},
+                        settings: {
+                            storageVersion: 1,
+                            repositoryMode: 'auto'
+                        }
+                    },
+                    registerForm: {
+                        username: '',
+                        nickname: ''
+                    },
+                    activeModal: '',
+                    editingNickname: false,
+                    nicknameDraft: '',
+                    difficultyOpen: false,
+                    userMenuOpen: false,
+                    difficultyOptions: [
+                        { value: 'easy', label: '初级' },
+                        { value: 'medium', label: '中级' },
+                        { value: 'hard', label: '高级' }
+                    ],
+                    difficulty: 'easy',
+                    board: [],
+                    rows: 9,
+                    cols: 9,
+                    mines: 10,
+                    timer: 0,
+                    timerInstance: null,
+                    gameStarted: false,
+                    gameOver: false,
+                    gameWin: false,
+                    boardShake: false,
+                    gameMessage: '开始你的扫雷挑战吧',
+                    activeTool: '',
+                    paused: false,
+                    safeHintUsed: false,
+                    usedHintCount: 0,
+                    revived: false,
+                    matchSessionId: null,
+                    currentMatchPropUses: [],
+                    reviveOffer: {
+                        visible: false,
+                        cell: null,
+                        secondsLeft: 5,
+                        tickTimerId: null
+                    },
+                    toasts: [],
+                    toastIdSeq: 0,
+                    windowWidth: typeof window !== 'undefined' ? window.innerWidth : 1200,
+                    neighborRingKeys: {}
+                };
+            },
+
+            computed: {
+                currentUser: function () {
+                    const id = this.storage.auth.currentUserId;
+                    return (
+                        this.storage.users.find(function (v) {
+                            return v.userId === id;
+                        }) || {
+                            userId: '',
+                            username: '未知',
+                            nickname: '未知',
+                            score: 0,
+                            totalScore: 0,
+                            props: { hintCard: 0, reviveCard: 0 },
+                            autoRevive: false,
+                            prefs: { neighborHoverRing: true }
+                        }
+                    );
+                },
+                flatBoard: function () {
+                    return this.board.flat();
+                },
+                neighborHoverRingEnabled: function () {
+                    return this.currentUser.prefs.neighborHoverRing;
+                },
+                boardWrapStyle: function () {
+                    const gap = 2;
+                    const boardHorizontalPad = 20;
+                    const w = this.windowWidth || 1200;
+                    const isStacked = w <= 900;
+                    const outer = isStacked ? w - 80 : w - 420;
+                    const innerForCells = Math.max(120, outer - boardHorizontalPad);
+                    const raw = (innerForCells - (this.cols - 1) * gap) / this.cols;
+                    let cellPx = Math.floor(raw);
+                    if (!Number.isFinite(cellPx)) {
+                        cellPx = 14;
+                    }
+                    cellPx = Math.min(32, Math.max(12, cellPx));
+                    return {
+                        '--cell': cellPx + 'px',
+                        gridTemplateColumns: 'repeat(' + this.cols + ', ' + cellPx + 'px)'
+                    };
+                },
+                remainMines: function () {
+                    let flagCount = 0;
+                    this.flatBoard.forEach(function (v) {
+                        if (v.flagged) {
+                            flagCount++;
+                        }
+                    });
+                    return this.mines - flagCount;
+                },
+                canUseBattleProps: function () {
+                    return this.isGameInProgress && !this.paused && !this.reviveOffer.visible;
+                },
+                hintMatchLimit: function () {
+                    const limitMap = { easy: 2, medium: 3, hard: 5 };
+                    return limitMap[this.difficulty];
+                },
+                hintMatchRemaining: function () {
+                    const left = this.hintMatchLimit - this.usedHintCount;
+                    return left > 0 ? left : 0;
+                },
+                reviveMatchLimit: function () {
+                    return 1;
+                },
+                reviveMatchRemaining: function () {
+                    if (this.revived) {
+                        return 0;
+                    }
+                    return this.currentUser.props.reviveCard > 0 ? 1 : 0;
+                },
+                hintBackpackExhausted: function () {
+                    return this.usedHintCount >= this.hintMatchLimit;
+                },
+                currentUserPropUsageLog: function () {
+                    const uid = this.storage.auth.currentUserId;
+                    return (this.storage.propUsageLogs && this.storage.propUsageLogs[uid]) || [];
+                },
+                currentUserPropUsageLogReversed: function () {
+                    return this.currentUserPropUsageLog.slice().reverse();
+                },
+                currentUserPurchaseLog: function () {
+                    const uid = this.storage.auth.currentUserId;
+                    return (this.storage.purchaseLogs && this.storage.purchaseLogs[uid]) || [];
+                },
+                currentUserPurchaseLogReversed: function () {
+                    return this.currentUserPurchaseLog.slice().reverse();
+                },
+                currentUserScoreLedger: function () {
+                    const uid = this.storage.auth.currentUserId;
+                    return (this.storage.scoreLedgers && this.storage.scoreLedgers[uid]) || [];
+                },
+                currentUserScoreLedgerReversed: function () {
+                    return this.currentUserScoreLedger.slice().reverse();
+                },
+                currentRankings: function () {
+                    return this.storage.rankings[this.difficulty];
+                },
+                isGameInProgress: function () {
+                    return this.gameStarted && !this.gameOver;
+                },
+                canUseSafeStartHint: function () {
+                    return !this.isGameInProgress;
+                },
+                difficultyLabel: function () {
+                    const current = this.difficultyOptions.find(function (v) {
+                        return v.value === this.difficulty;
+                    }, this);
+                    return current ? current.label : '初级';
+                },
+                modalTitle: function () {
+                    if (this.activeModal === 'history') {
+                        return '历史对局';
+                    }
+                    if (this.activeModal === 'propUsage') {
+                        return '道具使用记录';
+                    }
+                    if (this.activeModal === 'purchase') {
+                        return '道具购买记录';
+                    }
+                    if (this.activeModal === 'ledger') {
+                        return '积分流水';
+                    }
+                    if (this.activeModal === 'settings') {
+                        return '显示与数据设置';
+                    }
+                    return '切换或创建用户';
+                },
+                currentHistory: function () {
+                    const uid = this.storage.auth.currentUserId;
+                    const list = (this.storage.histories && this.storage.histories[uid]) || [];
+                    return list.slice().reverse();
+                },
+                repositoryModeModel: function () {
+                    return (this.storage.settings && this.storage.settings.repositoryMode) || 'auto';
+                },
+                repositoryRemoteEnabled: function () {
+                    return MineRushRepository.remoteAvailable;
+                }
+            },
+
+            watch: {
+                userMenuOpen: function (open) {
+                    if (open) {
+                        this.$nextTick(function () {
+                            document.addEventListener('click', this.handleDocumentClick, true);
+                        });
+                    } else {
+                        document.removeEventListener('click', this.handleDocumentClick, true);
+                    }
+                }
+            },
+
+            async mounted() {
+                await this.initRepository();
+                await this.loadStorage();
+                this.normalizeStorage();
+                if (this.storage.users.length === 0) {
+                    await this.createDefaultUser();
+                }
+                this.startGame();
+                this.handlePageVisibilityChange = this.handlePageVisibilityChange.bind(this);
+                document.addEventListener('visibilitychange', this.handlePageVisibilityChange);
+                this.handleWindowResize = this.handleWindowResize.bind(this);
+                window.addEventListener('resize', this.handleWindowResize);
+                this.handleWindowResize();
+                this.handleDocumentClick = this.handleDocumentClick.bind(this);
+            },
+
+            beforeDestroy: function () {
+                if (this.handlePageVisibilityChange) {
+                    document.removeEventListener('visibilitychange', this.handlePageVisibilityChange);
+                }
+                if (this.handleWindowResize) {
+                    window.removeEventListener('resize', this.handleWindowResize);
+                }
+                document.removeEventListener('click', this.handleDocumentClick, true);
+                this.stopReviveOfferTimer();
+            },
+
+            methods: Object.assign(
+                {},
+                MineRushStorage,
+                MineRushUser,
+                MineRushBoard,
+                MineRushMatch,
+                MineRushProp,
+                MineRushScore,
+                MineRushRanking,
+                MineRushModal,
+                MineRushToast,
+                MineRushSetting,
+                MineRushUi
+            )
+        });
+
+
+    </script>
+</body>
+
+</html>
