@@ -255,7 +255,8 @@ export async function refreshModalData(type) {
     if (type === 'ledger') {
       await walletRepository.refreshWallet(serverId);
     } else if (type === 'propUsage') {
-      await inventoryRepository.refreshPropUsageRecords(serverId);
+      const gameCode = resolvePlatformGameCode('refreshModalData:propUsage');
+      await inventoryRepository.refreshInventory(serverId, gameCode);
     } else if (type === 'purchase') {
       await purchaseRepository.refreshPurchases(serverId);
     } else if (type === 'history') {

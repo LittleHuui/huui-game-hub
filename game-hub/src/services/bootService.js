@@ -13,8 +13,6 @@ import { nowMs } from '../utils/timeService.js';
 import * as toastService from './toastService.js';
 import * as syncService from './syncService.js';
 import * as gameCatalogService from './gameCatalogService.js';
-import * as gameLifecycleService from './gameLifecycleService.js';
-import { resolvePlatformGameCode } from '../utils/requireGameCode.js';
 
 /**
  * 设置启动 loading 文案。
@@ -118,21 +116,11 @@ export async function continueAfterLogin() {
 }
 
 /**
- * boot 后加载游戏目录并激活当前游戏。
+ * boot 后加载游戏目录（具体游戏资源由游戏页 onMounted 激活）。
  * @returns {Promise<void>}
  */
 async function finalizeBootCatalog() {
   await gameCatalogService.loadGameCatalog();
-  let gameCode;
-  try {
-    gameCode = resolvePlatformGameCode('finalizeBootCatalog');
-  } catch {
-    return;
-  }
-  await gameLifecycleService.activateGame(gameCode, {
-    includeLeaderboard: false,
-    includeInventory: false
-  });
 }
 
 /**

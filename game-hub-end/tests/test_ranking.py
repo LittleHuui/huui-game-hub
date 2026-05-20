@@ -5,6 +5,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.ranking_test_seed import import_ranking_test_seed
 from tests.sync_helpers import cloud_save, create_test_user, score_record_event
 
 
@@ -50,6 +51,7 @@ def test_rankings_minesweeper_sort_and_response_shape() -> None:
     suffix = uuid.uuid4().hex[:10]
     difficulty_code = f"hard_{suffix}"
     with TestClient(app) as client:
+        import_ranking_test_seed(client)
         user_fast = create_test_user(client, nickname="玩家快")
         user_slow = create_test_user(client, nickname="玩家慢")
         user_lose = create_test_user(client, nickname="玩家败")
@@ -117,6 +119,7 @@ def test_rankings_match3_timed_sort_by_combo_and_duration() -> None:
     suffix = uuid.uuid4().hex[:10]
     difficulty_code = f"normal_{suffix}"
     with TestClient(app) as client:
+        import_ranking_test_seed(client)
         user_high_combo = create_test_user(client, nickname="连击高")
         user_fast = create_test_user(client, nickname="用时短")
 

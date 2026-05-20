@@ -143,7 +143,6 @@ import {
   toDifficultySelectorOptions
 } from '../../services/gameDifficultyService.js';
 import { activateGame } from '../../services/gameLifecycleService.js';
-import * as rankingService from '../../services/rankingService.js';
 import * as toastService from '../../services/toastService.js';
 import { useGameSwitchLock } from '../../composables/useGameSwitchLock.js';
 
@@ -407,7 +406,7 @@ function toggleDifficultyMenu() {
   difficultyOpen.value = !difficultyOpen.value;
 }
 
-async function selectDifficulty(value) {
+function selectDifficulty(value) {
   if (isGameInProgress.value) {
     showToast('对局进行中，无法切换难度', 'warning');
     return;
@@ -418,7 +417,6 @@ async function selectDifficulty(value) {
   }
   difficulty.value = value;
   difficultyOpen.value = false;
-  await rankingService.refreshGameLeaderboard(MINESWEEPER_GAME_CODE, value, MINESWEEPER_MODE);
   if (!isGameInProgress.value) {
     startGame();
   }
@@ -695,7 +693,6 @@ onMounted(async () => {
   await activateGame(MINESWEEPER_GAME_CODE, {
     mode: MINESWEEPER_MODE,
     difficultyCode: difficulty.value,
-    includeLeaderboard: true,
     includeInventory: true
   });
   startGame('开始你的扫雷挑战吧');

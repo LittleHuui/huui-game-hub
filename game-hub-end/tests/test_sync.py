@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.core.database import SessionLocal, init_db
 from app.main import app
 from app.modules.sync.models import SyncLog
+from tests.ranking_test_seed import import_ranking_test_seed
 from tests.sync_helpers import (
     cloud_save,
     create_test_user,
@@ -127,6 +128,7 @@ def test_cloud_save_score_record_for_ranking() -> None:
     suffix = uuid.uuid4().hex[:10]
     difficulty_code = f"hard_{suffix}"
     with TestClient(app) as client:
+        import_ranking_test_seed(client)
         user_id = create_test_user(client, nickname="排行玩家")
         cloud_save(
             client,

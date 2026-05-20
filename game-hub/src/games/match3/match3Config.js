@@ -151,6 +151,33 @@ export function getMatch3PropRule(propCode) {
 }
 
 /**
+ * 判断 propUseLimits 是否为有效配置（仅非空数组）。
+ * @param {unknown} limits
+ * @returns {boolean}
+ */
+function hasUsablePropUseLimits(limits) {
+  return Array.isArray(limits) && limits.length > 0;
+}
+
+/**
+ * 从 propUseLimits 数组 `{ propCode, maxUse }[]` 解析单道具上限。
+ * @param {unknown} limits
+ * @param {string} propCode
+ * @returns {number|null}
+ */
+function propUseLimitsLookup(limits, propCode) {
+  if (!Array.isArray(limits) || propCode == null || propCode === '') {
+    return null;
+  }
+  const entry = limits.find((row) => row && typeof row === 'object' && row.propCode === propCode);
+  if (entry == null || entry.maxUse == null) {
+    return null;
+  }
+  const parsed = Number(entry.maxUse);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
  * 合并模式配置：远端覆盖种子，但保留种子中的 propUseLimits（远端未配置时）。
  * @param {object} seedModes
  * @param {object} remoteModes
@@ -165,10 +192,12 @@ function mergeModes(seedModes, remoteModes) {
     const seedMode = seed[key] || {};
     const remoteMode = remote[key] || {};
     merged[key] = { ...seedMode, ...remoteMode };
-    if (remoteMode.propUseLimits && typeof remoteMode.propUseLimits === 'object') {
+    if (hasUsablePropUseLimits(remoteMode.propUseLimits)) {
       merged[key].propUseLimits = remoteMode.propUseLimits;
-    } else if (seedMode.propUseLimits && typeof seedMode.propUseLimits === 'object') {
+    } else if (hasUsablePropUseLimits(seedMode.propUseLimits)) {
       merged[key].propUseLimits = seedMode.propUseLimits;
+    } else {
+      delete merged[key].propUseLimits;
     }
   }
   return merged;
@@ -202,13 +231,5 @@ export function getMatch3ModePropLimit(mode, propCode) {
     return null;
   }
   const limits = modes[mode]?.propUseLimits;
-  if (!limits || typeof limits !== 'object') {
-    return null;
-  }
-  const value = limits[propCode];
-  if (value == null) {
-    return null;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  return propUseLimitsLookup(limits, propCode);
 }

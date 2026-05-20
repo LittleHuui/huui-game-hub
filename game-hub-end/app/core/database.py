@@ -84,37 +84,6 @@ def init_db() -> None:
     """创建所有已注册映射对应的数据库表。"""
     _import_all_models()
     Base.metadata.create_all(bind=engine)
-    _seed_initial_data()
-
-
-def _seed_initial_data() -> None:
-    """
-    幂等写入初始化数据（如游戏定义、难度配置等）。
-
-    :return: None
-    """
-    from app.modules.game.entity_service import (
-        GameClientConfigEntityService,
-        GameDefinitionEntityService,
-        GameDifficultyEntityService,
-    )
-    from app.modules.game.module_service import GameModuleService
-    from app.modules.game.repository import (
-        GameClientConfigRepository,
-        GameDefinitionRepository,
-        GameDifficultyRepository,
-    )
-    from app.modules.prop.entity_service import GamePropRuleEntityService
-    from app.modules.prop.repository import GamePropRuleRepository
-
-    with session_scope() as session:
-        service = GameModuleService(
-            GameDefinitionEntityService(GameDefinitionRepository(session)),
-            GameDifficultyEntityService(GameDifficultyRepository(session)),
-            GameClientConfigEntityService(GameClientConfigRepository(session)),
-            GamePropRuleEntityService(GamePropRuleRepository(session)),
-        )
-        service.seed_initial_data()
 
 
 def _updated_at_was_explicitly_set(obj: Any) -> bool:

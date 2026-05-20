@@ -429,7 +429,6 @@ async function changeMode(value) {
   await activateGame(MATCH3, {
     difficultyCode: difficultyCode.value,
     mode: value,
-    includeLeaderboard: true,
     includeInventory: true
   });
 }
@@ -942,7 +941,6 @@ onMounted(async () => {
   await activateGame(MATCH3, {
     difficultyCode: difficultyCode.value,
     mode: mode.value,
-    includeLeaderboard: true,
     includeInventory: true
   });
   setupBoard('限时模式，首次有效交换后开始倒计时');

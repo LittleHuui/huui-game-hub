@@ -23,7 +23,6 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePlatformStore } from '../stores/platformStore.js';
-import { activateGame } from '../services/gameLifecycleService.js';
 import * as toastService from '../services/toastService.js';
 import { GAME_SWITCH_LOCK_DEFAULT_REASON } from '../composables/useGameSwitchLock.js';
 
@@ -42,7 +41,7 @@ const router = useRouter();
 const games = computed(() => platform.gameCatalog);
 
 /**
- * 切换当前游戏并重新加载配置。
+ * 切换当前游戏并导航到对应路由（资源加载由游戏页 onMounted 负责）。
  * @param {string} code
  */
 async function select(code) {
@@ -62,12 +61,5 @@ async function select(code) {
   }
   platform.setCurrentGame(code);
   await router.push({ name: entry.implemented ? code : 'game-unavailable', params: { gameCode: code } });
-  if (!entry.implemented) {
-    return;
-  }
-  await activateGame(code, {
-    includeLeaderboard: false,
-    includeInventory: false
-  });
 }
 </script>

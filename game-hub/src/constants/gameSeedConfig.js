@@ -150,6 +150,30 @@ export const GAME_SEED_CONFIG = {
           inventory: true,
           offline: true,
           onlineBattle: false
+        },
+        ranking: {
+          enabled: true,
+          candidateLimit: 1000,
+          modes: {
+            timed: {
+              primaryMetric: 'score',
+              orderDirection: 'desc',
+              tieBreakers: [
+                { metric: 'comboMax', orderDirection: 'desc' },
+                { metric: 'durationMs', orderDirection: 'asc' },
+                { metric: 'createdAt', orderDirection: 'asc' }
+              ]
+            },
+            endless: {
+              primaryMetric: 'score',
+              orderDirection: 'desc',
+              tieBreakers: [
+                { metric: 'comboMax', orderDirection: 'desc' },
+                { metric: 'moves', orderDirection: 'desc' },
+                { metric: 'createdAt', orderDirection: 'asc' }
+              ]
+            }
+          }
         }
       },
       difficulties: [
@@ -189,17 +213,17 @@ export const GAME_SEED_CONFIG = {
             modes: {
               timed: {
                 timeLimitSec: 180,
-                propUseLimits: {
-                  match3_shuffle: 2,
-                  match3_bomb: 2
-                }
+                propUseLimits: [
+                  { propCode: 'match3_shuffle', maxUse: 2 },
+                  { propCode: 'match3_bomb', maxUse: 2 }
+                ]
               },
               endless: {
                 timeLimitSec: 0,
-                propUseLimits: {
-                  match3_shuffle: 4,
-                  match3_bomb: 3
-                }
+                propUseLimits: [
+                  { propCode: 'match3_shuffle', maxUse: 4 },
+                  { propCode: 'match3_bomb', maxUse: 3 }
+                ]
               }
             },
             settlement: {
