@@ -20,7 +20,7 @@
 | 6 | `yourGameConfig.js` | 解析/合并配置 |
 | 7 | `yourGameEngine.js` | 纯算法 |
 | 8 | `components/YourGameHud.vue` 等 | HUD、棋盘、弹窗 |
-| 9 | `gameLifecycleService.activateGame` | `onMounted` 与模式/难度变化后按需调用（`mode`、`difficultyCode`、`includeLeaderboard`、`includeInventory`） |
+| 9 | `gameLifecycleService.activateGame` | `onMounted` 与模式/难度变化后按需调用（`mode`、`difficultyCode`、`includeInventory`）；排行榜仅由布局中的 `GameRankingPanel` 负责展示与请求（见第 4 节） |
 | 10 | `createGameSession`（`gameSessionService.js`） | `sessionId`、结算、钱包/背包流水、对局与成绩入队、同步刷新 |
 | 11 | 可选 `useYourGameSession.js` | 仅封装本游戏 UI/动画状态；**不得**虚构 `startMatch`/`settleMatch` 等模块级 API |
 
@@ -118,7 +118,8 @@ src/games/your-game/
 
 1. `GAME_REGISTRY` 中 `capabilities.leaderboard: true`  
 2. 后端 `config.ranking.modes[yourMode]` 配置 `primaryMetric`、`orderDirection`、`tieBreakers`（见 [api.md §11.1](api.md#111-查询排行榜)）  
-3. 进入游戏页时在 `onMounted`：
+3. **游戏页只维护** `mode`、`difficultyCode`（及常量 `gameCode`），通过模板把三者传入布局中的 **`GameRankingPanel`**。该组件在挂载与 props 变化时自行完成排行榜 HTTP 请求与 store 写入；游戏页 **不要** 在生命周期或难度切换里再直调 ranking 层 API。  
+4. 进入游戏页时在 `onMounted` 调用 `activateGame` 加载配置 / 商城 / 背包（与当前 `match3`、`minesweeper` 一致），示例：
 
 ```js
 import { activateGame } from '@/services/gameLifecycleService.js';
@@ -126,14 +127,15 @@ import { activateGame } from '@/services/gameLifecycleService.js';
 await activateGame(gameCode, {
   mode,
   difficultyCode,
-  includeLeaderboard: true,
   includeInventory: true
 });
 ```
 
-4. **切换玩法 `mode` 后**：再次 `activateGame(...)`（传入新 `mode`），与 `match3` 的 `changeMode` 一致。  
-5. **仅切换难度**（`mode` 不变）：可像 `minesweeper` 一样调用 `rankingService.refreshGameLeaderboard(gameCode, difficultyCode, mode)`（需 `import * as rankingService from '@/services/rankingService.js'`），或再次 `activateGame`（择一即可）。  
-6. **禁止** 一次请求所有难度或所有游戏的榜。
+5. **切换玩法 `mode` 后**：再次 `activateGame(...)`（传入新 `mode`），与 `match3` 的 `changeMode` 一致；榜单随 `GameRankingPanel` 的 `mode` prop 更新。  
+6. **仅切换难度**：更新 `difficultyCode` 即可；`GameRankingPanel` 会随 props 刷新当前难度榜。  
+7. **禁止** 一次请求所有难度或所有游戏的榜。
+
+> 胜利结算后，`session.settleWin` 会通过 `syncService.refreshRemoteAfterSettle({ includeRanking: true })` 在结算链路中刷新远端榜数据，属于 **session/sync 编排**；侧栏展示仍以 `GameRankingPanel` 的 props 为准。
 
 ---
 
@@ -165,7 +167,7 @@ const session = createGameSession({ gameCode: 'your_game' });
 
 | 方法 | 场景 | 排行榜 |
 |------|------|--------|
-| `await session.settleWin({ score, rewardScore?, difficultyCode, durationMs, propUses, sessionId, mode, matchPayload?, scorePayload? })` | 胜利并上成绩榜 | 刷新 |
+| `await session.settleWin({ score, rewardScore?, difficultyCode, durationMs, propUses, sessionId, mode, matchPayload?, scorePayload? })` | 胜利并上成绩榜 | 结算链 `refreshRemoteAfterSettle` 可能刷新远端榜；非游戏页生命周期内拉榜 |
 | `await session.settleFail({ score, difficultyCode, durationMs, propUses, sessionId, mode })` | 失败 | 不刷新榜 |
 | `await session.settleEnd({ score, difficultyCode, durationMs, propUses, sessionId, mode, payload? })` | 主动结束等 | 不刷新榜 |
 
@@ -188,7 +190,7 @@ const session = createGameSession({ gameCode: 'your_game' });
 | `mode` | `GAME_REGISTRY.modes`、用户可选 | `match_record.mode`、排行榜 Query、`ranking.modes[mode]` |
 | `difficultyCode` | `gameSeedConfig` / `GET .../config` 的 `difficulties[]` | 对局与榜过滤；写入对局时与前端 `createGameSession` 校验一致 |
 
-切换难度：更新选中值 → 按第 4 节刷新榜 → 按需重载本游戏 config。
+切换难度：更新选中值 → 由 `GameRankingPanel` 随 props 自动拉榜 → 按需重载本游戏 config。
 
 ---
 
@@ -223,7 +225,7 @@ const session = createGameSession({ gameCode: 'your_game' });
 - [ ] `npm run build` 通过  
 - [ ] 离线可玩（`repositoryMode: local`）  
 - [ ] 在线：购买、背包、排行榜、对局同步正常  
-- [ ] 对局 JSON 含 `durationMs`、`propUses[]`、`payload{}`，无 snake_case  
+- [ ] 对局 JSON 含 `durationMs`、`propUses[]`、`payload{}`，字段均为 camelCase（见 [api.md](api.md)）  
 - [ ] 未修改平台组件的游戏特判  
 
 更多分层细节见 [code-style/frontend-code-style.md](code-style/frontend-code-style.md) 与 [architecture.md](architecture.md)。

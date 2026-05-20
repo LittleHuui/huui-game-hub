@@ -7,7 +7,7 @@ import { defineStore } from 'pinia';
  * @property {string} userId
  * @property {string} deviceId
  * @property {string} gameCode
- * @property {'gain'|'cost'} type
+ * @property {'gain'|'cost'|'refund'} type
  * @property {string} reason
  * @property {number} amount
  * @property {number} createdAt

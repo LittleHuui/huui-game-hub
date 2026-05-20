@@ -2,7 +2,7 @@
 
 from typing import List, Literal
 
-from app.core.exceptions import ValidationException
+from app.common.exceptions import ValidationException
 from app.modules.inventory.module_service import InventoryModuleService
 from app.modules.match.module_service import MatchModuleService
 from app.modules.match.schemas import (
@@ -109,7 +109,6 @@ class SyncModuleService:
         if event_type == "prop_usage" and self._inventory.usage_exists(user_id, event.clientId):
             return "duplicate"
         if event_type == "match_record" and self._match.match_record_exists(user_id, event.clientId):
-            self._dispatch(user_id, device_id, event)
             return "duplicate"
         if event_type == "score_record" and self._score.score_record_exists(user_id, event.clientId):
             return "duplicate"

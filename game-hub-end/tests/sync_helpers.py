@@ -90,7 +90,7 @@ def wallet_ledger_event(
     构造 wallet_ledger 同步事件。
 
     :param client_id: 事件幂等键。
-    :param change_type: gain / cost。
+    :param change_type: gain / cost / refund。
     :param reason: 业务原因。
     :param amount: 变动量。
     :param game_code: 游戏编码。

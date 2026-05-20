@@ -19,8 +19,10 @@ export function mapWalletLedger(remote) {
   const rawAmount = Number(remote.amount) || 0;
   const changeType = String(remote.changeType || '').toLowerCase();
   let type = 'gain';
-  if (changeType === 'cost' || changeType === 'debit' || rawAmount < 0) {
+  if (changeType === 'cost') {
     type = 'cost';
+  } else if (changeType === 'refund') {
+    type = 'refund';
   }
   return {
     clientId: remote.clientId || '',
@@ -44,14 +46,16 @@ export function mapWalletLedger(remote) {
  * @returns {object}
  */
 export function mapLocalWalletLedgerToPayload(row) {
+  const changeType = row.type === 'cost' ? 'cost' : row.type === 'refund' ? 'refund' : 'gain';
+  const amt = Math.abs(row.amount);
   return {
     clientId: row.clientId,
     userId: row.userId,
     deviceId: row.deviceId,
     gameCode: row.gameCode,
-    changeType: row.type === 'cost' ? 'cost' : 'gain',
+    changeType,
     reason: row.reason,
-    amount: row.type === 'cost' ? -Math.abs(row.amount) : Math.abs(row.amount),
+    amount: row.type === 'cost' ? -amt : amt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     payload: row.payload || {}
@@ -74,9 +78,9 @@ export function computeWalletBalanceAfter(ledgers, upToCreatedAt) {
       continue;
     }
     const amt = Math.abs(e.amount || 0);
-    if (e.type === 'gain') {
+    if (e.type === 'gain' || e.type === 'refund') {
       score += amt;
-    } else {
+    } else if (e.type === 'cost') {
       score -= amt;
     }
   }

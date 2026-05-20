@@ -1,5 +1,6 @@
 """钱包域接口与积分变动测试。"""
 
+import time
 import uuid
 
 from fastapi.testclient import TestClient
@@ -57,3 +58,57 @@ def test_wallet_get_or_create_and_gain_cost_via_sync() -> None:
         items = page["items"]
         assert len(items) == 2
         assert {x["changeType"] for x in items} == {"gain", "cost"}
+
+
+def test_wallet_ledger_change_type_reward_rejected() -> None:
+    """wallet_ledger 使用已废弃别名 reward 时应校验失败。"""
+    suffix = uuid.uuid4().hex[:10]
+    with TestClient(app) as client:
+        user_id = create_test_user(client, nickname="钱包校验")
+        response = client.post(
+            "/api/game-hub/sync/cloud-save",
+            json={
+                "userId": user_id,
+                "deviceId": f"device_{suffix}",
+                "clientSnapshotVersion": 1,
+                "clientTime": int(time.time() * 1000),
+                "pendingEvents": [
+                    wallet_ledger_event(
+                        f"bad_reward_{suffix}",
+                        change_type="reward",
+                        reason="legacy",
+                        amount=10,
+                    ),
+                ],
+                "localSnapshot": {},
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["code"] != 0
+
+
+def test_wallet_ledger_change_type_spend_rejected() -> None:
+    """wallet_ledger 使用已废弃别名 spend 时应校验失败。"""
+    suffix = uuid.uuid4().hex[:10]
+    with TestClient(app) as client:
+        user_id = create_test_user(client, nickname="钱包校验2")
+        response = client.post(
+            "/api/game-hub/sync/cloud-save",
+            json={
+                "userId": user_id,
+                "deviceId": f"device_{suffix}",
+                "clientSnapshotVersion": 1,
+                "clientTime": int(time.time() * 1000),
+                "pendingEvents": [
+                    wallet_ledger_event(
+                        f"bad_spend_{suffix}",
+                        change_type="spend",
+                        reason="legacy",
+                        amount=10,
+                    ),
+                ],
+                "localSnapshot": {},
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["code"] != 0

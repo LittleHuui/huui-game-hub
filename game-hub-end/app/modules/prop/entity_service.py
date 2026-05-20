@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Tuple
 
-from app.core.exceptions import NotFoundException
+from app.common.exceptions import NotFoundException
 from app.modules.prop.models import GamePropRule, PropDefinition
 from app.modules.prop.repository import GamePropRuleRepository, PropDefinitionRepository
 

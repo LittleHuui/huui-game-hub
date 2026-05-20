@@ -3,7 +3,7 @@
 from typing import List, Optional, Tuple
 
 from app.common.page_response import PageResponse
-from app.core.exceptions import NotFoundException
+from app.common.exceptions import NotFoundException
 from app.modules.boot.schemas import MatchRecordResponse
 from app.modules.match.entity_service import MatchActionRecordEntityService, MatchRecordEntityService
 from app.modules.match.models import MatchActionRecord, MatchRecord

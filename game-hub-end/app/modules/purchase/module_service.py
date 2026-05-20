@@ -3,7 +3,7 @@
 from typing import List, Optional
 
 from app.common.page_response import PageResponse
-from app.core.exceptions import NotFoundException, ValidationException
+from app.common.exceptions import NotFoundException, ValidationException
 from app.modules.boot.schemas import PropPurchaseRecordResponse
 from app.modules.inventory.entity_service import UserPropBagEntityService
 from app.modules.inventory.module_service import InventoryModuleService

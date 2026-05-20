@@ -53,15 +53,6 @@ class ErrorCode(object):
     # 8000x 排行榜
     RANKING_QUERY_ERROR = ErrorCodeItem(80001, "排行榜查询失败")
 
-    # 兼容旧 IntEnum 名称（指向新错误码项）
-    SUCCESS = 0
-    VALIDATION = PARAM_ERROR
-    REQUEST_VALIDATION = PARAM_ERROR
-    NOT_FOUND = COMMON_ERROR
-    REMOTE_SYNC = SYNC_DATA_INVALID
-    HTTP_ERROR = COMMON_ERROR
-    INTERNAL = SYSTEM_ERROR
-
 
 def list_error_codes():
     """

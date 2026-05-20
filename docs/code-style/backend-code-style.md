@@ -76,7 +76,7 @@ def find_users(
 app/
 ├── main.py              # FastAPI 应用入口
 ├── api/                 # 路由聚合
-├── common/              # 公共响应、异常、枚举等
+├── common/              # 公共响应、异常、错误码等
 ├── core/                # 配置、数据库、日志等基础设施
 └── modules/             # 业务模块
     └── {module_name}/

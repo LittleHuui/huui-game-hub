@@ -72,7 +72,6 @@ function buildActivateOptions(gameCode) {
   return {
     difficultyCode,
     mode,
-    includeLeaderboard: true,
     includeInventory: true
   };
 }

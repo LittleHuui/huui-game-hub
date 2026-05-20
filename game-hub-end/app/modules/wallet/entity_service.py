@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 
 from app.core.database import new_entity_ids
 from app.core.time_utils import now_ms
-from app.core.exceptions import ValidationException
+from app.common.exceptions import ValidationException
 from app.modules.wallet.models import UserWallet, WalletLedger
 from app.modules.wallet.repository import UserWalletRepository, WalletLedgerRepository
 

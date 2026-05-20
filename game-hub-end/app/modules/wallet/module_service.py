@@ -3,7 +3,7 @@
 from typing import List, Optional
 
 from app.common.page_response import PageResponse
-from app.core.exceptions import NotFoundException, ValidationException
+from app.common.exceptions import NotFoundException, ValidationException
 from app.modules.boot.schemas import UserWalletResponse, WalletLedgerResponse
 from app.modules.user.entity_service import UserAccountEntityService
 from app.modules.wallet.entity_service import UserWalletEntityService, WalletLedgerEntityService
@@ -15,13 +15,7 @@ _CHANGE_GAIN = "gain"
 _CHANGE_COST = "cost"
 _CHANGE_REFUND = "refund"
 
-_CHANGE_ALIASES = {
-    "reward": _CHANGE_GAIN,
-    "gain": _CHANGE_GAIN,
-    "refund": _CHANGE_REFUND,
-    "cost": _CHANGE_COST,
-    "spend": _CHANGE_COST,
-}
+_ALLOWED_CHANGE_TYPES = frozenset({_CHANGE_GAIN, _CHANGE_COST, _CHANGE_REFUND})
 
 
 class WalletModuleService:
@@ -66,7 +60,7 @@ class WalletModuleService:
 
         :param user_id: 用户主键。
         :param client_id: 客户端幂等 ID。
-        :param change_type: ``gain`` / ``cost`` / ``refund``（兼容 reward/spend 别名）。
+        :param change_type: ``gain`` / ``cost`` / ``refund``。
         :param reason: 业务原因。
         :param amount: 正整数变动量。
         :param device_id: 设备 ID，可空。
@@ -203,7 +197,7 @@ class WalletModuleService:
         """
         按 ``change_type`` 写入流水（供同步编排调用）。
 
-        :param change_type: ``gain`` / ``cost`` / ``refund`` 或兼容别名。
+        :param change_type: ``gain`` / ``cost`` / ``refund``。
         :param amount: 变动量；若为负数则取绝对值。
         :return: 流水记录。
         """
@@ -313,10 +307,10 @@ class WalletModuleService:
         :param raw: 原始类型字符串。
         :return: ``gain`` / ``cost`` / ``refund``。
         """
-        normalized = _CHANGE_ALIASES.get(raw.strip().lower())
-        if normalized is None:
+        key = raw.strip().lower()
+        if key not in _ALLOWED_CHANGE_TYPES:
             raise ValidationException(f"不支持的 change_type: {raw}")
-        return normalized
+        return key
 
     def _ledger_balance_delta(self, row: WalletLedger) -> int:
         """单条流水对可用余额的贡献。"""

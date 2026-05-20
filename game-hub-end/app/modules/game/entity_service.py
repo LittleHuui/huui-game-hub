@@ -4,7 +4,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from app.core.database import new_entity_ids
-from app.core.exceptions import NotFoundException, ValidationException
+from app.common.exceptions import NotFoundException, ValidationException
 from app.modules.game.models import GameClientConfig, GameDefinition, GameDifficulty
 from app.modules.game.repository import (
     GameClientConfigRepository,

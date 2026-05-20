@@ -1,7 +1,5 @@
 """平台统一业务异常。"""
 
-from typing import Any, Optional
-
 from app.common.error_code import ErrorCode, ErrorCodeItem
 
 
@@ -13,7 +11,7 @@ def _resolve_code_message(
     """
     解析 BizException 构造参数中的 code 与 message。
 
-    :param error: ``ErrorCodeItem`` 或兼容的旧式整型错误码。
+    :param error: ``ErrorCodeItem``（位置参数）。
     :param code: 显式错误码。
     :param message: 显式错误信息。
     :return: ``(code, message)`` 元组。
@@ -23,12 +21,10 @@ def _resolve_code_message(
         resolved_code = error.code
         resolved_message = message if message is not None else error.message
         return resolved_code, resolved_message
-    if isinstance(error, int) and message is not None:
-        return int(error), str(message)
     if code is not None:
         resolved_message = message if message is not None else ""
         return int(code), str(resolved_message)
-    raise TypeError("BizException 需要 ErrorCodeItem、或 (code, message)、或 code= 与 message=")
+    raise TypeError("BizException 需要 ErrorCodeItem，或提供 code=（可选 message=）")
 
 
 class BizException(Exception):

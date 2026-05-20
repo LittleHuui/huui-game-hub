@@ -317,6 +317,7 @@
 
 - 客户端离线期间的变更应打包为 `pendingEvents` 批量上报。
 - `payload` 内字段**仅接受 camelCase**；提交 snake_case 视为参数错误。
+- `wallet_ledger` 的 `payload.changeType` 仅允许 `gain` / `cost` / `refund`（大小写不敏感）；`reward`、`spend` 等别名会校验失败。
 - 同步失败时可能返回 `60001`、`60002` 等错误码。
 
 ---
@@ -868,7 +869,7 @@
 | userId | string | 用户 ID |
 | deviceId | string \| null | 设备 ID |
 | gameCode | string \| null | 关联游戏 |
-| changeType | string | 变动类型 |
+| changeType | string | 变动类型；仅 `gain` / `cost` / `refund`。写入同步事件 `wallet_ledger` 时同约束；`reward`、`spend` 等非法 |
 | reason | string | 原因 |
 | amount | number | 变动金额（可正可负） |
 | balanceAfter | number \| null | 变动后余额 |

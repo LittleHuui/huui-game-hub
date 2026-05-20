@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from app.core.exceptions import ValidationException
+from app.common.exceptions import ValidationException
 from app.modules.system.entity_service import (
     LoginLogEntityService,
     RequestLogEntityService,

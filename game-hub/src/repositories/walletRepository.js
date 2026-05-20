@@ -32,6 +32,9 @@ export function recomputeFromLedgers(userId) {
     if (e.type === 'gain') {
       score += amt;
       totalScore += amt;
+    } else if (e.type === 'refund') {
+      score += amt;
+      totalScore += amt;
     } else if (e.type === 'cost') {
       score -= amt;
     }

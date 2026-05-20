@@ -4,7 +4,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from app.core.database import new_entity_ids
-from app.core.exceptions import ValidationException
+from app.common.exceptions import ValidationException
 from app.core.time_utils import now_ms
 from app.modules.sync.models import SyncLog
 from app.modules.sync.repository import SyncLogRepository

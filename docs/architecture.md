@@ -68,7 +68,7 @@ games/*Engine.js ← 纯算法，无 Vue / DOM / 网络
 1. `loadGameConfig` — 合并服务端/种子配置  
 2. `loadGameShop` — 有 `shop` 能力时加载商城到 `shopStore`  
 3. `refreshGameBag` — `includeInventory` 时刷新背包  
-4. `refreshRanking` — `includeLeaderboard` 且在线时，按 `gameCode + mode + difficultyCode` 拉榜  
+4. 排行榜侧栏由 `GameRankingPanel` 根据 `gameCode` / `mode` / `difficultyCode` props 自行加载并写入 `rankingStore`；`activateGame` 不承载游戏页排行榜展示数据的拉取职责。
 
 对局流程由 `gameSessionService` 编排：开局 → 进行中 → 结算 → 写历史 / pending → `syncService.flushPendingIfOnline`。
 
@@ -156,13 +156,18 @@ deps.py：FastAPI Depends
 
 ### 4.3 排行榜（ranking）
 
+游戏页展示路径（由 `GameRankingPanel` 发起请求，**游戏页不直调** ranking 层）：
+
 ```
-rankingService.refreshGameLeaderboard(gameCode, difficultyCode, mode)
+GameRankingPanel（onMounted / watch props）
+  → rankingRepository / rankingService（组件内封装）
   → GET /rankings?gameCode&mode&difficultyCode&limit
   ← 服务端按 game_definition.config.ranking.modes[mode] 排序 score_record
   → rankingStore
-  → GameRankingPanel
+  → GameRankingPanel 渲染
 ```
+
+胜利结算后，`gameSessionService` 可通过 `syncService.refreshRemoteAfterSettle({ includeRanking: true, ... })` 在**结算链路**中触发与排行榜相关的远端刷新，用于尽快对齐服务端视图；与 `{Game}Page` 内排行榜展示请求的职责分离。
 
 必须带齐 `gameCode`、`mode`、`difficultyCode`（有难度时）。
 

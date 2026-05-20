@@ -3,7 +3,7 @@
 import json
 from typing import Any, Dict, List, Optional
 
-from app.core.exceptions import ValidationException
+from app.common.exceptions import ValidationException
 from app.modules.game.schemas import GamePropRuleResponse
 from app.modules.prop.entity_service import GamePropRuleEntityService, PropDefinitionEntityService
 from app.modules.prop.models import GamePropRule, PropDefinition
