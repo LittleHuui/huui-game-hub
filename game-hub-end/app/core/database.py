@@ -70,14 +70,21 @@ def session_scope() -> Generator[Session, None, None]:
 
 
 def _import_all_models() -> None:
-    """导入所有 ORM 模块以注册 ``metadata``。"""
+    """
+    导入所有 ORM 模块以注册 ``metadata``。
+
+    仅负责装载模型类映射，不做业务初始化、不调用 service、不执行 seed。
+    """
     import app.modules.game.models as _game_models  # noqa: F401
-    import app.modules.prop.models as _prop_models  # noqa: F401
+    import app.modules.inventory.models as _inventory_models  # noqa: F401
     import app.modules.match.models as _match_models  # noqa: F401
+    import app.modules.prop.models as _prop_models  # noqa: F401
+    import app.modules.purchase.models as _purchase_models  # noqa: F401
+    import app.modules.score.models as _score_models  # noqa: F401
+    import app.modules.sync.models as _sync_models  # noqa: F401
+    import app.modules.system.models as _system_models  # noqa: F401
     import app.modules.user.models as _user_models  # noqa: F401
     import app.modules.wallet.models as _wallet_models  # noqa: F401
-    import app.modules.system.models as _system_models  # noqa: F401
-    import app.modules.sync.models as _sync_models  # noqa: F401
 
 
 def init_db() -> None:
