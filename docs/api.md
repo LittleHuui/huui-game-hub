@@ -1,7 +1,8 @@
-# Game Hub 后端接口文档
+# Game Hub API 文档
 
-> 基于当前代码自动生成，供前端联调使用。  
-> 所有接口路径均以 `baseUrl` 为前缀；业务成功时 `code = 0`。
+> 项目唯一 HTTP 接口说明，与当前后端实现一致。  
+> 所有路径以 `baseUrl`（默认 `/api/game-hub`）为前缀；业务成功时 `code = 0`。  
+> **对外 JSON 一律 camelCase**，不接受 snake_case 别名。
 
 ---
 
@@ -98,11 +99,30 @@
 
 ### 1.8 参数命名规范
 
-- **Path / Query / Body** 对外统一使用 **camelCase**（如 `userId`、`gameCode`、`clientId`、`pageNum`）。
-- 为兼容旧客户端，部分 Body 字段同时接受 snake_case（如 `client_id`），以各接口 schema 为准。
-- 响应 `data` 内字段一律为 camelCase；ORM 内部仍使用 snake_case，不在接口层暴露。
+- **Path / Query / Body / 响应 data** 对外统一使用 **camelCase**（如 `userId`、`gameCode`、`clientId`、`pageNum`）。
+- **禁止** 在请求或响应中使用 snake_case（如 `game_code`、`client_id`）。
+- 数据库 ORM 内部使用 snake_case，不穿透到 JSON。
 
-### 1.9 错误码说明
+### 1.9 对局记录业务字段（match_record）
+
+`MatchRecordResponse` 及同步 `eventType: "match_record"` 的 `payload` 须包含：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|:---:|---|
+| gameCode | string | 是 | 游戏编码 |
+| mode | string | 是 | 玩法模式 |
+| difficultyCode | string \| null | 否 | 难度编码 |
+| result | string | 是 | 客户端当前写入：`win`、`fail`、`end`（其它非空字符串亦可落库，新游戏请与前端 `createGameSession` 结算方法保持一致） |
+| score | number | 是 | 得分 |
+| durationMs | number \| null | 否 | 对局时长（毫秒） |
+| propUses | array | 是 | 道具使用明细，无使用为 `[]` |
+| payload | object | 是 | 游戏扩展数据，无扩展为 `{}` |
+
+- `propUses` **必须为数组**，元素为 camelCase 的 plain object；禁止 `propUsesJson` 字符串或 object/map 形态。
+- `payload` **必须为对象**；禁止 `payloadJson` 字符串。
+- 用时统一 `durationMs`（毫秒）；禁止 `time`、`timeSec` 等秒级字段。
+
+### 1.10 错误码说明
 
 | code | 名称 | 默认 message |
 |---:|---|---|
@@ -197,7 +217,7 @@
 | status | string | 账号状态 |
 | createdAt / updatedAt / deletedAt | number \| null | 时间戳 |
 
-`systemSetting`（UserSystemSettingResponse）：见 [3.6 获取用户系统设置](#36-获取用户系统设置) 的 `data` 结构。
+`systemSetting`（UserSystemSettingResponse）：见 [4.7 获取用户系统设置](#47-获取用户系统设置) 的 `data` 结构。
 
 `games[]`（GameSummaryResponse）：
 
@@ -296,7 +316,7 @@
 **注意事项：**
 
 - 客户端离线期间的变更应打包为 `pendingEvents` 批量上报。
-- `payload` 内字段同时支持 camelCase 与 snake_case（如 `gameCode` / `game_code`），建议统一使用 **camelCase**。
+- `payload` 内字段**仅接受 camelCase**；提交 snake_case 视为参数错误。
 - 同步失败时可能返回 `60001`、`60002` 等错误码。
 
 ---
@@ -388,8 +408,8 @@
 
 ## 4. 用户模块
 
-> **路径参数**：用户域路径已统一为 `{userId}`、`{gameCode}`（如 `/users/{userId}/games/{gameCode}/setting`）。  
-> **请求体**：统一使用 **camelCase**（如 `clientId`）；为兼容旧客户端，创建用户等接口同时接受 `client_id`。
+> **路径参数**：用户域路径为 `{userId}`、`{gameCode}`（如 `/users/{userId}/games/{gameCode}/setting`）。  
+> **请求体**：统一 **camelCase**（如 `clientId`）。
 
 ### 4.1 创建用户
 
@@ -453,7 +473,7 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| user | object | 用户账号，结构同 [3.1](#31-创建用户) 的 `data` |
+| user | object | 用户账号，结构同 [4.1](#41-创建用户) 的 `data` |
 | devices | array | 设备列表 |
 
 `devices[]`（UserDeviceResponse）：
@@ -491,7 +511,7 @@
 |---|---|:---:|---|
 | nickname | string | 是 | 新昵称 |
 
-**返回 data：** 同 [3.1](#31-创建用户) 用户账号结构。
+**返回 data：** 同 [4.1](#41-创建用户) 用户账号结构。
 
 **注意事项：** 仅更新昵称，不改用户名。
 
@@ -516,12 +536,11 @@
 | deviceName | string | 否 | 设备展示名 |
 | deviceType | string | 否 | 设备类型 |
 
-**返回 data：** 单条 `UserDeviceResponse`，结构见 [3.2](#32-查询用户详情)。
+**返回 data：** 单条 `UserDeviceResponse`，结构见 [4.2](#42-查询用户详情)。
 
 **注意事项：**
 
 - 同一 `deviceId` 重复提交会更新设备信息。
-- 实现层字段名为 snake_case。
 
 ---
 
@@ -564,7 +583,7 @@
 | 请求方法 | `PUT` |
 | 请求路径 | `/users/{userId}/games/{gameCode}/setting` |
 
-**Path 参数：** 同 [3.5](#35-获取用户游戏设置)  
+**Path 参数：** 同 [4.5](#45-获取用户游戏设置)  
 
 **Body 参数（JSON）：**
 
@@ -572,7 +591,7 @@
 |---|---|:---:|---|
 | setting | object | 否 | 完整覆盖的游戏设置 JSON |
 
-**返回 data：** 同 [3.5](#35-获取用户游戏设置)。
+**返回 data：** 同 [4.5](#45-获取用户游戏设置)。
 
 **注意事项：** 全量覆盖 `setting`，非增量合并。
 
@@ -628,9 +647,9 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|:---:|---|
-| setting | object | 是 | 完整系统设置，结构同 [3.7](#37-获取用户系统设置) 的 `setting` |
+| setting | object | 是 | 完整系统设置，结构同 [4.7](#47-获取用户系统设置) 的 `setting` |
 
-**返回 data：** 同 [3.7](#37-获取用户系统设置)。
+**返回 data：** 同 [4.7](#47-获取用户系统设置)。
 
 **注意事项：** 全量覆盖；`setting` 不允许未知字段（`extra=forbid`）。
 
@@ -681,7 +700,7 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| game | object | 游戏摘要，同 [4.1](#41-游戏列表) 单项 |
+| game | object | 游戏摘要，同 [5.1](#51-游戏列表) 单项 |
 | difficulties | array | 难度配置列表 |
 | clientConfigs | array | 客户端适配配置 |
 | props | array | 游戏道具规则列表 |
@@ -711,7 +730,7 @@
 | enabled | boolean | 是否启用 |
 | createdAt / updatedAt / deletedAt | number \| null | 时间戳 |
 
-`props[]`（GamePropRuleResponse）：结构同 [5.3](#53-查询游戏可用道具规则)，含 `sortNo`，按 `sort_no` 升序返回。
+`props[]`（GamePropRuleResponse）：结构同 [5.3](#53-查询游戏可用道具规则)，含 `sortNo`，按 `sortNo` 升序返回。
 
 **注意事项：**
 
@@ -730,7 +749,7 @@
 
 **Path 参数：** `gameCode`  
 
-**返回 data：** `GamePropRuleResponse[]`，见 [5.2](#52-查询游戏可用道具规则)。
+**返回 data：** `GamePropRuleResponse[]`，见 [5.3](#53-查询游戏可用道具规则)。
 
 **注意事项：** 仅返回该游戏下已启用的规则。
 
@@ -776,7 +795,7 @@
 | 请求方法 | `GET` |
 | 请求路径 | `/games/{gameCode}/props` |
 
-（与 [4.3](#43-查询游戏可用道具规则) 为同一接口，此处列出便于按模块查阅。）
+（与 [5.3](#53-查询游戏可用道具规则) 为同一接口，此处列出便于按模块查阅。）
 
 **返回 data（GamePropRuleResponse[]）：**
 
@@ -957,8 +976,8 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | purchaseRecord | object | 购买记录 |
-| wallet | object | 扣款后钱包，结构同 [6.1](#61-查询用户钱包) |
-| inventoryItem | object | 对应背包行，结构同 [7.1](#71-查询用户背包) 单项 |
+| wallet | object | 扣款后钱包，结构同 [7.1](#71-查询用户钱包) |
+| inventoryItem | object | 对应背包行，结构同 [8.1](#81-查询用户背包) 单项 |
 
 `purchaseRecord`（PropPurchaseRecordResponse）：
 
@@ -979,7 +998,7 @@
 
 - 服务端按游戏规则定价并扣减积分；余额不足返回 `40002`。
 - 重复 `clientId` 可能返回 `50001`（幂等场景以实现为准）。
-- 支持 camelCase 与 snake_case 字段名（`populate_by_name`）。
+- 请求体字段须为 camelCase。
 
 ---
 
@@ -1002,7 +1021,7 @@
 | pageNum | number | 否 | 1 | 页码 |
 | pageSize | number | 否 | 20 | 每页条数，最大 100 |
 
-**返回 data：** 分页结构，`items` 为 `PropPurchaseRecordResponse[]`，字段同 [8.1](#81-购买道具)。
+**返回 data：** 分页结构，`items` 为 `PropPurchaseRecordResponse[]`，字段同 [9.1](#91-购买道具)。
 
 ---
 
@@ -1042,8 +1061,8 @@
 | difficultyCode | string \| null | 难度 |
 | durationMs | number \| null | 对局时长（毫秒） |
 | score | number | 得分 |
-| propUses | object \| null | 局内道具使用 JSON |
-| payload | object \| null | 扩展 JSON |
+| propUses | array | 局内道具使用明细，无使用为 `[]` |
+| payload | object | 游戏扩展数据，无扩展为 `{}` |
 | syncedAt | number \| null | 同步时间 |
 | createdAt / updatedAt / deletedAt | number \| null | 时间戳 |
 
@@ -1063,7 +1082,7 @@
 |---|---|
 | matchId | 对局 `serverId`（`match_record.server_id`） |
 
-**返回 data：** 单条 `MatchRecordResponse`，字段同 [9.1](#91-查询用户历史对局)。
+**返回 data：** 单条 `MatchRecordResponse`，字段同 [10.1](#101-查询用户历史对局)。
 
 **注意事项：** 不存在返回 `70001`。
 
@@ -1110,8 +1129,8 @@
 
 **注意事项：**
 
-- 基于 `score_record` 实时计算；排序规则来自 `game_definition.config_json` 中的 `ranking.modes[mode]`（见下文「排行榜规则配置」及 match3 import 示例）。
-- 未配置 `ranking.modes[mode]` 时默认：`score` 降序、`createdAt` 升序。
+- 基于 `score_record` 实时计算；排序规则来自 `game_definition.config_json` 中的 `ranking.modes[mode]`（见下文「排行榜规则配置」及附录 C match3 示例）。
+- **`ranking.modes[mode]` 必须存在且含 `primaryMetric` / `orderDirection`**；缺失或非法时服务端解析失败，接口可能返回 `80001`（与 `app/modules/score/leaderboard_rule.py` 行为一致）。
 - 规则含 `scoreRecord.payload` 内字段（如 `comboMax`、`moves`）时，先按 `score` 降序取候选池（默认 **1000** 条，可由 `ranking.candidateLimit` 覆盖），再在服务端按完整规则排序；`payload` 解析失败时 payload 指标按 0 处理。
 - 示例：`GET /api/game-hub/rankings?gameCode=match3&mode=timed&difficultyCode=normal&limit=10`。
 - 示例：`GET /api/game-hub/rankings?gameCode=match3&mode=endless&difficultyCode=normal&limit=10`。
@@ -1132,8 +1151,6 @@
 | primaryMetric | string | 主排序指标：`score`、`durationMs`、`createdAt` 或 `payload` 内 camelCase 字段 |
 | orderDirection | string | `asc` 或 `desc` |
 | tieBreakers | array | 次级指标：`{ metric, orderDirection }` |
-
-兼容旧版 `sort: [{ field, direction }, ...]`（首项映射为 primaryMetric，其余为 tieBreakers）。
 
 扫雷 `minesweeper` + `single` 示例：`durationMs` asc → `score` desc → `createdAt` asc（与 easy/medium/hard 难度无关，难度仅作 Query 过滤）。
 
@@ -1159,8 +1176,12 @@
 
 ## 附录 C：管理配置导入（开发/运维手动调用）
 
-> **重要**：本接口仅供开发或运维在本地/管理环境**手动**导入统一游戏种子配置，用于对齐前端离线配置与后端初始化数据。  
+> **重要**：本接口仅供开发或运维在本地/管理环境**手动**导入统一游戏种子配置。  
 > **禁止**在前端业务启动流程（如 `boot/context`、应用初始化）中自动调用。
+
+业务种子的**唯一源码**为前端 `game-hub/src/constants/gameSeedConfig.js` 中的 `GAME_SEED_CONFIG`。可通过 `npm run export:seed`（在 `game-hub` 目录）生成与之一致的 `dist/game-seed.json`，再作为本接口请求体导入。
+
+后端 `init_db()` **仅**执行建表（`create_all`），不会写入任何游戏 / 道具 / 难度等数据；新环境或清空数据库后必须至少成功调用一次本接口（或由运维等价脚本导入），否则 `boot/context` 中 `games[]` 等将为空。
 
 ### C.1 导入游戏种子配置
 
@@ -1197,7 +1218,7 @@
 | enabled | boolean | 是 | 是否启用 |
 | sortNo | number | 是 | 排序号 |
 | config | object | 是 | 扩展配置，写入 `game_definition.config_json`（如 display、featureFlags、ranking 等） |
-| difficulties | array | 否 | 难度配置列表 |
+| difficulties | array | 否 | 难度配置列表；每条 `difficulties[].config` 可含 `modes[mode].propUseLimits`，须为 `{ "propCode": string, "maxUse": number }[]`（与前端 `GAME_SEED_CONFIG` 一致） |
 | clientConfigs | array | 否 | 客户端布局配置列表 |
 | propRules | array | 否 | 游戏道具规则列表 |
 
@@ -1226,7 +1247,7 @@
 |---|---|:---:|---|
 | propCode | string | 是 | 须存在于本次 `props` 或库内已有 `prop_definition` |
 | price | number | 是 | 该游戏内售价，`>= 0` |
-| （排序） | — | — | `sort_no` 由 `propRules` 数组下标自动生成（首项为 1），无需在 JSON 中传入 |
+| sortNo | number | 否 | 排序号；省略时按 `propRules` 数组顺序自动生成 |
 | maxUsePerMatch | number | 否 | 单局最大使用次数，`>= 0` |
 | triggerType | string | 否 | 触发类型 |
 | effectType | string | 否 | 效果类型 |
@@ -1242,7 +1263,7 @@
 - 关键编码字段不得为空白：`gameCode`、`propCode`、`difficultyCode`、`clientType`。
 - `price`、`basePrice` 必须 `>= 0`；`maxUsePerMatch` 如传入也必须 `>= 0`。
 - `propRules[].propCode` 必须存在于本次 `props[]` 或库内已有 `prop_definition`。
-- `propRules` 数组顺序决定 `game_prop_rule.sort_no`（首项为 1，依次递增）；查询接口按该字段升序返回，前端无需再排序。
+- `propRules` 数组顺序决定 `sortNo`（首项为 1，依次递增）；查询接口按 `sortNo` 升序返回。
 
 #### match3 / Color Crush 示例
 
@@ -1349,10 +1370,18 @@
             },
             "modes": {
               "timed": {
-                "timeLimitSec": 180
+                "timeLimitSec": 180,
+                "propUseLimits": [
+                  {"propCode": "match3_shuffle", "maxUse": 2},
+                  {"propCode": "match3_bomb", "maxUse": 2}
+                ]
               },
               "endless": {
-                "timeLimitSec": 0
+                "timeLimitSec": 0,
+                "propUseLimits": [
+                  {"propCode": "match3_shuffle", "maxUse": 4},
+                  {"propCode": "match3_bomb", "maxUse": 3}
+                ]
               }
             },
             "items": [

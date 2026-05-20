@@ -301,17 +301,17 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 
 各模块保持**单一职责**，`module_service` 之间避免循环依赖。
 
-| 模块 | 职责 |
-|------|------|
-| `sync` | 只做同步编排 |
-| `boot` | 只做启动入口 |
-| `wallet` | 只做钱包 |
-| `inventory` | 只做背包 |
-| `purchase` | 只做购买 |
-| `prop` | 只做道具定义与规则 |
-| `match` | 只做对局 |
-| `score` | 只做成绩 |
-| `ranking` | 只做排行榜查询 |
+| 模块 | 职责 | 边界 |
+|------|------|------|
+| `sync` | 云同步编排：合并 pendingEvents、生成快照 | 不实现排行榜 SQL；HTTP 路由挂在 `boot` |
+| `boot` | 健康检查、启动上下文、`POST /sync/cloud-save` | 不直接写业务表 |
+| `wallet` | 钱包余额与流水 | 余额由流水重算，不直接 patch balance 跳过流水 |
+| `inventory` | 背包数量、使用记录查询 | 数量由购买+使用事件重算 |
+| `purchase` | 购买扣款与写购买记录 | 不内嵌排行榜逻辑 |
+| `prop` | 道具定义与游戏规则 | 不含对局结算 |
+| `match` | 对局记录 CRUD / 查询 | 不计算排行榜 |
+| `score` | 成绩实体、排行榜规则解析 | 供 `ranking` 调用 |
+| `ranking` | 排行榜 HTTP 与查询编排 | 只读 `score_record`，排序规则来自 `game_definition.config` |
 
 ### 12.1 依赖原则
 
@@ -319,11 +319,24 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 - 公共能力放入 `app.common` 或 `app.core`，不复制粘贴到其他模块。
 - 需要复用查询逻辑时，优先下沉到 `repository` 或抽取共享工具，而非跨模块直接操作对方 ORM。
 
+### 12.2 SQLite / SQLAlchemy
+
+- 默认库：`DATABASE_URL`（本地 `./game_hub.db`，Docker `/app/data/game_hub.db`）。
+- ORM 字段 snake_case；**出参**经 Pydantic 转为 camelCase。
+- JSON 业务字段（`prop_uses_json`、`payload_json` 等）入库为 TEXT，出库反序列化为 `list` / `dict`。
+- 事务边界放在 `module_service`；`repository` 不提交跨模块事务。
+
+### 12.3 同步事件（event）
+
+- `eventType` + `clientId` 幂等；`payload` 仅 camelCase。
+- `match_record` 的 `propUses` 必须为数组，`payload` 必须为对象。
+- 不支持的事件类型返回 `SYNC_EVENT_TYPE_UNSUPPORTED`（60001）。
+
 ---
 
 ## 13. 接口文档规范
 
-- **新增或修改接口后，必须同步更新** `docs/api.md`。
+- **新增或修改接口后，必须同步更新** 项目根目录 [`docs/api.md`](../api.md)。
 - 文档须写清楚：
   - 请求路径
   - HTTP 方法
@@ -336,7 +349,7 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 
 ## 14. 代码生成与提交要求
 
-1. **阅读规范**：后续所有后端代码生成前，必须先阅读本文档（`docs/backend-code-style.md`）。
+1. **阅读规范**：后续所有后端代码生成前，必须先阅读本文档（`docs/code-style/backend-code-style.md`）。
 2. **符合规范**：不符合本规范的代码不得提交。
 3. **编译检查**：修改 Python 业务代码后，必须执行：
 
@@ -345,7 +358,7 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
    ```
 
    确保无语法错误且兼容 Python 3.8.11。
-4. **文档同步**：涉及接口变更时，同步更新 `docs/api.md`。
+4. **文档同步**：涉及接口变更时，同步更新 [`docs/api.md`](../api.md)。
 5. **不改前端**：后端任务默认不修改前端代码，除非任务明确要求。
 
 ---
@@ -361,5 +374,5 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 - [ ] 出参字段为 camelCase，时间为毫秒 `int`
 - [ ] JSON 字段已反序列化，非字符串直出
 - [ ] 分层清晰，api 不直连 repository
-- [ ] 已更新 `docs/api.md`（如有接口变更）
+- [ ] 已更新 [`docs/api.md`](../api.md)（如有接口变更）
 - [ ] 已执行 `python -m compileall app`

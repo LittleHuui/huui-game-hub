@@ -1,5 +1,8 @@
 services:
   huui-game-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ghcr.io/littlehuui/huui-game-hub:latest
     container_name: huui-game-hub
     ports:
@@ -8,13 +11,25 @@ services:
       - ./data:/app/data
     environment:
       DATABASE_URL: sqlite:////app/data/game_hub.db
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1/api/game-hub/health')\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
   watchtower:
     image: containrrr/watchtower
     container_name: huui-game-hub-watchtower
+    profiles:
+      - watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
@@ -22,4 +37,4 @@ services:
       WATCHTOWER_POLL_INTERVAL: "300"
       WATCHTOWER_CLEANUP: "true"
     command: --label-enable
-    restart: always
+    restart: unless-stopped

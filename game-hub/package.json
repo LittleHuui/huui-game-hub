@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "export:seed": "node scripts/export-game-seed.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

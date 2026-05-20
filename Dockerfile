@@ -14,7 +14,7 @@ COPY game-hub/ ./
 # 生产构建使用同源相对路径，由 nginx 将 /api/ 反代到后端
 ENV VITE_API_BASE=
 
-RUN npm run build
+RUN npm run build && npm run export:seed
 
 # ---------- 运行镜像 ----------
 FROM python:3.8.11-slim-bullseye
