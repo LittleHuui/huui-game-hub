@@ -731,7 +731,7 @@
 | enabled | boolean | 是否启用 |
 | createdAt / updatedAt / deletedAt | number \| null | 时间戳 |
 
-`props[]`（GamePropRuleResponse）：结构同 [5.3](#53-查询游戏可用道具规则)，含 `sortNo`，按 `sortNo` 升序返回。
+`props[]`（GamePropRuleResponse）：结构同 [5.3](#53-查询游戏可用道具规则)，含 `sortNo`，按 `sortNo` 升序、`propCode` 升序返回。
 
 **注意事项：**
 
@@ -752,7 +752,7 @@
 
 **返回 data：** `GamePropRuleResponse[]`，见 [5.3](#53-查询游戏可用道具规则)。
 
-**注意事项：** 仅返回该游戏下已启用的规则。
+**注意事项：** 仅返回该游戏下已启用的规则；列表按 `sortNo` 升序、`propCode` 升序排序。
 
 ---
 
@@ -806,7 +806,7 @@
 | gameCode | string | 游戏编码 |
 | propCode | string | 道具编码 |
 | propName | string \| null | 道具名称（关联定义） |
-| sortNo | number | 排序号（按 seed/import 中 propRules 数组顺序写入） |
+| sortNo | number | 排序号（与种子 `propRules[].sortNo` 一致，写入 `game_prop_rule.sort_no`） |
 | price | number | 本游戏内售价 |
 | maxUsePerMatch | number \| null | 单局最大使用次数 |
 | triggerType | string \| null | 触发类型 |
@@ -1247,8 +1247,8 @@
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|:---:|---|
 | propCode | string | 是 | 须存在于本次 `props` 或库内已有 `prop_definition` |
+| sortNo | number | 是 | 排序号，写入 `game_prop_rule.sort_no`；须显式提供，不得省略 |
 | price | number | 是 | 该游戏内售价，`>= 0` |
-| sortNo | number | 否 | 排序号；省略时按 `propRules` 数组顺序自动生成 |
 | maxUsePerMatch | number | 否 | 单局最大使用次数，`>= 0` |
 | triggerType | string | 否 | 触发类型 |
 | effectType | string | 否 | 效果类型 |
@@ -1264,7 +1264,7 @@
 - 关键编码字段不得为空白：`gameCode`、`propCode`、`difficultyCode`、`clientType`。
 - `price`、`basePrice` 必须 `>= 0`；`maxUsePerMatch` 如传入也必须 `>= 0`。
 - `propRules[].propCode` 必须存在于本次 `props[]` 或库内已有 `prop_definition`。
-- `propRules` 数组顺序决定 `sortNo`（首项为 1，依次递增）；查询接口按 `sortNo` 升序返回。
+- `propRules[].sortNo` 必填，导入时原样写入 `game_prop_rule.sort_no`；`GET .../props` 与 `GET .../config` 的 `props` 列表按 `sortNo` 升序、`propCode` 升序稳定排序。
 
 #### match3 / Color Crush 示例
 
@@ -1416,6 +1416,7 @@
       "propRules": [
         {
           "propCode": "match3_shuffle",
+          "sortNo": 1,
           "price": 800,
           "maxUsePerMatch": 3,
           "triggerType": "manual",
@@ -1429,6 +1430,7 @@
         },
         {
           "propCode": "match3_bomb",
+          "sortNo": 2,
           "price": 1200,
           "maxUsePerMatch": 3,
           "triggerType": "manual_select_cell",

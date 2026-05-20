@@ -141,7 +141,7 @@ await activateGame(gameCode, {
 
 ## 5. 道具接入
 
-1. 种子 / 服务端：`propRules`（`propCode`、`price`、`maxUsePerMatch`、`effectType`、`rule`）  
+1. 种子 / 服务端：`propRules`（`propCode`、`sortNo`、`price`、`maxUsePerMatch`、`effectType`、`rule` 等；`sortNo` 必填并写入 `game_prop_rule.sort_no`）  
 2. `GameShopPanel` + `purchaseService.buyProp` 负责购买  
 3. `GameInventoryPanel` 只展示数量；`@use-prop` 在 Page 中处理；局内使用通过 `session.trackPropUsage` / `session.recordInventoryUse` 记入本局与背包流水  
 4. 局内明细收集为数组，结算时作为 `propUses` 传入 `session.settleWin` / `settleFail` / `settleEnd`，随 `match_record` 入队同步  

@@ -78,7 +78,7 @@ class GamePropRuleRepository:
                 GamePropRule.enabled == 1,
                 GamePropRule.deleted_at.is_(None),
             )
-            .order_by(GamePropRule.sort_no.asc())
+            .order_by(GamePropRule.sort_no.asc(), GamePropRule.prop_code.asc())
         )
         return list(self._session.scalars(stmt).all())
 
@@ -97,7 +97,7 @@ class GamePropRuleRepository:
                 PropDefinition.enabled == 1,
                 PropDefinition.deleted_at.is_(None),
             )
-            .order_by(GamePropRule.sort_no.asc())
+            .order_by(GamePropRule.sort_no.asc(), GamePropRule.prop_code.asc())
         )
         return list(self._session.execute(stmt).all())
 

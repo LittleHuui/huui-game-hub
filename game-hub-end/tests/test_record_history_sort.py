@@ -93,6 +93,7 @@ def _import_game_with_prop(client: TestClient, game_code: str, prop_code: str) -
                 "propRules": [
                     {
                         "propCode": prop_code,
+                        "sortNo": 1,
                         "price": 10,
                         "enabled": True,
                         "rule": {},

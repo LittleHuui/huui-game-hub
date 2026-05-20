@@ -120,7 +120,7 @@ deps.py：FastAPI Depends
 ### 3.3 数据库初始化与业务种子
 
 - 应用启动时 `init_db()` 仅负责注册 ORM 元数据并 `create_all` **建表**，**不**写入游戏定义、难度、道具、排行榜规则等业务行。
-- 业务数据须通过 `POST /admin/config/import-game-seed` 导入；请求体应与前端 `game-hub/src/constants/gameSeedConfig.js` 中 `GAME_SEED_CONFIG` 一致，开发/CI 可在 `game-hub` 目录执行 `npm run export:seed` 生成 `dist/game-seed.json` 再导入。
+- 业务数据须通过 `POST /admin/config/import-game-seed` 导入；请求体须与前端 `game-hub/src/constants/gameSeedConfig.js` 中 `GAME_SEED_CONFIG` 导出的 JSON **字段级一致**（含 `games[].propRules[].sortNo` 等必填项；后端 schema `extra=forbid`，缺字段或多余字段均会校验失败），开发/CI 可在 `game-hub` 目录执行 `npm run export:seed` 生成 `dist/game-seed.json` 再导入。
 - Docker 镜像构建阶段已执行 `export:seed`，运行时可通过静态路径 **`/game-seed.json`** 拉取同源 JSON 并 POST 至上述接口（详见 [docker-guide.md](docker-guide.md)）。
 
 ### 3.4 API 前缀

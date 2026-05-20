@@ -8,8 +8,8 @@ from app.core.database import init_db
 from app.main import app
 
 
-def test_prop_rules_sorted_by_import_order() -> None:
-    """import propRules 顺序应写入 sort_no，props/config 接口按该顺序返回 sortNo。"""
+def test_prop_rules_sorted_by_seed_sort_no() -> None:
+    """import 时写入 propRules.sortNo 至 sort_no；列表按 sort_no 升序（同序 tie-break prop_code），与数组顺序无关。"""
     init_db()
 
     suffix = uuid.uuid4().hex[:8]
@@ -49,20 +49,23 @@ def test_prop_rules_sorted_by_import_order() -> None:
                 "config": {},
                 "propRules": [
                     {
+                        "propCode": prop_m,
+                        "sortNo": 30,
+                        "price": 300,
+                        "enabled": True,
+                        "rule": {},
+                    },
+                    {
                         "propCode": prop_z,
+                        "sortNo": 10,
                         "price": 100,
                         "enabled": True,
                         "rule": {},
                     },
                     {
                         "propCode": prop_a,
+                        "sortNo": 20,
                         "price": 200,
-                        "enabled": True,
-                        "rule": {},
-                    },
-                    {
-                        "propCode": prop_m,
-                        "price": 300,
                         "enabled": True,
                         "rule": {},
                     },
@@ -79,10 +82,10 @@ def test_prop_rules_sorted_by_import_order() -> None:
         assert props_resp.status_code == 200
         props_items = props_resp.json()["data"]
         assert [item["propCode"] for item in props_items] == [prop_z, prop_a, prop_m]
-        assert [item["sortNo"] for item in props_items] == [1, 2, 3]
+        assert [item["sortNo"] for item in props_items] == [10, 20, 30]
 
         config_resp = client.get(f"/api/game-hub/games/{game_code}/config")
         assert config_resp.status_code == 200
         config_props = config_resp.json()["data"]["props"]
         assert [item["propCode"] for item in config_props] == [prop_z, prop_a, prop_m]
-        assert [item["sortNo"] for item in config_props] == [1, 2, 3]
+        assert [item["sortNo"] for item in config_props] == [10, 20, 30]

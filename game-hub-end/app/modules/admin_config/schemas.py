@@ -49,6 +49,7 @@ class GameSeedPropRule(BaseModel):
     model_config = CAMEL_MODEL_CONFIG
 
     propCode: str = Field(min_length=1)
+    sortNo: int
     price: int = Field(ge=0)
     maxUsePerMatch: Optional[int] = Field(default=None, ge=0)
     triggerType: Optional[str] = None
