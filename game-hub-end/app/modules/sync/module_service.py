@@ -1,49 +1,76 @@
 """同步域模块级编排服务。"""
 
-import json
-from typing import Any, Dict, List, Optional
+from typing import List, Literal
 
-from app.core.exceptions import NotFoundException, ValidationException
-from app.core.time_utils import now_ms
+from app.core.exceptions import ValidationException
 from app.modules.inventory.module_service import InventoryModuleService
 from app.modules.match.module_service import MatchModuleService
-from app.modules.match.schemas import MatchRecordCreate, MatchRecordRead, ScoreRecordRead
-from app.modules.prop.schemas import PropPurchaseRecordRead, PropPurchaseRequest, PropUsageRecordCreate, PropUsageRecordRead
+from app.modules.match.schemas import (
+    MatchRecordCreate,
+    ScoreRecordCreate,
+    object_to_json_text,
+)
+from app.modules.prop.schemas import PropPurchaseRequest, PropUsageRecordCreate
 from app.modules.purchase.module_service import PurchaseModuleService
 from app.modules.score.module_service import ScoreModuleService
-from app.modules.match.schemas import ScoreRecordCreate
 from app.modules.sync.entity_service import (
-    SyncLogEntityService,
     as_required_str,
+    payload_array,
     payload_bool,
     payload_int,
-    payload_json_text,
+    payload_object,
     payload_str,
     require_fields,
 )
-from app.modules.sync.schemas import (
-    CloudSaveRequest,
-    CloudSaveResponse,
-    PendingEvent,
-    bag_row_to_cloud,
-    game_setting_to_cloud_dict,
-    score_record_read_to_cloud,
-    system_setting_to_cloud_dict,
-    user_to_cloud,
-    wallet_to_cloud,
-)
+from app.modules.sync.schemas import PendingEvent
 from app.modules.user.module_service import UserModuleService
-from app.modules.user.schemas import UserAccountRead
 from app.modules.wallet.module_service import WalletModuleService
-from app.modules.wallet.schemas import UserWalletRead, WalletLedgerRead
+
+SyncEventResult = Literal["success", "duplicate"]
+
+_SUPPORTED_SYNC_EVENT_TYPES = frozenset(
+    {
+        "user_update",
+        "user_system_setting_update",
+        "user_game_setting_update",
+        "wallet_ledger",
+        "prop_purchase",
+        "prop_usage",
+        "match_record",
+        "score_record",
+    }
+)
+
+_STATE_SYNC_EVENT_TYPES = frozenset(
+    {
+        "user_update",
+        "user_system_setting_update",
+        "user_game_setting_update",
+    }
+)
+
+
+def order_cloud_save_events(events: List[PendingEvent]) -> List[PendingEvent]:
+    """
+    构造云存档同步处理顺序。
+
+    状态类事件先按 ``updatedAt`` 升序、同戳按 ``clientId`` 升序排序后处理（LWW）；
+    事件类（wallet_ledger / match_record 等）保持 ``pendingEvents`` 中的相对顺序，不重排。
+
+    :param events: 客户端上报的待同步事件列表。
+    :return: 实际分发顺序列表。
+    """
+    state_events = [event for event in events if event.eventType in _STATE_SYNC_EVENT_TYPES]
+    action_events = [event for event in events if event.eventType not in _STATE_SYNC_EVENT_TYPES]
+    state_events.sort(key=lambda item: (item.updatedAt, item.clientId))
+    return state_events + action_events
 
 
 class SyncModuleService:
-    """同步模块：仅负责事件分发、同步日志与快照聚合。"""
+    """同步模块：pending 事件排序、幂等分发与各领域写入。"""
 
     def __init__(
         self,
-        sync_log_entity: SyncLogEntityService,
         user_module: UserModuleService,
         wallet_module: WalletModuleService,
         purchase_module: PurchaseModuleService,
@@ -51,7 +78,6 @@ class SyncModuleService:
         match_module: MatchModuleService,
         score_module: ScoreModuleService,
     ) -> None:
-        self._sync_logs = sync_log_entity
         self._users = user_module
         self._wallet = wallet_module
         self._purchase = purchase_module
@@ -59,125 +85,36 @@ class SyncModuleService:
         self._match = match_module
         self._score = score_module
 
-    def cloud_save(self, body: CloudSaveRequest) -> CloudSaveResponse:
-        """
-        处理 pending 事件并返回完整云存档快照。
-
-        :param body: 云存档同步请求。
-        :return: 云存档响应。
-        """
-        self._validate_cloud_save_request(body)
-        server_time = now_ms()
-        success_count = 0
-        fail_count = 0
-        error_messages: List[str] = []
-
-        for event in body.pendingEvents:
-            try:
-                self._dispatch(body.userId, body.deviceId, event)
-                success_count += 1
-            except (ValidationException, NotFoundException) as exc:
-                fail_count += 1
-                error_messages.append("{0}: {1}".format(event.clientId, exc.message))
-
-        sync_result = "success" if fail_count == 0 else "partial" if success_count > 0 else "failed"
-        self._sync_logs.append_cloud_save(
-            user_id=body.userId,
-            device_id=body.deviceId,
-            sync_result=sync_result,
-            pending_count=len(body.pendingEvents),
-            success_count=success_count,
-            fail_count=fail_count,
-            error_message="; ".join(error_messages) if error_messages else None,
-            payload_json=json.dumps(
-                {
-                    "clientSnapshotVersion": body.clientSnapshotVersion,
-                    "processedClientIds": [e.clientId for e in body.pendingEvents],
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
-        )
-
-        if fail_count > 0 and success_count == 0:
-            raise ValidationException(error_messages[0] if error_messages else "同步失败")
-
-        return self._build_cloud_snapshot(
-            user_id=body.userId,
-            server_time=server_time,
-            cloud_snapshot_version=self._resolve_cloud_version(body),
-        )
-
-    def _resolve_cloud_version(self, body: CloudSaveRequest) -> int:
-        """
-        计算服务端云存档版本号。
-
-        :param body: 同步请求。
-        :return: 云存档版本。
-        """
-        base = body.clientSnapshotVersion if body.clientSnapshotVersion > 0 else 0
-        if body.pendingEvents:
-            return base + 1
-        return base if base > 0 else 1
-
-    def _build_cloud_snapshot(
+    def dispatch_cloud_save_event(
         self,
-        *,
         user_id: str,
-        server_time: int,
-        cloud_snapshot_version: int,
-    ) -> CloudSaveResponse:
+        device_id: str,
+        event: PendingEvent,
+    ) -> SyncEventResult:
         """
-        聚合各业务模块数据构建云存档响应。
+        按 eventType 幂等分发单条云存档事件。
 
         :param user_id: 用户主键。
-        :param server_time: 服务器时间戳（毫秒）。
-        :param cloud_snapshot_version: 云存档版本。
-        :return: 云存档响应。
+        :param device_id: 设备 ID。
+        :param event: 待处理事件。
+        :return: ``success`` 或 ``duplicate``。
         """
-        detail = self._users.get_user_detail(user_id)
-        self._wallet.rebuild_wallet_from_ledgers(user_id)
-        self._inventory.rebuild_inventory_from_records(user_id)
-        wallet_read = UserWalletRead.model_validate(self._wallet.get_or_create_wallet(user_id))
-        bag = self._inventory.get_user_bag(user_id)
-        game_settings = self._users.list_user_game_settings(user_id)
-        system_setting = self._users.read_user_system_setting(user_id)
-        settings: List[Dict[str, Any]] = [game_setting_to_cloud_dict(s) for s in game_settings]
-        settings.append(system_setting_to_cloud_dict(system_setting))
-        histories = [
-            MatchRecordRead.model_validate(row)
-            for row in self._match.list_user_matches(user_id, limit=100)
-        ]
-        wallet_ledgers = [
-            WalletLedgerRead.model_validate(row) for row in self._wallet.list_ledgers(user_id)
-        ]
-        purchase_records = [
-            PropPurchaseRecordRead.model_validate(row)
-            for row in self._purchase.list_purchase_records(user_id)
-        ]
-        usage_records = [
-            PropUsageRecordRead.model_validate(row)
-            for row in self._inventory.list_usage_records(user_id)
-        ]
-        score_records = [
-            score_record_read_to_cloud(ScoreRecordRead.model_validate(row))
-            for row in self._score.list_user_score_records(user_id, limit=200)
-        ]
-
-        return CloudSaveResponse(
-            serverTime=server_time,
-            cloudSnapshotVersion=cloud_snapshot_version,
-            user=user_to_cloud(UserAccountRead.model_validate(detail.user)),
-            wallet=wallet_to_cloud(wallet_read),
-            inventory=[bag_row_to_cloud(row) for row in bag.items],
-            settings=settings,
-            histories=histories,
-            walletLedgers=wallet_ledgers,
-            propUsageRecords=usage_records,
-            purchaseRecords=purchase_records,
-            matchRecords=histories,
-            scoreRecords=score_records,
-        )
+        event_type = event.eventType
+        if event_type not in _SUPPORTED_SYNC_EVENT_TYPES:
+            raise ValidationException("不支持的 eventType: {0}".format(event_type))
+        if event_type == "wallet_ledger" and self._wallet.ledger_exists(user_id, event.clientId):
+            return "duplicate"
+        if event_type == "prop_purchase" and self._purchase.purchase_exists(user_id, event.clientId):
+            return "duplicate"
+        if event_type == "prop_usage" and self._inventory.usage_exists(user_id, event.clientId):
+            return "duplicate"
+        if event_type == "match_record" and self._match.match_record_exists(user_id, event.clientId):
+            self._dispatch(user_id, device_id, event)
+            return "duplicate"
+        if event_type == "score_record" and self._score.score_record_exists(user_id, event.clientId):
+            return "duplicate"
+        self._dispatch(user_id, device_id, event)
+        return "success"
 
     def dispatch_pending_event(self, user_id: str, device_id: str, event: PendingEvent) -> None:
         """
@@ -257,11 +194,8 @@ class SyncModuleService:
         :param device_id: 设备 ID。
         :param event: 事件。
         """
-        require_fields(event.payload, ["change_type", "reason", "amount"], event)
-        change_type = as_required_str(
-            payload_str(event.payload, "change_type", "changeType"),
-            "change_type",
-        )
+        require_fields(event.payload, ["changeType", "reason", "amount"], event)
+        change_type = as_required_str(payload_str(event.payload, "changeType"), "changeType")
         reason = as_required_str(payload_str(event.payload, "reason"), "reason")
         amount = payload_int(event.payload, "amount")
         if amount is None:
@@ -273,8 +207,8 @@ class SyncModuleService:
             reason=reason,
             amount=amount,
             device_id=device_id,
-            game_code=payload_str(event.payload, "game_code", "gameCode"),
-            payload_json=payload_json_text(event.payload, "payload_json", "payloadJson", "payload"),
+            game_code=payload_str(event.payload, "gameCode"),
+            payload_json=object_to_json_text(payload_object(event.payload, "payload")),
         )
 
     def _handle_prop_purchase(self, user_id: str, device_id: str, event: PendingEvent) -> None:
@@ -285,33 +219,23 @@ class SyncModuleService:
         :param device_id: 设备 ID。
         :param event: 事件。
         """
-        require_fields(
-            event.payload,
-            ["game_code", "prop_code", "quantity"],
-            event,
-        )
+        require_fields(event.payload, ["gameCode", "propCode", "quantity"], event)
         quantity = payload_int(event.payload, "quantity")
         if quantity is None or quantity < 1:
             raise ValidationException("quantity 必须为正整数")
-        wallet_client_id = payload_str(event.payload, "wallet_client_id", "walletClientId")
+        wallet_client_id = payload_str(event.payload, "walletClientId")
         if wallet_client_id is None or not wallet_client_id.strip():
             wallet_client_id = "{0}:wallet".format(event.clientId)
-        unit_price = payload_int(event.payload, "unit_price", "unitPrice")
-        total_price = payload_int(event.payload, "total_price", "totalPrice")
+        unit_price = payload_int(event.payload, "unitPrice")
+        total_price = payload_int(event.payload, "totalPrice")
         self._purchase.purchase_prop(
             PropPurchaseRequest(
                 clientId=event.clientId,
                 walletClientId=wallet_client_id,
                 userId=user_id,
                 deviceId=device_id,
-                gameCode=as_required_str(
-                    payload_str(event.payload, "game_code", "gameCode"),
-                    "game_code",
-                ),
-                propCode=as_required_str(
-                    payload_str(event.payload, "prop_code", "propCode"),
-                    "prop_code",
-                ),
+                gameCode=as_required_str(payload_str(event.payload, "gameCode"), "gameCode"),
+                propCode=as_required_str(payload_str(event.payload, "propCode"), "propCode"),
                 quantity=quantity,
             ),
             unit_price=unit_price,
@@ -326,7 +250,7 @@ class SyncModuleService:
         :param device_id: 设备 ID。
         :param event: 事件。
         """
-        require_fields(event.payload, ["game_code", "prop_code"], event)
+        require_fields(event.payload, ["gameCode", "propCode"], event)
         quantity = payload_int(event.payload, "quantity", default=1)
         if quantity is None or quantity < 1:
             raise ValidationException("quantity 必须为正整数")
@@ -335,19 +259,13 @@ class SyncModuleService:
                 clientId=event.clientId,
                 userId=user_id,
                 deviceId=device_id,
-                gameCode=as_required_str(
-                    payload_str(event.payload, "game_code", "gameCode"),
-                    "game_code",
-                ),
-                matchId=payload_str(event.payload, "match_id", "matchId"),
-                propCode=as_required_str(
-                    payload_str(event.payload, "prop_code", "propCode"),
-                    "prop_code",
-                ),
+                gameCode=as_required_str(payload_str(event.payload, "gameCode"), "gameCode"),
+                matchId=payload_str(event.payload, "matchId"),
+                propCode=as_required_str(payload_str(event.payload, "propCode"), "propCode"),
                 quantity=quantity,
-                useReason=payload_str(event.payload, "use_reason", "useReason"),
-                payloadJson=payload_json_text(event.payload, "payload_json", "payloadJson", "payload"),
-                consumeFromBag=payload_bool(event.payload, "consume_from_bag", "consumeFromBag", default=True),
+                useReason=payload_str(event.payload, "useReason"),
+                payload=payload_object(event.payload, "payload"),
+                consumeFromBag=payload_bool(event.payload, "consumeFromBag", default=True),
             )
         )
 
@@ -359,23 +277,20 @@ class SyncModuleService:
         :param device_id: 设备 ID。
         :param event: 事件。
         """
-        require_fields(event.payload, ["game_code", "mode", "result"], event)
+        require_fields(event.payload, ["gameCode", "mode", "result"], event)
         self._match.create_match_record_if_not_exists(
             MatchRecordCreate(
                 clientId=event.clientId,
                 userId=user_id,
                 deviceId=device_id,
-                gameCode=as_required_str(
-                    payload_str(event.payload, "game_code", "gameCode"),
-                    "game_code",
-                ),
+                gameCode=as_required_str(payload_str(event.payload, "gameCode"), "gameCode"),
                 mode=as_required_str(payload_str(event.payload, "mode"), "mode"),
                 result=as_required_str(payload_str(event.payload, "result"), "result"),
-                difficultyCode=payload_str(event.payload, "difficulty_code", "difficultyCode"),
-                durationMs=payload_int(event.payload, "duration_ms", "durationMs"),
+                difficultyCode=payload_str(event.payload, "difficultyCode"),
+                durationMs=payload_int(event.payload, "durationMs"),
                 score=payload_int(event.payload, "score", default=0) or 0,
-                propUsesJson=payload_json_text(event.payload, "prop_uses_json", "propUsesJson"),
-                payloadJson=payload_json_text(event.payload, "payload_json", "payloadJson", "payload"),
+                propUses=payload_array(event.payload, "propUses"),
+                payload=payload_object(event.payload, "payload"),
             )
         )
 
@@ -387,7 +302,7 @@ class SyncModuleService:
         :param device_id: 设备 ID。
         :param event: 事件。
         """
-        require_fields(event.payload, ["game_code", "mode", "result", "score"], event)
+        require_fields(event.payload, ["gameCode", "mode", "result", "score"], event)
         score = payload_int(event.payload, "score")
         if score is None:
             raise ValidationException("score 不能为空")
@@ -396,30 +311,12 @@ class SyncModuleService:
                 clientId=event.clientId,
                 userId=user_id,
                 deviceId=device_id,
-                gameCode=as_required_str(
-                    payload_str(event.payload, "game_code", "gameCode"),
-                    "game_code",
-                ),
+                gameCode=as_required_str(payload_str(event.payload, "gameCode"), "gameCode"),
                 mode=as_required_str(payload_str(event.payload, "mode"), "mode"),
-                difficultyCode=payload_str(event.payload, "difficulty_code", "difficultyCode"),
+                difficultyCode=payload_str(event.payload, "difficultyCode"),
                 result=as_required_str(payload_str(event.payload, "result"), "result"),
                 score=score,
-                durationMs=payload_int(event.payload, "duration_ms", "durationMs"),
-                payloadJson=payload_json_text(event.payload, "payload_json", "payloadJson", "payload"),
+                durationMs=payload_int(event.payload, "durationMs"),
+                payload=payload_object(event.payload, "payload"),
             )
         )
-
-    def _validate_cloud_save_request(self, body: CloudSaveRequest) -> None:
-        """
-        校验云存档同步请求（用户存在性与批次内 clientId 唯一）。
-
-        :param body: 同步请求体。
-        :raises NotFoundException: 用户不存在。
-        :raises ValidationException: 事件列表非法。
-        """
-        self._users.get_user_detail(body.userId)
-        seen_client_ids: List[str] = []
-        for idx, event in enumerate(body.pendingEvents):
-            if event.clientId in seen_client_ids:
-                raise ValidationException(f"同一批次内 clientId 重复: index={idx}")
-            seen_client_ids.append(event.clientId)

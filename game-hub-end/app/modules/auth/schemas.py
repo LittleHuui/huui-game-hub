@@ -4,7 +4,7 @@ from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.common.camel_schema import CAMEL_MODEL_CONFIG, camel_field
+from app.common.camel_schema import CAMEL_MODEL_CONFIG
 from app.modules.boot.schemas import UserPropBagResponse, UserWalletResponse
 from app.modules.user.schemas import UserAccountResponse, UserSystemSettingResponse
 
@@ -15,7 +15,7 @@ class LoginRequest(BaseModel):
     model_config = CAMEL_MODEL_CONFIG
 
     username: str = Field(min_length=1, description="登录用户名")
-    deviceId: str = camel_field("deviceId", min_length=1, description="前端设备 ID")
+    deviceId: str = Field(min_length=1, description="前端设备 ID")
 
     @field_validator("username")
     @classmethod

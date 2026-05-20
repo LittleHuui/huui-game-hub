@@ -77,7 +77,10 @@ class MatchRecordRepository:
         stmt = select(MatchRecord).where(MatchRecord.user_id == user_id)
         if active_only:
             stmt = stmt.where(MatchRecord.deleted_at.is_(None))
-        stmt = stmt.order_by(MatchRecord.created_at.desc()).limit(limit)
+        stmt = stmt.order_by(
+            MatchRecord.updated_at.desc(),
+            MatchRecord.created_at.desc(),
+        ).limit(limit)
         return list(self._session.scalars(stmt).all())
 
     def _apply_user_list_filters(
@@ -186,7 +189,10 @@ class MatchRecordRepository:
             difficulty_code=difficulty_code,
             active_only=active_only,
         )
-        stmt = stmt.order_by(MatchRecord.created_at.desc()).offset(offset).limit(page_size)
+        stmt = stmt.order_by(
+            MatchRecord.updated_at.desc(),
+            MatchRecord.created_at.desc(),
+        ).offset(offset).limit(page_size)
         return list(self._session.scalars(stmt).all())
 
     def add(self, entity: MatchRecord) -> MatchRecord:

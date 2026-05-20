@@ -10,7 +10,7 @@ class PageRequest(BaseModel):
     校验：``pageNum >= 1``、``1 <= pageSize <= 100``。
     """
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
     pageNum: int = Field(default=1, ge=1, description="页码，从 1 开始")
     pageSize: int = Field(default=20, ge=1, le=100, description="每页条数，最大 100")

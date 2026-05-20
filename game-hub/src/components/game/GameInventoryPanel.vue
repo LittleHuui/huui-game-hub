@@ -34,7 +34,7 @@ import { computed } from 'vue';
 import { useShopStore } from '../../stores/shopStore.js';
 import { useUserStore } from '../../stores/userStore.js';
 import { useInventoryStore } from '../../stores/inventoryStore.js';
-import { aggregateQuantitiesByGame } from '../../utils/inventoryQuantity.js';
+import { quantitiesForUserGame } from '../../utils/inventoryQuantity.js';
 
 const props = defineProps({
   gameCode: {
@@ -71,7 +71,11 @@ const inventoryStore = useInventoryStore();
 
 const quantities = computed(() => {
   const uid = userStore.auth.currentUserId;
-  return aggregateQuantitiesByGame(inventoryStore.listForUser(uid), props.gameCode);
+  return quantitiesForUserGame(
+    inventoryStore.listForUser(uid),
+    inventoryStore.bagForGame(uid, props.gameCode),
+    props.gameCode
+  );
 });
 
 const displayItems = computed(() => {

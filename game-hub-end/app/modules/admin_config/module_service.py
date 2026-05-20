@@ -299,12 +299,13 @@ class AdminConfigModuleService:
         for client_item in game_item.clientConfigs:
             self._import_client_config(game_item.gameCode, client_item, result)
 
-        for rule_item in game_item.propRules:
+        for sort_index, rule_item in enumerate(game_item.propRules, start=1):
             self._import_prop_rule(
                 game_item.gameCode,
                 rule_item,
-                request_prop_codes,
-                result,
+                sort_no=sort_index,
+                request_prop_codes=request_prop_codes,
+                result=result,
             )
 
     def _import_difficulty(
@@ -362,6 +363,7 @@ class AdminConfigModuleService:
         self,
         game_code: str,
         rule_item: GameSeedPropRule,
+        sort_no: int,
         request_prop_codes: Set[str],
         result: ImportGameSeedResponse,
     ) -> None:
@@ -370,6 +372,7 @@ class AdminConfigModuleService:
 
         :param game_code: 游戏编码。
         :param rule_item: 道具规则种子项。
+        :param sort_no: 按 propRules 数组顺序写入的排序号。
         :param request_prop_codes: 本次请求 props 编码集合。
         :param result: 累计统计对象。
         """
@@ -381,6 +384,7 @@ class AdminConfigModuleService:
         _, created = self._prop_rule_import.upsert(
             game_code=game_code,
             prop_code=rule_item.propCode,
+            sort_no=sort_no,
             price=rule_item.price,
             max_use_per_match=rule_item.maxUsePerMatch,
             trigger_type=rule_item.triggerType,

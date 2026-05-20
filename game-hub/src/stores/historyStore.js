@@ -1,4 +1,41 @@
 import { defineStore } from 'pinia';
+import { mapMatchRecord } from '../mappers/matchMapper.js';
+import { mapScoreRecord } from '../mappers/scoreMapper.js';
+import { recentHistoryRecords } from '../utils/historySort.js';
+
+/**
+ * @param {object[]} rows
+ * @param {(row: object) => object} mapper
+ * @returns {object[]}
+ */
+function sanitizeRecordList(rows, mapper) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows.map((row) => {
+    const mapped = mapper(row);
+    return {
+      ...mapped,
+      syncStatus: row.syncStatus || mapped.syncStatus || 'pending'
+    };
+  });
+}
+
+/**
+ * @param {Record<string, object[]>} map
+ * @param {(row: object) => object} mapper
+ * @returns {Record<string, object[]>}
+ */
+function sanitizeRecordMap(map, mapper) {
+  if (!map || typeof map !== 'object') {
+    return {};
+  }
+  const next = {};
+  for (const [uid, rows] of Object.entries(map)) {
+    next[uid] = sanitizeRecordList(rows, mapper);
+  }
+  return next;
+}
 
 export const useHistoryStore = defineStore('history', {
   state: () => ({
@@ -15,10 +52,10 @@ export const useHistoryStore = defineStore('history', {
   }),
   actions: {
     replaceMatches(map) {
-      this.matchRecordsByUser = map && typeof map === 'object' ? { ...map } : {};
+      this.matchRecordsByUser = sanitizeRecordMap(map, mapMatchRecord);
     },
     replaceScores(map) {
-      this.scoreRecordsByUser = map && typeof map === 'object' ? { ...map } : {};
+      this.scoreRecordsByUser = sanitizeRecordMap(map, mapScoreRecord);
     },
     replacePurchases(map) {
       this.purchaseRecordsByUser = map && typeof map === 'object' ? { ...map } : {};
@@ -30,13 +67,16 @@ export const useHistoryStore = defineStore('history', {
       this.pendingEvents = Array.isArray(list) ? [...list] : [];
     },
     matchesForUser(userId) {
-      return this.matchRecordsByUser[userId] || [];
+      const rows = this.matchRecordsByUser[userId] || [];
+      return recentHistoryRecords(rows, 50);
     },
     purchasesForUser(userId) {
-      return this.purchaseRecordsByUser[userId] || [];
+      const rows = this.purchaseRecordsByUser[userId] || [];
+      return recentHistoryRecords(rows, 50);
     },
     propUsageForUser(userId) {
-      return this.propUsageRecordsByUser[userId] || [];
+      const rows = this.propUsageRecordsByUser[userId] || [];
+      return recentHistoryRecords(rows, 50);
     }
   }
 });

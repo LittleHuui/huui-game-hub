@@ -14,7 +14,6 @@ export function mapRemoteUserToLocal(remote) {
     nickname: remote.nickname || remote.username || '',
     score: 0,
     totalScore: 0,
-    props: { hintCard: 0, reviveCard: 0 },
     autoRevive: false,
     prefs: { neighborHoverRing: true },
     createdAt: remote.createdAt ?? nowMs(),
@@ -32,8 +31,8 @@ export function mapRemoteUserToLocal(remote) {
 export function normalizeUsersList(users) {
   const now = Date.now();
   for (const u of users) {
-    if (!u.props) {
-      u.props = { hintCard: 0, reviveCard: 0 };
+    if (u && 'props' in u) {
+      delete u.props;
     }
     if (typeof u.autoRevive !== 'boolean') {
       u.autoRevive = false;

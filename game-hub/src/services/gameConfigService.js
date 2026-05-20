@@ -6,10 +6,45 @@ import {
   mapGameSeedToMinesweeperConfig
 } from '../mappers/gameConfigMapper.js';
 import { applyMatch3Config } from '../games/match3/match3Config.js';
+import { usePlatformStore } from '../stores/platformStore.js';
 import { canFetchRemote } from './remoteGate.js';
 
 const MINESWEEPER = 'minesweeper';
 const MATCH3 = 'match3';
+
+/**
+ * @typedef {object} GameConfigHandler
+ * @property {() => Promise<void>} loadRemote
+ * @property {() => void} applySeed
+ */
+
+/** @type {Record<string, GameConfigHandler>} */
+const GAME_CONFIG_HANDLERS = {
+  [MINESWEEPER]: {
+    async loadRemote() {
+      try {
+        const data = await gameConfigRepository.fetchGameConfig(MINESWEEPER);
+        applyMinesweeperServerConfig(data);
+      } catch {
+        applyMinesweeperSeedConfig();
+      }
+    },
+    applySeed: applyMinesweeperSeedConfig
+  },
+  [MATCH3]: {
+    async loadRemote() {
+      try {
+        const data = await gameConfigRepository.fetchGameConfig(MATCH3);
+        applyMatch3Config(data);
+      } catch {
+        applyMatch3Config(getSeedGameConfig(MATCH3, GAME_SEED_CONFIG));
+      }
+    },
+    applySeed() {
+      applyMatch3Config(getSeedGameConfig(MATCH3, GAME_SEED_CONFIG));
+    }
+  }
+};
 
 /**
  * 应用种子配置到扫雷玩法常量。
@@ -20,68 +55,34 @@ function applyMinesweeperSeedConfig() {
 }
 
 /**
- * 本地 / 离线：仅使用种子配置。
+ * 是否应从远端拉取游戏配置。
+ * @param {{ networkMode?: string }} platform
+ * @returns {boolean}
  */
-function loadMinesweeperFromSeed() {
-  applyMinesweeperSeedConfig();
+function shouldLoadRemoteConfig(platform) {
+  return (
+    canFetchRemote() &&
+    (platform.networkMode === 'online' || platform.networkMode === 'degraded')
+  );
 }
 
 /**
+ * 按 gameCode 加载并应用游戏配置（在线优先，失败或离线回退种子）。
  * @param {string} gameCode
- * @returns {object|null}
- */
-function loadGameFromSeed(gameCode) {
-  return getSeedGameConfig(gameCode, GAME_SEED_CONFIG);
-}
-
-/**
- * 拉取服务端扫雷配置并应用；失败时回退种子配置。
  * @returns {Promise<void>}
  */
-export async function loadMinesweeperConfig() {
-  try {
-    const data = await gameConfigRepository.fetchGameConfig(MINESWEEPER);
-    applyMinesweeperServerConfig(data);
-  } catch {
-    applyMinesweeperSeedConfig();
-  }
-}
-
-/**
- * 按网络模式决定使用服务端配置或种子配置。
- * @param {{ networkMode?: string }} [platform]
- * @returns {Promise<void>}
- */
-export async function loadMinesweeperIfOnline(platform) {
-  if (canFetchRemote() && (platform?.networkMode === 'online' || platform?.networkMode === 'degraded')) {
-    await loadMinesweeperConfig();
+export async function loadGameConfig(gameCode) {
+  if (gameCode == null || String(gameCode).length === 0) {
     return;
   }
-  loadMinesweeperFromSeed();
-}
-
-/**
- * 加载并应用 Match3 配置，在线失败时回退种子配置。
- * @returns {Promise<void>}
- */
-export async function loadMatch3Config() {
-  try {
-    const data = await gameConfigRepository.fetchGameConfig(MATCH3);
-    applyMatch3Config(data);
-  } catch {
-    applyMatch3Config(loadGameFromSeed(MATCH3));
-  }
-}
-
-/**
- * 按网络模式决定使用远端或种子 Match3 配置。
- * @param {{ networkMode?: string }} [platform]
- * @returns {Promise<void>}
- */
-export async function loadMatch3IfOnline(platform) {
-  if (canFetchRemote() && (platform?.networkMode === 'online' || platform?.networkMode === 'degraded')) {
-    await loadMatch3Config();
+  const handler = GAME_CONFIG_HANDLERS[gameCode];
+  if (!handler) {
     return;
   }
-  applyMatch3Config(loadGameFromSeed(MATCH3));
+  const platform = usePlatformStore();
+  if (shouldLoadRemoteConfig(platform)) {
+    await handler.loadRemote();
+    return;
+  }
+  handler.applySeed();
 }

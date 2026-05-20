@@ -56,14 +56,12 @@ class MatchModuleService:
         :param body: 批量请求体。
         :return: 全部操作记录及新创建条数。
         """
-        items: List[MatchActionRecord] = []
         created_count = 0
         for item in body.items:
-            record, is_new = self._actions.create_match_action_if_not_exists(item)
-            items.append(record)
+            _record, is_new = self._actions.create_match_action_if_not_exists(item)
             if is_new:
                 created_count += 1
-        return MatchActionBatchResult(items=items, created_count=created_count)
+        return MatchActionBatchResult(createdCount=created_count)
 
     def list_user_matches(self, user_id: str, limit: int = 50) -> List[MatchRecord]:
         """

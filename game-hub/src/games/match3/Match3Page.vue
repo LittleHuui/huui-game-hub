@@ -11,12 +11,14 @@
             :combo-max="comboMax"
             :remaining-sec="remainingSec"
             :elapsed-sec="elapsedSec"
-            :started="gameStarted"
-            :in-progress="isGameInProgress"
+            :game-status="gameStatus"
             :locked="isGameInProgress"
+            :restart-disabled="!canRestartGame"
             message=""
+            :prop-quotas="propQuotas"
+            :theme-seed="statThemeSeed"
             @change-mode="changeMode"
-            @start="startOrRestartGame"
+            @restart="restartGame"
             @end="endCurrentGame"
           />
         </GameConfigPanel>
@@ -30,7 +32,8 @@
         <GameRankingPanel
           :game-code="MATCH3"
           :mode="mode"
-          :difficulty-code="DIFFICULTY"
+          :difficulty-code="difficultyCode"
+          value-metric="score"
           :subtitle="rankingSubtitle"
         />
       </template>
@@ -45,10 +48,11 @@
             :combo-max="comboMax"
             :remaining-sec="remainingSec"
             :elapsed-sec="elapsedSec"
-            :started="gameStarted"
-            :in-progress="isGameInProgress"
+            :game-status="gameStatus"
             :locked="isGameInProgress"
             :message="gameMessage"
+            :prop-quotas="propQuotas"
+            :theme-seed="statThemeSeed"
           />
         </GameHudPanel>
       </template>
@@ -73,8 +77,8 @@
       <template #inventory>
         <GameInventoryPanel
           :game-code="MATCH3"
-          :usable-props="['match3_shuffle', 'match3_bomb']"
-          :active-prop="activeTool === 'bomb' ? 'match3_bomb' : ''"
+          :usable-props="[MATCH3_PROP.SHUFFLE, MATCH3_PROP.BOMB]"
+          :active-prop="activeTool === 'bomb' ? MATCH3_PROP.BOMB : ''"
           :disabled-props="inventoryDisabledProps"
           :use-labels="inventoryUseLabels"
           @use-prop="useProp"
@@ -96,7 +100,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import Match3Board from './components/Match3Board.vue';
 import Match3Hud from './components/Match3Hud.vue';
 import Match3ResultModal from './components/Match3ResultModal.vue';
@@ -120,40 +124,51 @@ import {
   shuffleBoard,
   swapCells
 } from './match3Engine.js';
-import { getMatch3ClientConfig, getMatch3DifficultyConfig, getMatch3PropRule } from './match3Config.js';
-import { GH_MINESWEEPER_SESSION_LOCK } from '../../constants/injectionKeys.js';
+import {
+  getMatch3ClientConfig,
+  getMatch3DifficultyConfig,
+  getMatch3ModePropLimit,
+  getMatch3PropRule,
+  MATCH3_PROP
+} from './match3Config.js';
+import { useGamePropQuantities } from '../../composables/useGamePropQuantities.js';
+import { useGameSwitchLock } from '../../composables/useGameSwitchLock.js';
 import { createGameSession } from '../../services/gameSessionService.js';
 import { activateGame } from '../../services/gameLifecycleService.js';
 import * as toastService from '../../services/toastService.js';
 import { usePlatformStore } from '../../stores/platformStore.js';
+import { getDefaultDifficultyCode } from '../../services/gameDifficultyService.js';
 
 const MATCH3 = 'match3';
-const DIFFICULTY = 'normal';
-const configPanelTitle = '\u6e38\u620f\u4fe1\u606f';
+/** 统计区配色：0–9 | 主题名 | random */
+const statThemeSeed = 'random';
+const difficultyCode = computed(
+  () => getMatch3DifficultyConfig().difficultyCode || getDefaultDifficultyCode(MATCH3)
+);
+const configPanelTitle = '游戏信息';
 const CELL_GAP = 6;
 const session = createGameSession({ gameCode: MATCH3 });
 const platform = usePlatformStore();
-const user = session.currentUser;
-const sessionLockApi = inject(GH_MINESWEEPER_SESSION_LOCK, null);
+const propQuantities = useGamePropQuantities(MATCH3);
 
 const mode = ref('timed');
 const board = ref([]);
 const activeTool = ref('');
 const cellVisuals = ref({});
 const chainHint = ref('');
-const gameStarted = ref(false);
-const gameOver = ref(false);
+/** @type {import('vue').Ref<'idle'|'playing'|'paused'|'ended'>} */
+const gameStatus = ref('idle');
 const score = ref(0);
 const moves = ref(0);
 const comboMax = ref(0);
 const elapsedSec = ref(0);
 const remainingSec = ref(180);
-const gameMessage = ref('\u9009\u62e9\u6a21\u5f0f\u5e76\u5f00\u59cb\u6e38\u620f');
+const gameMessage = ref('拖动方块交换即可开始');
 const matchSessionId = ref(null);
 const currentMatchPropUses = ref([]);
 const usedProps = reactive({
-  match3_shuffle: 0,
-  match3_bomb: 0
+  [MATCH3_PROP.SHUFFLE]: 0,
+  [MATCH3_PROP.BOMB]: 0
 });
 const resultModal = reactive({
   visible: false,
@@ -165,7 +180,12 @@ const resultModal = reactive({
 });
 
 let timerId = null;
+/** 棋盘动画/结算中（交换、下落、连击、补满等） */
 const animating = ref(false);
+/** 连锁消除与计分结算中 */
+const boardResolving = ref(false);
+/** 递增以作废进行中的结算协程，防止重开后旧分数写入新对局 */
+let resolutionGeneration = 0;
 
 const gameConfig = computed(() => getMatch3DifficultyConfig());
 const clientConfig = computed(() => getMatch3ClientConfig());
@@ -175,39 +195,55 @@ const animationConfig = computed(() => ({
   dropMs: clientConfig.value?.animation?.dropMs ?? 260,
   chainDelayMs: clientConfig.value?.animation?.chainDelayMs ?? 120
 }));
-const isGameInProgress = computed(() => gameStarted.value && !gameOver.value);
-const inputLocked = computed(
-  () => !isGameInProgress.value || animating.value || resultModal.visible
+const isGameInProgress = computed(
+  () => gameStatus.value === 'playing' || gameStatus.value === 'paused'
 );
-const canUseProps = computed(() => isGameInProgress.value && !animating.value);
+const canBoardInteract = computed(
+  () => gameStatus.value === 'idle' || gameStatus.value === 'playing'
+);
+const inputLocked = computed(
+  () => !canBoardInteract.value || animating.value || resultModal.visible
+);
+const canUseProps = computed(() => gameStatus.value === 'playing' && !animating.value);
+const canRestartGame = computed(() => !animating.value && !boardResolving.value);
 const rankingSubtitle = computed(() =>
   mode.value === 'timed'
-    ? '\u9650\u65f6\u6a21\u5f0f \u00b7 \u5168\u670d\u524d\u5341\u540d\uff08\u6309\u6210\u7ee9\u6392\u5e8f\uff09'
-    : '\u65e0\u9650\u6a21\u5f0f \u00b7 \u5168\u670d\u524d\u5341\u540d\uff08\u6309\u6210\u7ee9\u6392\u5e8f\uff09'
+    ? '限时模式 · 全服前十名（按成绩排序）'
+    : '无限模式 · 全服前十名（按成绩排序）'
 );
 
 const inventoryDisabledProps = computed(() => ({
-  match3_shuffle:
+  [MATCH3_PROP.SHUFFLE]:
     !canUseProps.value ||
-    (user.value.props?.match3Shuffle || 0) <= 0 ||
-    usedProps.match3_shuffle >= propLimit('match3_shuffle'),
-  match3_bomb:
+    propQuantity(MATCH3_PROP.SHUFFLE) <= 0 ||
+    propRemaining(MATCH3_PROP.SHUFFLE) <= 0,
+  [MATCH3_PROP.BOMB]:
     !canUseProps.value ||
-    (user.value.props?.match3Bomb || 0) <= 0 ||
-    usedProps.match3_bomb >= propLimit('match3_bomb')
+    propQuantity(MATCH3_PROP.BOMB) <= 0 ||
+    propRemaining(MATCH3_PROP.BOMB) <= 0
 }));
 
 const inventoryUseLabels = computed(() => ({
-  match3_bomb: activeTool.value === 'bomb' ? '\u53d6\u6d88' : '\u4f7f\u7528'
+  [MATCH3_PROP.SHUFFLE]: '使用',
+  [MATCH3_PROP.BOMB]: activeTool.value === 'bomb' ? '取消' : '使用'
 }));
 
-watch(
-  isGameInProgress,
-  (value) => {
-    sessionLockApi?.setLocked?.(value);
+const propQuotas = computed(() => [
+  {
+    label: '洗牌',
+    used: propRemaining(MATCH3_PROP.SHUFFLE),
+    max: propLimit(MATCH3_PROP.SHUFFLE),
+    themeSeed: 'violet'
   },
-  { immediate: true }
-);
+  {
+    label: '炸弹',
+    used: propRemaining(MATCH3_PROP.BOMB),
+    max: propLimit(MATCH3_PROP.BOMB),
+    themeSeed: 'orange'
+  }
+]);
+
+useGameSwitchLock(isGameInProgress);
 
 /**
  * @param {number} ms
@@ -220,7 +256,7 @@ function wait(ms) {
 }
 
 /**
- * ??????? CSS transition ???
+ * 等待两帧，确保 CSS transition 生效
  * @returns {Promise<void>}
  */
 function nextFrame() {
@@ -255,7 +291,7 @@ function showToast(message, level = 'info') {
 }
 
 /**
- * ???? session ????
+ * 确保 session 已创建
  */
 function ensureSession() {
   if (!matchSessionId.value) {
@@ -282,7 +318,7 @@ function rewardForScore() {
 }
 
 /**
- * ??????
+ * 停止计时
  */
 function stopTimer() {
   if (timerId) {
@@ -292,7 +328,7 @@ function stopTimer() {
 }
 
 /**
- * ??????
+ * 启动计时
  */
 function startTimer() {
   stopTimer();
@@ -308,7 +344,7 @@ function startTimer() {
 }
 
 /**
- * ????????
+ * 重置运行时状态
  * @param {string} [message]
  */
 function resetRuntime(message) {
@@ -316,8 +352,7 @@ function resetRuntime(message) {
   activeTool.value = '';
   cellVisuals.value = {};
   chainHint.value = '';
-  gameStarted.value = false;
-  gameOver.value = false;
+  gameStatus.value = 'idle';
   score.value = 0;
   moves.value = 0;
   comboMax.value = 0;
@@ -325,14 +360,22 @@ function resetRuntime(message) {
   remainingSec.value = modeTimeLimit(mode.value);
   matchSessionId.value = null;
   currentMatchPropUses.value = [];
-  usedProps.match3_shuffle = 0;
-  usedProps.match3_bomb = 0;
+  usedProps[MATCH3_PROP.SHUFFLE] = 0;
+  usedProps[MATCH3_PROP.BOMB] = 0;
   animating.value = false;
-  gameMessage.value = message || '\u9009\u62e9\u6a21\u5f0f\u5e76\u5f00\u59cb';
+  boardResolving.value = false;
+  gameMessage.value = message || '拖动方块交换即可开始';
 }
 
 /**
- * ??????
+ * @returns {boolean}
+ */
+function isResolutionStale(gen) {
+  return gen !== resolutionGeneration;
+}
+
+/**
+ * 生成新棋盘并回到 idle，不启动计时、不写对局记录。
  * @param {string} [message]
  */
 function setupBoard(message) {
@@ -341,29 +384,50 @@ function setupBoard(message) {
 }
 
 /**
- * ??????????
+ * idle 下第一次有效操作时启动对局与计时。
  */
-function startOrRestartGame() {
-  setupBoard('\u6309\u4f4f\u65b9\u5757\u5e76\u5411\u76f8\u90bb\u65b9\u5411\u62d6\u52a8\u4ea4\u6362');
+function startMatchIfIdle() {
+  if (gameStatus.value !== 'idle') {
+    return;
+  }
   ensureSession();
-  gameStarted.value = true;
+  gameStatus.value = 'playing';
   startTimer();
+  gameMessage.value = '对局已开始，继续消除方块吧';
+}
+
+/**
+ * 重新生成棋盘并重置本局数据；结算中禁止执行。
+ */
+function restartGame() {
+  if (!canRestartGame.value) {
+    showToast('棋盘结算中，请稍候再重新开始', 'warning');
+    return;
+  }
+  resolutionGeneration++;
+  setupBoard('已重新生成棋盘，拖动方块交换即可开始');
 }
 
 /**
  * @param {string} value
  */
 async function changeMode(value) {
+  if (!canRestartGame.value) {
+    showToast('棋盘结算中，请稍候再切换模式', 'warning');
+    return;
+  }
   if (isGameInProgress.value) {
-    showToast('\u5bf9\u5c40\u8fdb\u884c\u4e2d\uff0c\u8bf7\u5148\u7ed3\u675f\u5f53\u524d\u5bf9\u5c40', 'warning');
+    showToast('对局进行中，请先结束当前对局', 'warning');
     return;
   }
   mode.value = value;
   setupBoard(
-    value === 'timed' ? '\u9650\u65f6\u6a21\u5f0f\uff0c180 \u79d2\u5012\u8ba1\u65f6' : '\u65e0\u9650\u6a21\u5f0f\uff0c\u70b9\u51fb\u5f00\u59cb\u6e38\u620f'
+    value === 'timed'
+      ? '限时模式，首次有效交换后开始倒计时'
+      : '无限模式，首次有效交换后开始计时'
   );
   await activateGame(MATCH3, {
-    difficultyCode: DIFFICULTY,
+    difficultyCode: difficultyCode.value,
     mode: value,
     includeLeaderboard: true,
     includeInventory: true
@@ -504,75 +568,107 @@ async function playCollapseAndFill(working) {
 }
 
 /**
- * ??????????????????
+ * 连锁消除动画（下落、补满与计分）
  * @param {object[][]} startBoard
  * @param {boolean} countMove
  * @returns {Promise<{ deadBoard: boolean; comboCount: number; scoreDelta: number }>}
  */
 async function animateBoardResolution(startBoard, countMove) {
+  const gen = resolutionGeneration;
   animating.value = true;
+  boardResolving.value = true;
   let working = cloneBoard(startBoard);
   let fillScore = score.value;
   let scoreDelta = 0;
   let comboCount = 0;
 
-  for (let guard = 0; guard < 40; guard++) {
-    const matches = findMatches(working);
-    if (matches.length) {
-      comboCount++;
-      chainHint.value = comboCount > 1 ? `\u8fde\u9501 x${comboCount}` : '';
-      await wait(animationConfig.value.chainDelayMs);
-      scoreDelta += scoreMatches(matches, gameConfig.value, comboCount);
-
-      const removed = removeMatches(working, matches);
-      await playRemoveAnimation(removed.removedCells);
-      working = removed.board;
-      board.value = cloneBoard(working);
-
-      const collapsed = collapseBoard(working);
-      if (collapsed.drops.length) {
-        await playDropAnimation(collapsed.drops, collapsed.board);
-        working = collapsed.board;
-      } else {
-        board.value = cloneBoard(collapsed.board);
-        working = collapsed.board;
+  try {
+    for (let guard = 0; guard < 40; guard++) {
+      if (isResolutionStale(gen)) {
+        return { deadBoard: false, comboCount: 0, scoreDelta: 0, aborted: true };
       }
 
-      fillScore = score.value + scoreDelta;
-      const filled = fillBoardControlled(working, gameConfig.value, fillScore);
-      if (filled.spawns.length) {
-        await playSpawnAnimation(filled.spawns, filled.board);
-        working = filled.board;
-      } else {
-        board.value = cloneBoard(filled.board);
-        working = filled.board;
+      const matches = findMatches(working);
+      if (matches.length) {
+        comboCount++;
+        chainHint.value = comboCount > 1 ? `连锁 x${comboCount}` : '';
+        await wait(animationConfig.value.chainDelayMs);
+        if (isResolutionStale(gen)) {
+          return { deadBoard: false, comboCount: 0, scoreDelta: 0, aborted: true };
+        }
+        scoreDelta += scoreMatches(matches, gameConfig.value, comboCount);
+
+        const removed = removeMatches(working, matches);
+        await playRemoveAnimation(removed.removedCells);
+        if (isResolutionStale(gen)) {
+          return { deadBoard: false, comboCount: 0, scoreDelta: 0, aborted: true };
+        }
+        working = removed.board;
+        board.value = cloneBoard(working);
+
+        const collapsed = collapseBoard(working);
+        if (collapsed.drops.length) {
+          await playDropAnimation(collapsed.drops, collapsed.board);
+          if (isResolutionStale(gen)) {
+            return { deadBoard: false, comboCount: 0, scoreDelta: 0, aborted: true };
+          }
+          working = collapsed.board;
+        } else {
+          board.value = cloneBoard(collapsed.board);
+          working = collapsed.board;
+        }
+
+        fillScore = score.value + scoreDelta;
+        const filled = fillBoardControlled(working, gameConfig.value, fillScore);
+        if (filled.spawns.length) {
+          await playSpawnAnimation(filled.spawns, filled.board);
+          if (isResolutionStale(gen)) {
+            return { deadBoard: false, comboCount: 0, scoreDelta: 0, aborted: true };
+          }
+          working = filled.board;
+        } else {
+          board.value = cloneBoard(filled.board);
+          working = filled.board;
+        }
+        continue;
       }
-      continue;
+
+      if (hasEmptyCells(working)) {
+        working = await playCollapseAndFill(working);
+        if (isResolutionStale(gen)) {
+          return { deadBoard: false, comboCount: 0, scoreDelta: 0, aborted: true };
+        }
+        continue;
+      }
+      break;
     }
 
-    if (hasEmptyCells(working)) {
-      working = await playCollapseAndFill(working);
-      continue;
+    if (isResolutionStale(gen)) {
+      return { deadBoard: false, comboCount: 0, scoreDelta: 0, aborted: true };
     }
-    break;
-  }
 
-  board.value = working;
-  const deadBoard = !hasAvailableMove(working);
-  if (countMove) {
-    moves.value++;
-  }
-  score.value += scoreDelta;
-  comboMax.value = Math.max(comboMax.value, comboCount);
-  chainHint.value = '';
-  cellVisuals.value = {};
-  animating.value = false;
+    board.value = working;
+    const deadBoard = !hasAvailableMove(working);
+    if (countMove) {
+      moves.value++;
+    }
+    score.value += scoreDelta;
+    comboMax.value = Math.max(comboMax.value, comboCount);
+    chainHint.value = '';
+    cellVisuals.value = {};
 
-  return {
-    deadBoard,
-    comboCount,
-    scoreDelta
-  };
+    return {
+      deadBoard,
+      comboCount,
+      scoreDelta,
+      aborted: false
+    };
+  } finally {
+    if (!isResolutionStale(gen)) {
+      boardResolving.value = false;
+      animating.value = false;
+    }
+  }
 }
 
 /**
@@ -588,26 +684,36 @@ async function handleSwapRequest(payload) {
     return;
   }
 
+  const gen = resolutionGeneration;
   animating.value = true;
   if (!canSwap(board.value, from, to)) {
     await playSwapAnimation(from, to, true);
-    animating.value = false;
-    gameMessage.value = '\u8be5\u4ea4\u6362\u65e0\u6cd5\u5f62\u6210\u6d88\u9664';
+    if (!isResolutionStale(gen)) {
+      animating.value = false;
+    }
+    gameMessage.value = '该交换无法形成消除';
     return;
   }
 
+  startMatchIfIdle();
   await playSwapAnimation(from, to, false);
+  if (isResolutionStale(gen)) {
+    return;
+  }
   const swapped = swapCells(board.value, from, to);
   board.value = swapped.board;
 
   const result = await animateBoardResolution(swapped.board, true);
+  if (result.aborted || isResolutionStale(gen)) {
+    return;
+  }
   if (result.deadBoard) {
     await settleGame(true);
   } else {
     gameMessage.value =
       result.comboCount > 0
-        ? `+${result.scoreDelta} \u5206`
-        : '\u7ee7\u7eed\u62d6\u52a8\u65b9\u5757\u6d88\u9664\u5427';
+        ? `+${result.scoreDelta} 分`
+        : '继续拖动方块消除吧';
   }
 }
 
@@ -626,7 +732,17 @@ async function handleBombCellClick(cell) {
  * @returns {number}
  */
 function propLimit(propCode) {
-  return Number(getMatch3PropRule(propCode)?.maxUsePerMatch || 0);
+  const fromMode = getMatch3ModePropLimit(mode.value, propCode);
+  return fromMode != null ? fromMode : 0;
+}
+
+/**
+ * 本局道具剩余可用次数。
+ * @param {string} propCode
+ * @returns {number}
+ */
+function propRemaining(propCode) {
+  return Math.max(0, propLimit(propCode) - usedProps[propCode]);
 }
 
 /**
@@ -634,13 +750,7 @@ function propLimit(propCode) {
  * @returns {number}
  */
 function propQuantity(propCode) {
-  if (propCode === 'match3_shuffle') {
-    return user.value.props?.match3Shuffle || 0;
-  }
-  if (propCode === 'match3_bomb') {
-    return user.value.props?.match3Bomb || 0;
-  }
-  return 0;
+  return propQuantities.value[propCode] || 0;
 }
 
 /**
@@ -650,7 +760,6 @@ function propQuantity(propCode) {
 function recordPropUsage(propCode, label) {
   ensureSession();
   session.trackPropUsage(currentMatchPropUses.value, {
-    type: propCode,
     propCode,
     label,
     timerSec: elapsedSec.value,
@@ -664,35 +773,36 @@ function recordPropUsage(propCode, label) {
  */
 async function useProp(propCode) {
   if (!canUseProps.value) {
-    showToast('\u8bf7\u7b49\u5f85\u52a8\u753b\u7ed3\u675f\u540e\u518d\u4f7f\u7528\u9053\u5177', 'warning');
+    showToast('请等待动画结束后再使用道具', 'warning');
     return;
   }
   if (propQuantity(propCode) <= 0) {
-    showToast('\u9053\u5177\u6570\u91cf\u4e0d\u8db3', 'warning');
+    showToast('道具数量不足', 'warning');
     return;
   }
-  if (usedProps[propCode] >= propLimit(propCode)) {
-    showToast('\u672c\u5c40\u9053\u5177\u4f7f\u7528\u6b21\u6570\u5df2\u8fbe\u4e0a\u9650', 'warning');
+  if (propRemaining(propCode) <= 0) {
+    showToast('本局道具使用次数已达上限', 'warning');
     return;
   }
-  if (propCode === 'match3_shuffle') {
+  if (propCode === MATCH3_PROP.SHUFFLE) {
     await applyShuffleProp();
     return;
   }
-  if (propCode === 'match3_bomb') {
+  if (propCode === MATCH3_PROP.BOMB) {
     activeTool.value = 'bomb';
-    gameMessage.value = '\u70b9\u51fb\u68cb\u76d8\u683c\u5b50\u4f7f\u7528\u70b8\u5f39';
+    gameMessage.value = '点击棋盘格子使用炸弹';
   }
 }
 
 /**
- * ???????
+ * 应用洗牌道具
  */
 async function applyShuffleProp() {
+  const gen = resolutionGeneration;
   animating.value = true;
-  usedProps.match3_shuffle++;
-  recordPropUsage('match3_shuffle', '\u5bf9\u5c40\u5185\u4f7f\u7528\u6d17\u724c\u9053\u5177');
-  const rule = getMatch3PropRule('match3_shuffle')?.rule || {};
+  usedProps[MATCH3_PROP.SHUFFLE]++;
+  recordPropUsage(MATCH3_PROP.SHUFFLE, '对局内使用洗牌道具');
+  const rule = getMatch3PropRule(MATCH3_PROP.SHUFFLE)?.rule || {};
   const shuffled = shuffleBoard(board.value, {
     ...gameConfig.value,
     allowMatchesAfterShuffle: rule.allowMatchesAfterShuffle,
@@ -705,45 +815,62 @@ async function applyShuffleProp() {
   }
   cellVisuals.value = visuals;
   await wait(380);
+  if (isResolutionStale(gen)) {
+    return;
+  }
   cellVisuals.value = {};
   animating.value = false;
   gameMessage.value = hasAvailableMove(board.value)
-    ? '\u6d17\u724c\u5b8c\u6210'
-    : '\u6d17\u724c\u540e\u4ecd\u65e0\u53ef\u884c\u6b65';
+    ? '洗牌完成'
+    : '洗牌后仍无可行步';
 }
 
 /**
  * @param {object} cell
  */
 async function applyBombProp(cell) {
+  const gen = resolutionGeneration;
   activeTool.value = '';
-  usedProps.match3_bomb++;
-  recordPropUsage('match3_bomb', '\u4f7f\u7528\u70b8\u5f39\u6e05\u9664 3x3 \u533a\u57df');
-  const radius = Number(getMatch3PropRule('match3_bomb')?.rule?.radius || 1);
+  usedProps[MATCH3_PROP.BOMB]++;
+  recordPropUsage(MATCH3_PROP.BOMB, '使用炸弹清除 3x3 区域');
+  const radius = Number(getMatch3PropRule(MATCH3_PROP.BOMB)?.rule?.radius || 1);
   const bombed = applyBomb(board.value, cell.row, cell.col, radius);
 
   animating.value = true;
   let working = cloneBoard(bombed.board);
   board.value = working;
   await playRemoveAnimation(bombed.removedCells);
+  if (isResolutionStale(gen)) {
+    return;
+  }
   working = await playCollapseAndFill(working);
+  if (isResolutionStale(gen)) {
+    return;
+  }
 
   const result = await animateBoardResolution(working, true);
+  if (result.aborted || isResolutionStale(gen)) {
+    return;
+  }
   if (result.deadBoard) {
     await settleGame(true);
   } else {
     gameMessage.value =
       result.comboCount > 0
-        ? `+${result.scoreDelta} \u5206`
-        : '\u7ee7\u7eed\u62d6\u52a8\u65b9\u5757\u6d88\u9664\u5427';
+        ? `+${result.scoreDelta} 分`
+        : '继续拖动方块消除吧';
   }
 }
 
 /**
- * ???????
+ * 结束当前对局
  */
 async function endCurrentGame() {
-  if (!isGameInProgress.value) {
+  if (gameStatus.value === 'idle') {
+    showToast('尚未开始对局', 'info');
+    return;
+  }
+  if (gameStatus.value === 'ended') {
     return;
   }
   await settleGame(false);
@@ -753,11 +880,11 @@ async function endCurrentGame() {
  * @param {boolean} deadBoard
  */
 async function settleGame(deadBoard) {
-  if (gameOver.value) {
+  if (gameStatus.value === 'ended') {
     return;
   }
   ensureSession();
-  gameOver.value = true;
+  gameStatus.value = 'ended';
   stopTimer();
   const reward = rewardForScore();
   const payload = {
@@ -772,8 +899,8 @@ async function settleGame(deadBoard) {
   await session.settleWin({
     score: score.value,
     rewardScore: reward,
-    difficulty: DIFFICULTY,
-    timeSec: elapsedSec.value,
+    difficultyCode: difficultyCode.value,
+    durationMs: Math.round(elapsedSec.value * 1000),
     propUses: currentMatchPropUses.value,
     sessionId: matchSessionId.value,
     mode: mode.value,
@@ -786,36 +913,45 @@ async function settleGame(deadBoard) {
   resultModal.moves = moves.value;
   resultModal.comboMax = comboMax.value;
   resultModal.deadBoard = deadBoard;
-  gameMessage.value = deadBoard ? '\u68cb\u76d8\u65e0\u89e3\uff0c\u5bf9\u5c40\u7ed3\u675f' : '\u5bf9\u5c40\u5df2\u7ed3\u675f';
+  gameMessage.value = deadBoard ? '棋盘无解，对局结束' : '对局已结束';
 }
 
 /**
- * ??????????
+ * 页面可见性变化时暂停/恢复计时。
  */
-function pauseDueToPageHidden() {
-  if (!isGameInProgress.value) {
+function onVisibilityChange() {
+  if (document.hidden) {
+    if (gameStatus.value !== 'playing') {
+      return;
+    }
+    stopTimer();
+    gameStatus.value = 'paused';
+    gameMessage.value = '页面隐藏，计时已暂停';
     return;
   }
-  stopTimer();
-  gameMessage.value = '\u9875\u9762\u9690\u85cf\uff0c\u8ba1\u65f6\u5df2\u6682\u505c';
+  if (gameStatus.value !== 'paused') {
+    return;
+  }
+  gameStatus.value = 'playing';
+  startTimer();
+  gameMessage.value = '对局已继续';
 }
 
 onMounted(async () => {
   platform.setCurrentGame(MATCH3);
   await activateGame(MATCH3, {
-    difficultyCode: DIFFICULTY,
+    difficultyCode: difficultyCode.value,
     mode: mode.value,
     includeLeaderboard: true,
     includeInventory: true
   });
-  setupBoard('\u9650\u65f6\u6a21\u5f0f\uff0c180 \u79d2\u5012\u8ba1\u65f6');
-  document.addEventListener('visibilitychange', pauseDueToPageHidden);
+  setupBoard('限时模式，首次有效交换后开始倒计时');
+  document.addEventListener('visibilitychange', onVisibilityChange);
 });
 
 onBeforeUnmount(() => {
-  sessionLockApi?.setLocked?.(false);
   stopTimer();
-  document.removeEventListener('visibilitychange', pauseDueToPageHidden);
+  document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
 

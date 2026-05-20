@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 
 from app.core.database import new_entity_ids
 from app.core.time_utils import now_ms
-from app.modules.match.schemas import ScoreRecordCreate
+from app.modules.match.schemas import ScoreRecordCreate, object_to_json_text
 from app.modules.score.models import ScoreRecord
 from app.modules.score.repository import ScoreRecordRepository
 
@@ -58,7 +58,7 @@ class ScoreRecordEntityService:
             tomb.result = payload.result
             tomb.score = payload.score
             tomb.duration_ms = payload.durationMs
-            tomb.payload_json = payload.payloadJson
+            tomb.payload_json = object_to_json_text(payload.payload)
             tomb.synced_at = now_ms()
             return self._repository.save(tomb), True
         synced_at = now_ms()
@@ -74,7 +74,7 @@ class ScoreRecordEntityService:
             result=payload.result,
             score=payload.score,
             duration_ms=payload.durationMs,
-            payload_json=payload.payloadJson,
+            payload_json=object_to_json_text(payload.payload),
             synced_at=synced_at,
             created_at=created_at,
             updated_at=updated_at,

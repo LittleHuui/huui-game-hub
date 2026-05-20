@@ -26,12 +26,12 @@ class PropDefinitionRepository:
         列出未软删的道具定义。
 
         :param enabled: 为 ``True``/``False`` 时按启用状态过滤，为 ``None`` 时不过滤。
-        :return: 按 ``created_at`` 升序排列的定义列表。
+        :return: 按 ``prop_code`` 升序排列的定义列表。
         """
         stmt = select(PropDefinition).where(PropDefinition.deleted_at.is_(None))
         if enabled is not None:
             stmt = stmt.where(PropDefinition.enabled == (1 if enabled else 0))
-        stmt = stmt.order_by(PropDefinition.created_at.asc())
+        stmt = stmt.order_by(PropDefinition.prop_code.asc())
         return list(self._session.scalars(stmt).all())
 
     def add(self, entity: PropDefinition) -> PropDefinition:
@@ -78,7 +78,7 @@ class GamePropRuleRepository:
                 GamePropRule.enabled == 1,
                 GamePropRule.deleted_at.is_(None),
             )
-            .order_by(GamePropRule.prop_code.asc())
+            .order_by(GamePropRule.sort_no.asc())
         )
         return list(self._session.scalars(stmt).all())
 
@@ -97,7 +97,7 @@ class GamePropRuleRepository:
                 PropDefinition.enabled == 1,
                 PropDefinition.deleted_at.is_(None),
             )
-            .order_by(GamePropRule.prop_code.asc())
+            .order_by(GamePropRule.sort_no.asc())
         )
         return list(self._session.execute(stmt).all())
 

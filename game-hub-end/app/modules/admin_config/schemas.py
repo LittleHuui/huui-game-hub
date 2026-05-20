@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.common.camel_schema import CAMEL_MODEL_CONFIG, camel_field
+from app.common.camel_schema import CAMEL_MODEL_CONFIG
 
 
 class GameSeedProp(BaseModel):
@@ -12,11 +12,11 @@ class GameSeedProp(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    propCode: str = camel_field("propCode", min_length=1)
-    propName: str = camel_field("propName", min_length=1)
+    propCode: str = Field(min_length=1)
+    propName: str = Field(min_length=1)
     description: Optional[str] = None
     icon: Optional[str] = None
-    basePrice: int = camel_field("basePrice", ge=0)
+    basePrice: int = Field(ge=0)
     enabled: bool
 
 
@@ -25,10 +25,10 @@ class GameSeedDifficulty(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    difficultyCode: str = camel_field("difficultyCode", min_length=1)
-    difficultyName: str = camel_field("difficultyName", min_length=1)
+    difficultyCode: str = Field(min_length=1)
+    difficultyName: str = Field(min_length=1)
     enabled: bool
-    sortNo: int = camel_field("sortNo")
+    sortNo: int
     config: Dict[str, Any]
 
 
@@ -37,8 +37,8 @@ class GameSeedClientConfig(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    difficultyCode: Optional[str] = camel_field("difficultyCode", default=None)
-    clientType: str = camel_field("clientType", min_length=1)
+    difficultyCode: Optional[str] = Field(default=None)
+    clientType: str = Field(min_length=1)
     enabled: bool
     config: Dict[str, Any]
 
@@ -48,9 +48,9 @@ class GameSeedPropRule(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    propCode: str = camel_field("propCode", min_length=1)
+    propCode: str = Field(min_length=1)
     price: int = Field(ge=0)
-    maxUsePerMatch: Optional[int] = camel_field("maxUsePerMatch", default=None, ge=0)
+    maxUsePerMatch: Optional[int] = Field(default=None, ge=0)
     triggerType: Optional[str] = None
     effectType: Optional[str] = None
     enabled: bool
@@ -62,12 +62,12 @@ class GameSeedGame(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    gameCode: str = camel_field("gameCode", min_length=1)
-    gameName: str = camel_field("gameName", min_length=1)
-    gameSubName: Optional[str] = camel_field("gameSubName", default=None)
-    supportOnline: bool = camel_field("supportOnline")
+    gameCode: str = Field(min_length=1)
+    gameName: str = Field(min_length=1)
+    gameSubName: Optional[str] = Field(default=None)
+    supportOnline: bool
     enabled: bool
-    sortNo: int = camel_field("sortNo")
+    sortNo: int
     config: Dict[str, Any]
     difficulties: List[GameSeedDifficulty] = Field(default_factory=list)
     clientConfigs: List[GameSeedClientConfig] = Field(default_factory=list)

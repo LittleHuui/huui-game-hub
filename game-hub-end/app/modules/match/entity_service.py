@@ -6,7 +6,12 @@ from app.core.database import new_entity_ids
 from app.core.time_utils import now_ms
 from app.modules.match.models import MatchActionRecord, MatchRecord
 from app.modules.match.repository import MatchActionRecordRepository, MatchRecordRepository
-from app.modules.match.schemas import MatchActionRecordCreate, MatchRecordCreate
+from app.modules.match.schemas import (
+    MatchActionRecordCreate,
+    MatchRecordCreate,
+    array_to_json_text,
+    object_to_json_text,
+)
 
 
 class MatchRecordEntityService:
@@ -126,8 +131,8 @@ class MatchRecordEntityService:
             tomb.difficulty_code = payload.difficultyCode
             tomb.duration_ms = payload.durationMs
             tomb.score = payload.score
-            tomb.prop_uses_json = payload.propUsesJson
-            tomb.payload_json = payload.payloadJson
+            tomb.prop_uses_json = array_to_json_text(payload.propUses)
+            tomb.payload_json = object_to_json_text(payload.payload)
             tomb.synced_at = now_ms()
             return self._repository.save(tomb), True
         synced_at = now_ms()
@@ -143,8 +148,8 @@ class MatchRecordEntityService:
             difficulty_code=payload.difficultyCode,
             duration_ms=payload.durationMs,
             score=payload.score,
-            prop_uses_json=payload.propUsesJson,
-            payload_json=payload.payloadJson,
+            prop_uses_json=array_to_json_text(payload.propUses),
+            payload_json=object_to_json_text(payload.payload),
             synced_at=synced_at,
             created_at=created_at,
             updated_at=updated_at,
@@ -192,7 +197,7 @@ class MatchActionRecordEntityService:
             tomb.action_type = payload.actionType
             tomb.action_seq = payload.actionSeq
             tomb.action_time_ms = payload.actionTimeMs
-            tomb.payload_json = payload.payloadJson
+            tomb.payload_json = object_to_json_text(payload.payload)
             tomb.synced_at = now_ms()
             return self._repository.save(tomb), True
         synced_at = now_ms()
@@ -207,7 +212,7 @@ class MatchActionRecordEntityService:
             action_type=payload.actionType,
             action_seq=payload.actionSeq,
             action_time_ms=payload.actionTimeMs,
-            payload_json=payload.payloadJson,
+            payload_json=object_to_json_text(payload.payload),
             synced_at=synced_at,
             created_at=created_at,
             updated_at=updated_at,

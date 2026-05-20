@@ -8,7 +8,7 @@
           <span class="site-tag">轻量小游戏平台</span>
         </div>
       </div>
-      <div v-if="hasGamesSlot" class="site-topbar-games">
+      <div v-if="hasGamesSlot" class="site-topbar-games hub-scrollbar">
         <slot name="games" />
       </div>
       <div class="site-user-bar">

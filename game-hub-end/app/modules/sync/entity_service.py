@@ -93,61 +93,58 @@ class SyncLogEntityService:
         return self._repository.add(entity)
 
 
-def payload_get(payload: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+def payload_get(payload: Dict[str, Any], key: str, default: Any = None) -> Any:
     """
-    从事件 payload 中按多个候选键读取字段（兼容 camelCase / snake_case）。
+    从事件 payload 中读取 camelCase 字段。
 
     :param payload: 事件载荷。
-    :param keys: 候选键名，按顺序尝试。
-    :param default: 全部未命中时的默认值。
+    :param key: 字段名（camelCase）。
+    :param default: 未命中时的默认值。
     :return: 字段值或默认值。
     """
-    for key in keys:
-        if key in payload:
-            return payload[key]
-    return default
+    return payload.get(key, default)
 
 
-def payload_str(payload: Dict[str, Any], *keys: str, default: Optional[str] = None) -> Optional[str]:
+def payload_str(payload: Dict[str, Any], key: str, default: Optional[str] = None) -> Optional[str]:
     """
     读取字符串字段。
 
     :param payload: 事件载荷。
-    :param keys: 候选键名。
+    :param key: camelCase 字段名。
     :param default: 默认值。
     :return: 字符串或默认值。
     """
-    value = payload_get(payload, *keys, default=default)
+    value = payload_get(payload, key, default=default)
     if value is None:
         return default
     return str(value)
 
 
-def payload_int(payload: Dict[str, Any], *keys: str, default: Optional[int] = None) -> Optional[int]:
+def payload_int(payload: Dict[str, Any], key: str, default: Optional[int] = None) -> Optional[int]:
     """
     读取整数字段。
 
     :param payload: 事件载荷。
-    :param keys: 候选键名。
+    :param key: camelCase 字段名。
     :param default: 默认值。
     :return: 整数或默认值。
     """
-    value = payload_get(payload, *keys, default=default)
+    value = payload_get(payload, key, default=default)
     if value is None:
         return default
     return int(value)
 
 
-def payload_bool(payload: Dict[str, Any], *keys: str, default: bool = False) -> bool:
+def payload_bool(payload: Dict[str, Any], key: str, default: bool = False) -> bool:
     """
     读取布尔字段。
 
     :param payload: 事件载荷。
-    :param keys: 候选键名。
+    :param key: camelCase 字段名。
     :param default: 默认值。
     :return: 布尔值。
     """
-    value = payload_get(payload, *keys, default=default)
+    value = payload_get(payload, key, default=default)
     if isinstance(value, bool):
         return value
     if value in (1, "1", "true", "True"):
@@ -157,50 +154,51 @@ def payload_bool(payload: Dict[str, Any], *keys: str, default: bool = False) -> 
     return default
 
 
-def payload_json_text(payload: Dict[str, Any], *keys: str) -> Optional[str]:
+def payload_object(payload: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
     """
-    将 payload 中的对象或字符串序列化为 JSON 文本（存库用）。
+    读取对象字段（必须为 JSON 对象）。
 
     :param payload: 事件载荷。
-    :param keys: 候选键名。
-    :return: JSON 文本或 ``None``。
+    :param key: camelCase 字段名。
+    :return: 字典或 ``None``。
+    :raises ValidationException: 字段存在但类型非对象。
     """
-    value = payload_get(payload, *keys)
+    value = payload_get(payload, key)
     if value is None:
         return None
-    if isinstance(value, str):
-        return value
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    if not isinstance(value, dict):
+        raise ValidationException(f"payload.{key} 必须为对象")
+    return value
+
+
+def payload_array(payload: Dict[str, Any], key: str) -> Optional[List[Any]]:
+    """
+    读取数组字段（必须为 JSON 数组）。
+
+    :param payload: 事件载荷。
+    :param key: camelCase 字段名。
+    :return: 列表或 ``None``。
+    :raises ValidationException: 字段存在但类型非数组。
+    """
+    value = payload_get(payload, key)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValidationException(f"payload.{key} 必须为数组")
+    return value
 
 
 def require_fields(payload: Dict[str, Any], fields: List[str], event: PendingEvent) -> None:
     """
-    校验 payload 必填字段（支持 camelCase 与 snake_case）。
+    校验 payload 必填字段（仅 camelCase）。
 
     :param payload: 事件载荷。
-    :param fields: 逻辑字段名（snake_case）。
+    :param fields: camelCase 字段名列表。
     :param event: 当前事件（用于错误信息）。
     :raises ValidationException: 缺少必填字段。
     """
-    camel_map = {
-        "game_code": "gameCode",
-        "prop_code": "propCode",
-        "change_type": "changeType",
-        "wallet_client_id": "walletClientId",
-        "match_id": "matchId",
-        "action_type": "actionType",
-        "action_seq": "actionSeq",
-        "action_time_ms": "actionTimeMs",
-        "difficulty_code": "difficultyCode",
-        "duration_ms": "durationMs",
-        "prop_uses_json": "propUsesJson",
-        "payload_json": "payloadJson",
-        "use_reason": "useReason",
-        "consume_from_bag": "consumeFromBag",
-    }
     for field in fields:
-        camel = camel_map.get(field, field)
-        if field in payload or camel in payload:
+        if field in payload:
             continue
         raise ValidationException(
             f"事件 payload 缺少字段 {field}: eventType={event.eventType}, clientId={event.clientId}"

@@ -36,6 +36,7 @@ import { computed, inject } from 'vue';
 import { hasGameCapability } from '../../constants/gameRegistry.js';
 import { GH_OPEN_HUB_MODAL } from '../../constants/injectionKeys.js';
 import * as purchaseService from '../../services/purchaseService.js';
+import { useGamePropQuantities } from '../../composables/useGamePropQuantities.js';
 import { useShopStore } from '../../stores/shopStore.js';
 import { useUserStore } from '../../stores/userStore.js';
 
@@ -63,6 +64,7 @@ const emit = defineEmits(['purchased']);
 const shopStore = useShopStore();
 const userStore = useUserStore();
 const openHubModal = inject(GH_OPEN_HUB_MODAL, () => {});
+const propQuantities = useGamePropQuantities(() => props.gameCode);
 
 const shopEnabled = computed(() => hasGameCapability(props.gameCode, 'shop'));
 const items = computed(() => shopStore.itemsForGame(props.gameCode));
@@ -76,17 +78,12 @@ const scoreLine = computed(() => {
 });
 
 /**
- * 背包数量（通过商城项 localKey 读取用户 props，不操作 inventoryStore）。
+ * 背包数量（inventory 流水 + 服务端 bag）。
  * @param {string} propCode
  * @returns {number}
  */
 function bagCount(propCode) {
-  const item = items.value.find((i) => i.propCode === propCode);
-  if (!item?.localKey) {
-    return 0;
-  }
-  const propsMap = userStore.currentUser?.props;
-  return propsMap ? propsMap[item.localKey] || 0 : 0;
+  return propQuantities.value[propCode] || 0;
 }
 
 /**

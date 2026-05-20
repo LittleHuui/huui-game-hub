@@ -1,20 +1,20 @@
 <template>
   <div class="panel match3-shop">
     <div class="match3-shop-head">
-      <h2>é“å…·å•†åº—</h2>
-      <button type="button" class="ghost" @click="$emit('open-purchase-records')">è´­ä¹°è®°å½•</button>
+      <h2>道具商店</h2>
+      <button type="button" class="ghost" @click="$emit('open-purchase-records')">购买记录</button>
     </div>
-    <div v-if="items.length === 0" class="empty-text">æš‚æ— å¯è´­ä¹°é“å…?/div>
+    <div v-if="items.length === 0" class="empty-text">暂无可购买道具</div>
     <div v-for="item in items" v-else :key="item.propCode" class="match3-shop-item">
       <div class="match3-shop-info">
         <strong>{{ item.icon }} {{ item.name }}</strong>
         <span class="muted-small">{{ item.description || effectText(item) }}</span>
-        <span class="muted-small">ä»·æ ¼ï¼š{{ item.price }} ï½?æŒæœ‰ï¼š{{ counts[item.propCode] || 0 }}</span>
+        <span class="muted-small">价格：{{ item.price }} · 持有：{{ counts[item.propCode] || 0 }}</span>
       </div>
       <div class="match3-shop-actions">
-        <button type="button" @click="$emit('buy', item.propCode)">è´­ä¹°</button>
+        <button type="button" @click="$emit('buy', item.propCode)">购买</button>
         <button type="button" class="success" :disabled="!canUse || (counts[item.propCode] || 0) <= 0" @click="$emit('use', item.propCode)">
-          ä½¿ç”¨
+          使用
         </button>
       </div>
     </div>
@@ -36,12 +36,12 @@ defineEmits(['buy', 'use', 'open-purchase-records']);
  */
 function effectText(item) {
   if (item.effectType === 'shuffle_board') {
-    return 'é‡æ–°æ´—ç‰Œå½“å‰æ£‹ç›˜';
+    return '重新洗牌当前棋盘';
   }
   if (item.effectType === 'clear_area') {
-    return 'æ¸…é™¤é€‰ä¸­æ ¼å‘¨å›´åŒºåŸ?;
+    return '清除选中格周围区域';
   }
-  return 'æ¸¸æˆé“å…·';
+  return '游戏道具';
 }
 </script>
 <style scoped>
@@ -80,4 +80,3 @@ function effectText(item) {
   gap: 4px;
 }
 </style>
-

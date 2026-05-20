@@ -22,6 +22,57 @@ from app.modules.game.schemas import (
 from app.modules.prop.entity_service import GamePropRuleEntityService
 from app.modules.prop.models import GamePropRule
 
+_MINESWEEPER_CONFIG: Dict[str, Any] = {
+    "featureFlags": {"leaderboard": True},
+    "ranking": {
+        "enabled": True,
+        "modes": {
+            "single": {
+                "primaryMetric": "durationMs",
+                "orderDirection": "asc",
+                "tieBreakers": [
+                    {"metric": "score", "orderDirection": "desc"},
+                    {"metric": "createdAt", "orderDirection": "asc"},
+                ],
+            },
+        },
+    },
+}
+
+_MATCH3_CONFIG: Dict[str, Any] = {
+    "featureFlags": {
+        "leaderboard": True,
+        "shop": True,
+        "inventory": True,
+        "offline": True,
+        "onlineBattle": False,
+    },
+    "ranking": {
+        "enabled": True,
+        "candidateLimit": 1000,
+        "modes": {
+            "timed": {
+                "primaryMetric": "score",
+                "orderDirection": "desc",
+                "tieBreakers": [
+                    {"metric": "comboMax", "orderDirection": "desc"},
+                    {"metric": "durationMs", "orderDirection": "asc"},
+                    {"metric": "createdAt", "orderDirection": "asc"},
+                ],
+            },
+            "endless": {
+                "primaryMetric": "score",
+                "orderDirection": "desc",
+                "tieBreakers": [
+                    {"metric": "comboMax", "orderDirection": "desc"},
+                    {"metric": "moves", "orderDirection": "desc"},
+                    {"metric": "createdAt", "orderDirection": "asc"},
+                ],
+            },
+        },
+    },
+}
+
 
 def _parse_json_dict(raw: Optional[str], *, field_name: str) -> Dict[str, Any]:
     """
@@ -141,6 +192,7 @@ def _to_prop_rule_response(rule: GamePropRule) -> GamePropRuleResponse:
         effectType=rule.effect_type,
         rule=_parse_optional_json_dict(rule.rule_json),
         enabled=bool(rule.enabled),
+        sortNo=rule.sort_no,
     )
 
 
@@ -228,6 +280,7 @@ class GameModuleService:
         每次 ``init_db`` 后调用；已存在的记录直接跳过。
         """
         self._seed_game_definitions()
+        self._seed_leaderboard_rules()
         self._seed_minesweeper_difficulties()
 
     def _seed_game_definitions(self) -> None:
@@ -238,27 +291,34 @@ class GameModuleService:
                 "game_name": "雷区突围",
                 "game_sub_name": "经典扫雷",
                 "sort_no": 1,
+                "config": _MINESWEEPER_CONFIG,
             },
             {
                 "game_code": "snake",
                 "game_name": "贪吃蛇",
                 "game_sub_name": None,
                 "sort_no": 2,
+                "config": None,
             },
             {
                 "game_code": "tetris",
                 "game_name": "俄罗斯方块",
                 "game_sub_name": None,
                 "sort_no": 3,
+                "config": None,
             },
             {
                 "game_code": "match3",
                 "game_name": "对对碰",
                 "game_sub_name": None,
                 "sort_no": 4,
+                "config": _MATCH3_CONFIG,
             },
         ]
         for g in games:
+            config_json = None
+            if g["config"] is not None:
+                config_json = json.dumps(g["config"], ensure_ascii=False, separators=(",", ":"))
             self._definitions.create_if_not_exists(
                 game_code=g["game_code"],
                 game_name=g["game_name"],
@@ -266,8 +326,74 @@ class GameModuleService:
                 support_online=0,
                 enabled=1,
                 sort_no=g["sort_no"],
-                config_json=None,
+                config_json=config_json,
             )
+
+    def _seed_leaderboard_rules(self) -> None:
+        """为已存在但缺少 ranking.modes 的游戏定义补写排行榜规则。"""
+        self._ensure_game_ranking_config("minesweeper", _MINESWEEPER_CONFIG)
+        self._ensure_game_ranking_config("match3", _MATCH3_CONFIG)
+        self._repair_minesweeper_ranking_sort()
+
+    def _repair_minesweeper_ranking_sort(self) -> None:
+        """
+        将扫雷 single 模式排行榜规则校正为按用时升序。
+
+        仅修正误配为按分数等主指标排序的历史 config，不改动已正确的配置。
+        """
+        game = self._definitions.get_by_game_code("minesweeper")
+        if game is None:
+            return
+        config = _parse_optional_json_dict(game.config_json) or {}
+        ranking = config.get("ranking")
+        if not isinstance(ranking, dict):
+            return
+        modes = ranking.get("modes")
+        if not isinstance(modes, dict):
+            return
+        expected = _MINESWEEPER_CONFIG["ranking"]["modes"]["single"]
+        single = modes.get("single")
+        if (
+            isinstance(single, dict)
+            and single.get("primaryMetric") == expected["primaryMetric"]
+            and single.get("orderDirection") == expected["orderDirection"]
+            and single.get("tieBreakers") == expected["tieBreakers"]
+        ):
+            return
+        merged = dict(config)
+        merged_ranking = dict(ranking)
+        merged_ranking["modes"] = {**modes, "single": expected}
+        merged["ranking"] = merged_ranking
+        self._definitions.save_config_json(game, merged)
+
+    def _ensure_game_ranking_config(self, game_code: str, config_patch: Dict[str, Any]) -> None:
+        """
+        合并写入游戏排行榜配置（仅当 ``ranking.modes`` 缺失时）。
+
+        :param game_code: 游戏编码。
+        :param config_patch: 含 ``ranking`` 的完整或部分 config 对象。
+        :return: None
+        """
+        game = self._definitions.get_by_game_code(game_code)
+        if game is None:
+            return
+        config = _parse_optional_json_dict(game.config_json) or {}
+        ranking = config.get("ranking")
+        if isinstance(ranking, dict) and isinstance(ranking.get("modes"), dict) and ranking["modes"]:
+            return
+        patch_ranking = config_patch.get("ranking")
+        if not isinstance(patch_ranking, dict):
+            return
+        merged = dict(config)
+        merged["ranking"] = patch_ranking
+        flags = config_patch.get("featureFlags")
+        if isinstance(flags, dict):
+            existing_flags = merged.get("featureFlags")
+            if isinstance(existing_flags, dict):
+                merged["featureFlags"] = {**existing_flags, **flags}
+            else:
+                merged["featureFlags"] = flags
+        self._definitions.save_config_json(game, merged)
 
     def _seed_minesweeper_difficulties(self) -> None:
         """写入扫雷 easy / medium / hard 难度配置。"""

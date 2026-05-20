@@ -2,10 +2,11 @@
   <div class="match3-hud" :class="`match3-hud--${section}`">
     <template v-if="section === 'config' || section === 'all'">
       <div class="muted-small">{{ t.modeSection }}</div>
-      <div class="match3-mode-tabs">
+      <div class="game-mode-tabs">
         <button
           type="button"
-          :class="{ active: mode === 'timed' }"
+          class="game-mode-tab"
+          :class="{ 'game-mode-tab--active': mode === 'timed' }"
           :disabled="locked"
           @click="$emit('change-mode', 'timed')"
         >
@@ -13,7 +14,8 @@
         </button>
         <button
           type="button"
-          :class="{ active: mode === 'endless' }"
+          class="game-mode-tab"
+          :class="{ 'game-mode-tab--active': mode === 'endless' }"
           :disabled="locked"
           @click="$emit('change-mode', 'endless')"
         >
@@ -21,44 +23,66 @@
         </button>
       </div>
       <div class="match3-actions">
-        <button type="button" class="success" @click="$emit('start')">
-          {{ started ? t.restart : t.start }}
+        <button
+          type="button"
+          class="side-action btn-action-restart"
+          :disabled="restartDisabled"
+          @click="$emit('restart')"
+        >
+          {{ t.restart }}
         </button>
-        <button type="button" :disabled="!inProgress" @click="$emit('end')">{{ t.endGame }}</button>
+        <button
+          type="button"
+          class="side-action btn-action-end"
+          :disabled="!canEndGame"
+          @click="$emit('end')"
+        >
+          {{ t.endGame }}
+        </button>
       </div>
     </template>
 
     <template v-if="section === 'hud' || section === 'all'">
-      <h2 class="match3-hud-title">{{ modeLabel }}</h2>
-      <div class="match3-stats">
-        <span>{{ t.score }} <strong>{{ score }}</strong></span>
-        <span>{{ t.moves }} <strong>{{ moves }}</strong></span>
-        <span>{{ t.comboMax }} <strong>{{ comboMax }}</strong></span>
-        <span v-if="mode === 'timed'">{{ t.remaining }} <strong>{{ remainingSec }}</strong>s</span>
-        <span v-else>{{ t.elapsed }} <strong>{{ elapsedSec }}</strong>s</span>
-      </div>
-      <p class="match3-message">{{ message }}</p>
+      <GameHudStats :theme-seed="themeSeed">
+        <GameStatGrid compact :columns="3" min-column-width="84px">
+          <GameStatCard :label="t.score" :value="score" tone="accent" icon="★" layout="inline" />
+          <GameStatCard
+            :label="timeLabel"
+            :value="timeValue"
+            :helper="timeHelper"
+            icon="⏱"
+            layout="inline"
+          />
+          <GameStatCard :label="t.moves" :value="moves" icon="↔" layout="inline" />
+          <GameStatCard :label="t.comboMax" :value="comboMax" icon="⚡" layout="inline" />
+          <GameStatCard :label="t.mode" :value="modeShortLabel" tone="muted" layout="inline" />
+        </GameStatGrid>
+        <GameStatQuotaBar :items="propQuotas" />
+        <p v-if="message" class="game-hud-stats__message">{{ message }}</p>
+      </GameHudStats>
     </template>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
+import GameHudStats from '../../../components/game/GameHudStats.vue';
+import GameStatCard from '../../../components/game/GameStatCard.vue';
+import GameStatGrid from '../../../components/game/GameStatGrid.vue';
+import GameStatQuotaBar from '../../../components/game/GameStatQuotaBar.vue';
 
 const t = {
-  modeSection: '\u6a21\u5f0f \u00b7 \u64cd\u4f5c',
-  timed: '\u9650\u65f6',
-  endless: '\u65e0\u9650',
-  restart: '\u91cd\u65b0\u5f00\u59cb',
-  start: '\u5f00\u59cb\u6e38\u620f',
-  endGame: '\u7ed3\u675f\u5bf9\u5c40',
-  score: '\u5f97\u5206',
-  moves: '\u6b65\u6570',
-  comboMax: '\u6700\u5927\u8fde\u51fb',
-  remaining: '\u5269\u4f59',
-  elapsed: '\u7528\u65f6',
-  timedMode: '\u9650\u65f6\u6a21\u5f0f',
-  endlessMode: '\u65e0\u9650\u6a21\u5f0f'
+  modeSection: '模式 · 操作',
+  timed: '限时',
+  endless: '无限',
+  restart: '重新开始',
+  endGame: '结束对局',
+  score: '得分',
+  moves: '步数',
+  comboMax: '连击',
+  remaining: '剩余',
+  elapsed: '用时',
+  mode: '模式'
 };
 
 const props = defineProps({
@@ -73,51 +97,93 @@ const props = defineProps({
   comboMax: { type: Number, required: true },
   remainingSec: { type: Number, required: true },
   elapsedSec: { type: Number, required: true },
-  started: { type: Boolean, required: true },
-  inProgress: { type: Boolean, required: true },
+  gameStatus: {
+    type: String,
+    required: true,
+    validator: (v) => ['idle', 'playing', 'paused', 'ended'].includes(v)
+  },
   locked: { type: Boolean, required: true },
-  message: { type: String, required: true }
+  restartDisabled: { type: Boolean, default: false },
+  message: { type: String, required: true },
+  propQuotas: { type: Array, default: () => [] },
+  themeSeed: { type: [Number, String], default: 'random' }
 });
 
-defineEmits(['change-mode', 'start', 'end']);
+defineEmits(['change-mode', 'restart', 'end']);
 
-const modeLabel = computed(() => (props.mode === 'timed' ? t.timedMode : t.endlessMode));
+const canEndGame = computed(
+  () => props.gameStatus === 'playing' || props.gameStatus === 'paused'
+);
+const modeShortLabel = computed(() => (props.mode === 'timed' ? t.timed : t.endless));
+const timeLabel = computed(() => (props.mode === 'timed' ? t.remaining : t.elapsed));
+const timeValue = computed(() =>
+  props.mode === 'timed' ? `${props.remainingSec}s` : `${props.elapsedSec}s`
+);
+const timeHelper = computed(() => (props.mode === 'timed' ? '倒计时' : '累计'));
 </script>
 
 <style scoped>
 .match3-hud {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
-.match3-hud-title {
-  margin: 0;
-  font-size: 1.15rem;
+.match3-actions {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
-.match3-mode-tabs,
-.match3-actions,
-.match3-stats {
+.match3-actions .side-action:first-child {
+  margin-top: 0;
+}
+
+.game-mode-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+  width: 100%;
 }
 
-.match3-mode-tabs button.active {
-  border-color: rgba(103, 194, 58, 0.8);
-  color: #bbf7d0;
+.game-mode-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(148, 163, 184, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
-.match3-stats span {
-  min-width: 92px;
-  padding: 9px 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
+.game-mode-tab:hover:not(:disabled) {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: rgba(226, 232, 240, 0.95);
+  background: rgba(30, 41, 59, 0.75);
 }
 
-.match3-message {
-  margin: 0;
-  color: #dbeafe;
+.game-mode-tab--active {
+  border-color: rgba(96, 165, 250, 0.75);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.42), rgba(37, 99, 235, 0.32));
+  color: #f8fafc;
+  box-shadow:
+    0 0 0 1px rgba(147, 197, 253, 0.35),
+    0 6px 16px rgba(37, 99, 235, 0.28);
+}
+
+.game-mode-tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>

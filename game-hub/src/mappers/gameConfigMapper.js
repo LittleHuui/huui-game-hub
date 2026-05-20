@@ -1,5 +1,6 @@
 import { GAME_SEED_CONFIG } from '../constants/gameSeedConfig.js';
 import { MINESWEEPER_PRESETS, setClientLayoutConfigs } from '../games/minesweeper/minesweeperConfig.js';
+import { getEnabledDifficulties, setGameDifficulties } from '../services/gameDifficultyService.js';
 import { mapGamePropRuleToShopItem } from './propMapper.js';
 
 /**
@@ -66,8 +67,10 @@ export function mapGameSeedToMinesweeperConfig(seedConfig = GAME_SEED_CONFIG) {
     return { difficulties: [], clientConfigs: [] };
   }
   const difficulties = (Array.isArray(game.difficulties) ? game.difficulties : []).map((d) => ({
-    difficultyCode: d.difficultyCode || d.code,
-    difficultyName: d.difficultyName || d.label,
+    difficultyCode: d.difficultyCode,
+    difficultyName: d.difficultyName,
+    enabled: d.enabled === true,
+    sortNo: d.sortNo != null ? Number(d.sortNo) : 999,
     config: d.config || d
   }));
   return {
@@ -84,8 +87,9 @@ export function applyMinesweeperServerConfig(data) {
   if (!data || typeof data !== 'object') {
     return;
   }
-  const difficulties = Array.isArray(data.difficulties) ? data.difficulties : [];
-  for (const d of difficulties) {
+  const rawList = Array.isArray(data.difficulties) ? data.difficulties : [];
+  setGameDifficulties('minesweeper', rawList);
+  for (const d of getEnabledDifficulties('minesweeper')) {
     const code = d.difficultyCode;
     if (!code || !MINESWEEPER_PRESETS[code]) {
       continue;

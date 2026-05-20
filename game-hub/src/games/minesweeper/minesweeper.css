@@ -1,0 +1,224 @@
+/* 扫雷模块样式（仅由 MinesweeperPage 引入） */
+
+.difficulty-select {
+    position: relative;
+    max-width: 180px;
+}
+
+.difficulty-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(59, 130, 246, .9), rgba(37, 99, 235, .85));
+    color: white;
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+}
+
+.difficulty-arrow {
+    margin-right: 6px;
+    transition: transform .2s ease;
+}
+
+.difficulty-select.open .difficulty-arrow {
+    transform: rotate(180deg);
+}
+
+.difficulty-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 5;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, .16);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, .28);
+}
+
+.difficulty-option {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background .2s ease;
+}
+
+.difficulty-option:hover,
+.difficulty-option.active {
+    background: rgba(59, 130, 246, .35);
+}
+
+.board {
+    display: inline-grid;
+    gap: 2px;
+    background: #111827;
+    padding: 10px;
+    border-radius: 14px;
+    overflow: auto;
+    max-width: 100%;
+}
+
+.board--adaptive .cell {
+    width: var(--cell, 32px);
+    height: var(--cell, 32px);
+    font-size: clamp(10px, calc(var(--cell, 32px) * 0.42), 16px);
+}
+
+.board .cell.cell-neighbor-ring {
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 0 0 2px rgba(186, 230, 253, 0.65);
+    border-radius: 6px;
+}
+
+.cell {
+    width: 32px;
+    height: 32px;
+    background: #334155;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 6px;
+    font-weight: bold;
+    line-height: 1;
+    text-box-trim: trim-both;
+    text-box-edge: cap alphabetic;
+    transition: all .18s ease;
+    animation: cellPop .2s ease;
+}
+
+.cell:hover {
+    background: #93c5fd;
+    transform: scale(1.08);
+    box-shadow: 0 0 12px rgba(147, 197, 253, .8);
+}
+
+.opened {
+    background: #e2e8f0;
+    color: #111827;
+    transform: scale(0.96);
+}
+
+.mine {
+    background: #ef4444 !important;
+    color: white;
+    animation: boom .4s infinite alternate;
+}
+
+.flag {
+    background: #f59e0b;
+}
+
+.difficulty-select.is-locked .difficulty-trigger {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.revive-offer-mask {
+    z-index: 8500;
+}
+
+.revive-countdown {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fbbf24;
+    text-align: center;
+    margin: 12px 0;
+}
+
+.revive-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.battle-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: visible;
+}
+
+.pause-placeholder {
+    min-height: min(42vh, 360px);
+    max-height: 52vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(20px, 4vw, 28px);
+    font-weight: bold;
+    background: #0f172a;
+    border-radius: 14px;
+}
+
+@keyframes shake {
+    0% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-6px);
+    }
+
+    50% {
+        transform: translateX(6px);
+    }
+
+    75% {
+        transform: translateX(-6px);
+    }
+
+    100% {
+        transform: translateX(0);
+    }
+}
+
+@keyframes boom {
+    from {
+        filter: brightness(1);
+    }
+
+    to {
+        filter: brightness(1.35);
+    }
+}
+
+@keyframes glow {
+    from {
+        box-shadow: 0 0 10px #facc15;
+    }
+
+    to {
+        box-shadow: 0 0 25px #facc15;
+    }
+}
+
+@keyframes cellPop {
+    from {
+        transform: scale(.7);
+        opacity: .5;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* 对局面板动效 */
+.battle-panel.shake {
+  animation: shake 0.35s;
+}
+
+.battle-panel.victory {
+  animation: glow 1s infinite alternate;
+}

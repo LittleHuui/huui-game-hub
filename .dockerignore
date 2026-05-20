@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# 本地数据与压缩包
+data/
+*.db
+*.sqlite3
+game-hub-end.zip
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.coverage
+**/htmlcov
+**/.venv
+**/venv
+**/env
+
+# Node
+**/node_modules
+game-hub/dist
+game-hub/.vite
+
+# 构建产物
+**/dist
+**/build
+
+# 环境与 IDE
+**/.env
+**/.env.*
+!game-hub/.env.production
+.idea
+.vscode
+
+# 日志
+**/*.log
+**/logs
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 文档与测试（镜像不需要）
+**/*.md
+game-hub-end/tests

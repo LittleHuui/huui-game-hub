@@ -1,10 +1,10 @@
 import { mapPurchaseRecord, mapLocalPurchaseToPayload } from '../mappers/purchaseMapper.js';
 import { mapRemoteWalletToLocal } from '../mappers/walletMapper.js';
-import { mapRemoteInventoryItemToLocalProps } from '../mappers/inventoryMapper.js';
 import { pageItems } from '../mappers/sharedMapper.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useHistoryStore } from '../stores/historyStore.js';
 import { remoteRepository } from './remoteRepository.js';
+import * as inventoryRepository from './inventoryRepository.js';
 import { ensureUserBucket } from './helpers.js';
 import { resolveServerUserId } from './userRepository.js';
 import { persistAllLocal } from './localPersistRepository.js';
@@ -46,11 +46,7 @@ export function applyPurchaseResult(result) {
     userStore.patchUserScores(uid, scores.score, scores.totalScore);
   }
   if (result.inventoryItem) {
-    const patch = mapRemoteInventoryItemToLocalProps(result.inventoryItem);
-    const u = userStore.users.find((x) => x.userId === uid);
-    if (u) {
-      userStore.patchUserProps(uid, { ...u.props, ...patch });
-    }
+    inventoryRepository.applyPurchaseInventoryItem(uid, result.inventoryItem);
   }
   if (result.purchaseRecord) {
     ensureUserBucket(historyStore.purchaseRecordsByUser, uid);

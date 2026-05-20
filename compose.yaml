@@ -1,0 +1,25 @@
+services:
+  huui-game-hub:
+    image: ghcr.io/littlehuui/huui-game-hub:latest
+    container_name: huui-game-hub
+    ports:
+      - "80:80"
+    volumes:
+      - ./data:/app/data
+    environment:
+      DATABASE_URL: sqlite:////app/data/game_hub.db
+    restart: always
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: huui-game-hub-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: "300"
+      WATCHTOWER_CLEANUP: "true"
+    command: --label-enable
+    restart: always

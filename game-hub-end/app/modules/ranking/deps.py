@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.modules.game.repository import GameDefinitionRepository
 from app.modules.ranking.entity_service import RankingEntityService
 from app.modules.ranking.module_service import RankingModuleService
 from app.modules.score.repository import ScoreRecordRepository
@@ -16,7 +17,7 @@ def get_score_record_repository(db: Session = Depends(get_db)) -> ScoreRecordRep
     :param db: 请求级数据库会话。
     :return: ``ScoreRecordRepository`` 实例。
     """
-    return ScoreRecordRepository(db)
+    return ScoreRecordRepository(db, GameDefinitionRepository(db))
 
 
 def get_ranking_module_service(

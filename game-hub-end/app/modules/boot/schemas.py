@@ -141,7 +141,7 @@ class MatchRecordResponse(BaseEntityResponse):
     difficultyCode: Optional[str] = None
     durationMs: Optional[int] = None
     score: int
-    propUses: Optional[Dict[str, Any]] = None
+    propUses: Optional[List[Any]] = None
     payload: Optional[Dict[str, Any]] = None
     syncedAt: Optional[int] = None
 

@@ -1,5 +1,4 @@
 import { hasGameCapability } from '../constants/gameRegistry.js';
-import { usePlatformStore } from '../stores/platformStore.js';
 import { useRankingStore } from '../stores/rankingStore.js';
 import * as gameConfigService from './gameConfigService.js';
 import * as inventoryService from './inventoryService.js';
@@ -13,60 +12,106 @@ import { canFetchRemote } from './remoteGate.js';
  * @property {string} [mode]
  * @property {boolean} [includeLeaderboard]
  * @property {boolean} [includeInventory]
- * @property {boolean} [forceReload]
  */
 
 /**
- * 激活游戏并加载配置、商城、背包与排行榜（按 options 裁剪）。
+ * 校验激活参数：排行榜/背包刷新须由调用方显式传入 mode / difficultyCode。
+ * @param {ActivateGameOptions} options
+ * @returns {{ mode?: string; difficultyCode?: string; includeLeaderboard: boolean; includeInventory: boolean }}
+ */
+function resolveActivateOptions(options) {
+  return {
+    mode: options.mode,
+    difficultyCode: options.difficultyCode,
+    includeLeaderboard: options.includeLeaderboard === true,
+    includeInventory: options.includeInventory === true
+  };
+}
+
+/**
+ * 加载游戏配置。
+ * @param {string} gameCode
+ * @returns {Promise<void>}
+ */
+export async function loadGameConfig(gameCode) {
+  await gameConfigService.loadGameConfig(gameCode);
+}
+
+/**
+ * 加载游戏商城。
+ * @param {string} gameCode
+ * @returns {Promise<void>}
+ */
+export async function loadGameShop(gameCode) {
+  if (gameCode == null || String(gameCode).length === 0) {
+    return;
+  }
+  if (!hasGameCapability(gameCode, 'shop')) {
+    return;
+  }
+  await shopService.loadGameShop(gameCode);
+}
+
+/**
+ * 刷新游戏背包（需 inventory 能力且可拉取远端）。
+ * @param {string} gameCode
+ * @returns {Promise<void>}
+ */
+export async function refreshGameBag(gameCode) {
+  if (gameCode == null || String(gameCode).length === 0) {
+    return;
+  }
+  if (!hasGameCapability(gameCode, 'inventory')) {
+    return;
+  }
+  await inventoryService.refreshGameBag(gameCode);
+}
+
+/**
+ * 刷新排行榜；离线时清空 store。
+ * @param {string} gameCode
+ * @param {string} mode
+ * @param {string} difficultyCode
+ * @returns {Promise<void>}
+ */
+export async function refreshRanking(gameCode, mode, difficultyCode) {
+  const ranking = useRankingStore();
+  if (!hasGameCapability(gameCode, 'leaderboard')) {
+    return;
+  }
+  if (!canFetchRemote()) {
+    ranking.clear();
+    return;
+  }
+  if (!mode || !difficultyCode) {
+    throw new Error('刷新排行榜需要 mode 与 difficultyCode');
+  }
+  await rankingService.refreshGameLeaderboard(gameCode, difficultyCode, mode);
+}
+
+/**
+ * 激活游戏：配置 → 商城 → 背包 → 排行榜（按 options 裁剪）。
  * @param {string} gameCode
  * @param {ActivateGameOptions} [options]
  * @returns {Promise<void>}
  */
 export async function activateGame(gameCode, options = {}) {
   if (gameCode == null || String(gameCode).length === 0) {
-    return;
+    throw new Error('缺少 gameCode');
   }
 
-  const {
-    difficultyCode,
-    mode = 'single',
-    includeLeaderboard = true,
-    includeInventory = true
-  } = options;
+  const { mode, difficultyCode, includeLeaderboard, includeInventory } = resolveActivateOptions(
+    options
+  );
 
-  const platform = usePlatformStore();
-  const ranking = useRankingStore();
+  await loadGameConfig(gameCode);
+  await loadGameShop(gameCode);
 
-  if (gameCode === 'minesweeper') {
-    await gameConfigService.loadMinesweeperIfOnline(platform);
-    await shopService.loadMinesweeperShop();
-
-    if (includeInventory && hasGameCapability(gameCode, 'inventory')) {
-      await inventoryService.refreshMinesweeperBag();
-    }
-
-    if (includeLeaderboard && hasGameCapability(gameCode, 'leaderboard')) {
-      if (difficultyCode && canFetchRemote()) {
-        await rankingService.refreshGameLeaderboard(gameCode, difficultyCode);
-      } else if (!canFetchRemote()) {
-        ranking.clear();
-      }
-    }
-    return;
+  if (includeInventory) {
+    await refreshGameBag(gameCode);
   }
 
-  if (gameCode === 'match3') {
-    await gameConfigService.loadMatch3IfOnline(platform);
-    await shopService.loadGameShop(gameCode);
-
-    if (includeInventory && hasGameCapability(gameCode, 'inventory')) {
-      await inventoryService.refreshGameBag(gameCode);
-    }
-  }
-
-  if (hasGameCapability(gameCode, 'leaderboard') && includeLeaderboard && difficultyCode && canFetchRemote()) {
-    await rankingService.refreshGameLeaderboard(gameCode, difficultyCode, mode);
-  } else if (!canFetchRemote()) {
-    ranking.clear();
+  if (includeLeaderboard) {
+    await refreshRanking(gameCode, mode, difficultyCode);
   }
 }

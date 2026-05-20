@@ -8,7 +8,7 @@ import { defineStore } from 'pinia';
  * @property {string} icon
  * @property {number} price
  * @property {number|null} maxUsePerMatch
- * @property {'hintCard'|'reviveCard'|null} localKey
+ * @property {number|null} sortNo
  * @property {string|null} effectType
  */
 

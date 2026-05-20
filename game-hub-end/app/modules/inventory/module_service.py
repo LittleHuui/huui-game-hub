@@ -11,6 +11,7 @@ from app.modules.inventory.entity_service import (
 )
 from app.modules.inventory.mappers import to_prop_usage_record_response, to_user_prop_bag_response
 from app.modules.inventory.models import PropUsageRecord, UserPropBag
+from app.modules.match.schemas import object_to_json_text
 from app.modules.prop.schemas import (
     PropUsageRecordCreate,
     PropUsageRecordRead,
@@ -88,7 +89,7 @@ class InventoryModuleService:
             prop_code=payload.propCode,
             quantity=payload.quantity,
             use_reason=payload.useReason,
-            payload_json=payload.payloadJson,
+            payload_json=object_to_json_text(payload.payload),
         )
         if payload.consumeFromBag:
             self.rebuild_inventory_from_records(payload.userId)

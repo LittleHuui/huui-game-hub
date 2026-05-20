@@ -15,7 +15,7 @@ def test_list_and_upsert_system_configs() -> None:
         put_resp = client.put(
             f"/api/game-hub/system/configs/{config_key}",
             json={
-                "config_value": "on",
+                "configValue": "on",
                 "description": "测试开关",
                 "enabled": 1,
             },
@@ -30,7 +30,7 @@ def test_list_and_upsert_system_configs() -> None:
 
         update_resp = client.put(
             f"/api/game-hub/system/configs/{config_key}",
-            json={"config_value": "off", "enabled": 0},
+            json={"configValue": "off", "enabled": 0},
         )
         assert update_resp.status_code == 200
         updated = update_resp.json()["data"]

@@ -9,7 +9,6 @@ import { defineStore } from 'pinia';
  * @property {string} nickname
  * @property {number} score
  * @property {number} totalScore
- * @property {{ hintCard: number; reviveCard: number }} props
  * @property {boolean} autoRevive
  * @property {{ neighborHoverRing: boolean }} prefs
  * @property {number} createdAt
@@ -38,7 +37,6 @@ export const useUserStore = defineStore('user', {
           nickname: '未知',
           score: 0,
           totalScore: 0,
-          props: { hintCard: 0, reviveCard: 0 },
           autoRevive: false,
           prefs: { neighborHoverRing: true },
           createdAt: 0,
@@ -63,7 +61,7 @@ export const useUserStore = defineStore('user', {
       this.auth.currentUserId = id;
     },
     /**
-     * @param {Omit<GameUser, 'props' | 'score' | 'totalScore'> & Partial<Pick<GameUser, 'props' | 'score' | 'totalScore'>>} partial
+     * @param {Omit<GameUser, 'score' | 'totalScore'> & Partial<Pick<GameUser, 'score' | 'totalScore'>>} partial
      */
     addUser(partial) {
       const now = Date.now();
@@ -75,7 +73,6 @@ export const useUserStore = defineStore('user', {
         nickname: partial.nickname,
         score: partial.score ?? 0,
         totalScore: partial.totalScore ?? 0,
-        props: partial.props || { hintCard: 0, reviveCard: 0 },
         autoRevive: !!partial.autoRevive,
         prefs: partial.prefs || { neighborHoverRing: true },
         createdAt: partial.createdAt ?? now,
@@ -98,13 +95,6 @@ export const useUserStore = defineStore('user', {
       if (u) {
         u.score = score;
         u.totalScore = totalScore;
-        u.updatedAt = Date.now();
-      }
-    },
-    patchUserProps(userId, props) {
-      const u = this.users.find((x) => x.userId === userId);
-      if (u) {
-        u.props = { ...u.props, ...props };
         u.updatedAt = Date.now();
       }
     },

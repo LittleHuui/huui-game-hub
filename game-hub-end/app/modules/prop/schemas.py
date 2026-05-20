@@ -1,11 +1,11 @@
 """道具域 Pydantic 模型。"""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.common.base_entity import BaseEntityResponse
-from app.common.camel_schema import CAMEL_MODEL_CONFIG, camel_field
+from app.common.camel_schema import CAMEL_MODEL_CONFIG
 
 
 class PropDefinitionResponse(BaseEntityResponse):
@@ -51,6 +51,7 @@ class GamePropRuleRead(BaseModel):
     trigger_type: Optional[str] = None
     effect_type: Optional[str] = None
     rule_json: Optional[str] = None
+    sort_no: int
     enabled: int
     created_at: int
     updated_at: int
@@ -153,12 +154,12 @@ class PropPurchaseRequest(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    clientId: str = camel_field("clientId", min_length=1, description="购买记录幂等 ID")
-    walletClientId: str = camel_field("walletClientId", min_length=1, description="钱包流水幂等 ID")
-    userId: str = camel_field("userId", min_length=1)
-    deviceId: Optional[str] = camel_field("deviceId", default=None)
-    gameCode: str = camel_field("gameCode", min_length=1)
-    propCode: str = camel_field("propCode", min_length=1)
+    clientId: str = Field(min_length=1, description="购买记录幂等 ID")
+    walletClientId: str = Field(min_length=1, description="钱包流水幂等 ID")
+    userId: str = Field(min_length=1)
+    deviceId: Optional[str] = Field(default=None)
+    gameCode: str = Field(min_length=1)
+    propCode: str = Field(min_length=1)
     quantity: int = Field(ge=1)
 
 
@@ -167,9 +168,9 @@ class PropConsumeRequest(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    userId: str = camel_field("userId", min_length=1)
-    gameCode: str = camel_field("gameCode", min_length=1)
-    propCode: str = camel_field("propCode", min_length=1)
+    userId: str = Field(min_length=1)
+    gameCode: str = Field(min_length=1)
+    propCode: str = Field(min_length=1)
     quantity: int = Field(ge=1, default=1)
 
 
@@ -178,17 +179,13 @@ class PropUsageRecordCreate(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    clientId: str = camel_field("clientId", min_length=1)
-    userId: str = camel_field("userId", min_length=1)
-    deviceId: Optional[str] = camel_field("deviceId", default=None)
-    gameCode: str = camel_field("gameCode", min_length=1)
-    matchId: Optional[str] = camel_field("matchId", default=None)
-    propCode: str = camel_field("propCode", min_length=1)
+    clientId: str = Field(min_length=1)
+    userId: str = Field(min_length=1)
+    deviceId: Optional[str] = Field(default=None)
+    gameCode: str = Field(min_length=1)
+    matchId: Optional[str] = Field(default=None)
+    propCode: str = Field(min_length=1)
     quantity: int = Field(ge=1, default=1)
-    useReason: Optional[str] = camel_field("useReason", default=None)
-    payloadJson: Optional[str] = camel_field("payloadJson", default=None)
-    consumeFromBag: bool = camel_field(
-        "consumeFromBag",
-        default=True,
-        description="是否同时扣减背包数量",
-    )
+    useReason: Optional[str] = Field(default=None)
+    payload: Optional[Dict[str, Any]] = None
+    consumeFromBag: bool = Field(default=True, description="是否同时扣减背包数量")

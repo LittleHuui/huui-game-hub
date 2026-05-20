@@ -31,11 +31,14 @@ class PropPurchaseRecordRepository:
         return self._session.scalar(stmt)
 
     def list_by_user(self, user_id: str, *, active_only: bool = True) -> List[PropPurchaseRecord]:
-        """按创建时间升序列出用户购买记录。"""
+        """按更新时间倒序列出用户购买记录。"""
         stmt = select(PropPurchaseRecord).where(PropPurchaseRecord.user_id == user_id)
         if active_only:
             stmt = stmt.where(PropPurchaseRecord.deleted_at.is_(None))
-        stmt = stmt.order_by(PropPurchaseRecord.created_at.asc())
+        stmt = stmt.order_by(
+            PropPurchaseRecord.updated_at.desc(),
+            PropPurchaseRecord.created_at.desc(),
+        )
         return list(self._session.scalars(stmt).all())
 
     def page_by_user(
@@ -74,7 +77,10 @@ class PropPurchaseRecordRepository:
         list_stmt = (
             select(PropPurchaseRecord)
             .where(*filters)
-            .order_by(PropPurchaseRecord.created_at.desc())
+            .order_by(
+                PropPurchaseRecord.updated_at.desc(),
+                PropPurchaseRecord.created_at.desc(),
+            )
             .offset(offset)
             .limit(page_size)
         )

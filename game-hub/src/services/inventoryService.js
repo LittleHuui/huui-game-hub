@@ -5,6 +5,7 @@ import * as userRepository from '../repositories/userRepository.js';
 import { createClientId } from '../utils/idService.js';
 import { persistAllLocal } from '../repositories/localPersistRepository.js';
 import { canFetchRemote } from './remoteGate.js';
+import { requireGameCode } from '../utils/requireGameCode.js';
 
 /**
  * 道具使用流水。
@@ -15,7 +16,7 @@ export function recordUse(p) {
     {
       userId: p.userId,
       deviceId: p.deviceId,
-      gameCode: p.gameCode || 'minesweeper',
+      gameCode: requireGameCode(p.gameCode, 'recordUse'),
       propCode: p.propCode,
       type: 'cost',
       amount: p.amount ?? 1,
@@ -72,6 +73,7 @@ export async function refreshRemote(serverUserId, gameCode) {
  * @returns {Promise<void>}
  */
 export async function refreshGameBag(gameCode) {
+  const code = requireGameCode(gameCode, 'refreshGameBag');
   if (!canFetchRemote()) {
     return;
   }
@@ -80,18 +82,10 @@ export async function refreshGameBag(gameCode) {
     return;
   }
   try {
-    await inventoryRepository.refreshInventory(serverId, gameCode);
+    await inventoryRepository.refreshInventory(serverId, code);
   } catch {
     /* 静默失败，保留本地背包 */
   }
-}
-
-/**
- * 从服务端拉取当前用户扫雷背包（GET /users/{userId}/inventory?gameCode=minesweeper）。
- * @returns {Promise<void>}
- */
-export async function refreshMinesweeperBag() {
-  await refreshGameBag('minesweeper');
 }
 
 export function persistLocal() {

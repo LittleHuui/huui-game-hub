@@ -126,6 +126,7 @@ class GamePropRuleResponse(BaseEntityResponse):
     effectType: Optional[str] = None
     rule: Optional[Dict[str, Any]] = None
     enabled: bool
+    sortNo: int
 
 
 class GameConfigResponse(BaseModel):

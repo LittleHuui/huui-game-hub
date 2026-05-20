@@ -3,8 +3,8 @@ import { GAME_REGISTRY } from '../constants/gameRegistry.js';
 
 export const usePlatformStore = defineStore('platform', {
   state: () => ({
-    currentGameCode: 'minesweeper',
-    currentGameMode: 'single',
+    currentGameCode: '',
+    currentGameMode: '',
     bootStatus: 'syncing',
     networkMode: 'unknown',
     /** 最近一次 health 探测是否成功 */
@@ -14,8 +14,9 @@ export const usePlatformStore = defineStore('platform', {
     bootGames: null,
     /** 顶栏展示用的游戏目录（已过滤 enabled、排序） */
     gameCatalog: [],
-    /** 扫雷当前难度（供数据源切换等跨页面编排使用） */
-    minesweeperDifficulty: 'easy'
+    /** 对局进行中禁止顶栏切换游戏 */
+    gameSwitchLocked: false,
+    gameSwitchLockReason: ''
   }),
   getters: {
     /**
@@ -30,6 +31,7 @@ export const usePlatformStore = defineStore('platform', {
       }
       const reg = GAME_REGISTRY[state.currentGameCode];
       if (reg) {
+        const caps = reg.capabilities || {};
         return {
           code: reg.code,
           name: reg.name,
@@ -38,11 +40,11 @@ export const usePlatformStore = defineStore('platform', {
           supportOnline: reg.supportOnline,
           enabled: true,
           sortNo: 0,
-          playable: state.currentGameCode === 'minesweeper',
-          capabilities: reg.capabilities || {}
+          playable: caps.offline === true || caps.leaderboard === true || caps.shop === true,
+          capabilities: caps
         };
       }
-      return state.gameCatalog[0] || null;
+      return null;
     },
     isPlayable(state) {
       return state.bootStatus === 'ready';
@@ -97,20 +99,31 @@ export const usePlatformStore = defineStore('platform', {
     setCurrentGame(code) {
       if (this.gameCatalog.some((g) => g.code === code)) {
         this.currentGameCode = code;
+        const reg = GAME_REGISTRY[code];
+        this.currentGameMode = reg?.modes?.[0] || '';
         return;
       }
       if (GAME_REGISTRY[code]) {
         this.currentGameCode = code;
+        this.currentGameMode = GAME_REGISTRY[code].modes?.[0] || '';
       }
     },
     /**
-     * 同步扫雷当前难度，供 activateGame 等编排使用。
-     * @param {string} difficultyCode
+     * 锁定顶栏游戏切换（对局进行中）。
+     * @param {string} [reason]
      */
-    setMinesweeperDifficulty(difficultyCode) {
-      if (difficultyCode) {
-        this.minesweeperDifficulty = difficultyCode;
+    lockGameSwitch(reason = '') {
+      this.gameSwitchLocked = true;
+      if (reason) {
+        this.gameSwitchLockReason = reason;
       }
+    },
+    /**
+     * 解除顶栏游戏切换锁。
+     */
+    unlockGameSwitch() {
+      this.gameSwitchLocked = false;
+      this.gameSwitchLockReason = '';
     }
   }
 });

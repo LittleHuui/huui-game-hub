@@ -5,11 +5,14 @@ import { remoteRepository } from './remoteRepository.js';
  * 拉取单难度排行榜原始数据并映射。
  * @param {string} gameCode
  * @param {string} difficultyCode
- * @param {string} [mode]
+ * @param {string} mode
  * @param {number} [limit]
  * @returns {Promise<object[]>}
  */
-export async function fetchLeaderboardDifficulty(gameCode, difficultyCode, mode = 'single', limit = 10) {
+export async function fetchLeaderboardDifficulty(gameCode, difficultyCode, mode, limit = 10) {
+  if (!mode) {
+    throw new Error('缺少 mode');
+  }
   const data = await remoteRepository.getLeaderboard({
     gameCode,
     mode,
@@ -22,18 +25,17 @@ export async function fetchLeaderboardDifficulty(gameCode, difficultyCode, mode 
 /**
  * 按游戏、模式与难度拉取排行榜。
  * @param {string} gameCode
- * @param {string} [difficultyCode]
- * @param {string} [mode]
+ * @param {string} difficultyCode
+ * @param {string} mode
  * @param {number} [limit]
  * @returns {Promise<object[]>}
  */
-export async function fetchGameLeaderboard(gameCode, difficultyCode, mode = 'single', limit = 10) {
+export async function fetchGameLeaderboard(gameCode, difficultyCode, mode, limit = 10) {
   if (!difficultyCode) {
-    return [];
+    throw new Error('缺少 difficultyCode');
   }
-  try {
-    return await fetchLeaderboardDifficulty(gameCode, difficultyCode, mode, limit);
-  } catch {
-    return [];
+  if (!mode) {
+    throw new Error('缺少 mode');
   }
+  return fetchLeaderboardDifficulty(gameCode, difficultyCode, mode, limit);
 }

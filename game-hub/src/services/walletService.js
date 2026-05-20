@@ -6,25 +6,27 @@ import { useUserStore } from '../stores/userStore.js';
 import * as localRepo from '../repositories/localRepository.js';
 import * as syncRepository from '../repositories/syncRepository.js';
 import { nowMs } from '../utils/timeService.js';
+import { requireGameCode } from '../utils/requireGameCode.js';
 
 /**
  * 积分增加流水。
  * @param {number} amount
  * @param {string} reason
  * @param {Record<string, unknown>} [payload]
- * @param {string} [gameCode]
+ * @param {string} gameCode
  */
-export function ledgerGain(amount, reason, payload = {}, gameCode = 'minesweeper') {
+export function ledgerGain(amount, reason, payload = {}, gameCode) {
   if (!amount) {
     return;
   }
+  const code = requireGameCode(gameCode, 'ledgerGain');
   const t = nowMs();
   const userStore = useUserStore();
   walletRepository.pushWalletLedger(
     {
       userId: userStore.auth.currentUserId,
       deviceId: localRepo.getDeviceId(),
-      gameCode,
+      gameCode: code,
       type: 'gain',
       reason,
       amount,
@@ -42,19 +44,20 @@ export function ledgerGain(amount, reason, payload = {}, gameCode = 'minesweeper
  * @param {number} amount
  * @param {string} reason
  * @param {Record<string, unknown>} [payload]
- * @param {string} [gameCode]
+ * @param {string} gameCode
  */
-export function ledgerCost(amount, reason, payload = {}, gameCode = 'minesweeper') {
+export function ledgerCost(amount, reason, payload = {}, gameCode) {
   if (!amount) {
     return;
   }
+  const code = requireGameCode(gameCode, 'ledgerCost');
   const t = nowMs();
   const userStore = useUserStore();
   walletRepository.pushWalletLedger(
     {
       userId: userStore.auth.currentUserId,
       deviceId: localRepo.getDeviceId(),
-      gameCode,
+      gameCode: code,
       type: 'cost',
       reason,
       amount,

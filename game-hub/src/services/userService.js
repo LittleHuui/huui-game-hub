@@ -12,6 +12,7 @@ import * as toastService from './toastService.js';
 import * as bootService from './bootService.js';
 import * as syncService from './syncService.js';
 import * as dataModeService from './dataModeService.js';
+import { resolvePlatformGameCode } from '../utils/requireGameCode.js';
 
 /**
  * 当前是否可对已绑定服务端用户发起写操作。
@@ -234,7 +235,7 @@ export async function setRepositoryMode(mode) {
 export async function setNeighborHoverRing(value) {
   const userStore = useUserStore();
   userStore.setUserPrefs(userStore.auth.currentUserId, { neighborHoverRing: !!value });
-  await queueSettingsSync({ gameCode: 'minesweeper' });
+  persistAllLocal();
 }
 
 /**
@@ -254,11 +255,12 @@ export async function refreshModalData(type) {
     if (type === 'ledger') {
       await walletRepository.refreshWallet(serverId);
     } else if (type === 'propUsage') {
-      await inventoryRepository.refreshInventory(serverId, 'minesweeper');
+      await inventoryRepository.refreshPropUsageRecords(serverId);
     } else if (type === 'purchase') {
       await purchaseRepository.refreshPurchases(serverId);
     } else if (type === 'history') {
-      await historyRepository.refreshMatches(serverId);
+      const gameCode = resolvePlatformGameCode('refreshModalData:history');
+      await historyRepository.refreshMatches(serverId, gameCode);
     }
   } catch (e) {
     toastService.push(e.message || '数据刷新失败', 'warning');

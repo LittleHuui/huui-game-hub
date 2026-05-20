@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class BaseEntityResponse(BaseModel):
@@ -10,18 +10,13 @@ class BaseEntityResponse(BaseModel):
     数据库实体读模型的公共字段；业务响应类应继承此类，禁止重复定义基础字段。
 
     时间字段均为 Unix 毫秒时间戳（``int``），禁止返回展示用时间字符串。
+    构造时须使用 camelCase 字段名；ORM 转换在 module 层显式完成。
     """
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    serverId: str = Field(validation_alias=AliasChoices("server_id", "serverId"))
-    clientId: Optional[str] = Field(
-        default=None,
-        validation_alias=AliasChoices("client_id", "clientId"),
-    )
-    createdAt: int = Field(validation_alias=AliasChoices("created_at", "createdAt"))
-    updatedAt: int = Field(validation_alias=AliasChoices("updated_at", "updatedAt"))
-    deletedAt: Optional[int] = Field(
-        default=None,
-        validation_alias=AliasChoices("deleted_at", "deletedAt"),
-    )
+    serverId: str
+    clientId: Optional[str] = None
+    createdAt: int
+    updatedAt: int
+    deletedAt: Optional[int] = None

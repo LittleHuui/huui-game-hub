@@ -265,6 +265,7 @@ class GamePropRuleImportEntityService:
         self,
         game_code: str,
         prop_code: str,
+        sort_no: int,
         price: int,
         max_use_per_match: Optional[int],
         trigger_type: Optional[str],
@@ -277,6 +278,7 @@ class GamePropRuleImportEntityService:
 
         :param game_code: 游戏编码。
         :param prop_code: 道具编码。
+        :param sort_no: 排序号。
         :param price: 游戏内售价。
         :param max_use_per_match: 单局最大使用次数。
         :param trigger_type: 触发类型。
@@ -293,6 +295,7 @@ class GamePropRuleImportEntityService:
         )
         enabled_int = _bool_to_int(enabled)
         if existing is not None:
+            existing.sort_no = sort_no
             existing.price = price
             existing.max_use_per_match = max_use_per_match
             existing.trigger_type = trigger_type
@@ -307,6 +310,7 @@ class GamePropRuleImportEntityService:
             server_id=server_id,
             game_code=game_code,
             prop_code=prop_code,
+            sort_no=sort_no,
             price=price,
             max_use_per_match=max_use_per_match,
             trigger_type=trigger_type,

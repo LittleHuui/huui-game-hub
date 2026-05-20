@@ -6,7 +6,6 @@ import { useHistoryStore } from '../stores/historyStore.js';
 import { useSettingStore } from '../stores/settingStore.js';
 import { normalizeUsersList } from '../mappers/userMapper.js';
 import * as walletRepository from './walletRepository.js';
-import * as inventoryRepository from './inventoryRepository.js';
 
 /**
  * 将全部 store 状态写入 localStorage。
@@ -22,6 +21,7 @@ export function persistAllLocal() {
   localRepo.writeSettings(settingStore.settings);
   localRepo.writeWalletLedgers(walletStore.walletLedgersByUser);
   localRepo.writeInventoryLedgers(inventoryStore.inventoryLedgersByUser);
+  localRepo.writeInventoryBags(inventoryStore.bagByUser);
   localRepo.writePurchaseRecords(historyStore.purchaseRecordsByUser);
   localRepo.writePropUsageRecords(historyStore.propUsageRecordsByUser);
   localRepo.writeMatchRecords(historyStore.matchRecordsByUser);
@@ -43,7 +43,7 @@ export function loadLocalIntoStores() {
   normalizeUsersList(users);
   userStore.hydrateUsersList(users, localRepo.readAuth());
   walletStore.replaceAll(localRepo.readWalletLedgers());
-  inventoryStore.replaceAll(localRepo.readInventoryLedgers());
+  inventoryStore.replaceAll(localRepo.readInventoryLedgers(), localRepo.readInventoryBags());
   historyStore.replacePurchases(localRepo.readPurchaseRecords());
   historyStore.replacePropUsage(localRepo.readPropUsageRecords());
   historyStore.replaceMatches(localRepo.readMatchRecords());
@@ -53,6 +53,5 @@ export function loadLocalIntoStores() {
 
   for (const u of userStore.users) {
     walletRepository.recomputeFromLedgers(u.userId);
-    inventoryRepository.recomputeFromLedgers(u.userId);
   }
 }

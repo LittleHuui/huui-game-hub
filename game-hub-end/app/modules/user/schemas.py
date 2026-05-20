@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.common.base_entity import BaseEntityResponse
-from app.common.camel_schema import CAMEL_MODEL_CONFIG, camel_field
+from app.common.camel_schema import CAMEL_MODEL_CONFIG
 from app.modules.user.json_schemas import UserSystemSettingJson
 from app.modules.user.models import UserAccount, UserDevice, UserGameSetting, UserSystemSetting
 
@@ -16,7 +16,7 @@ class UserAccountCreate(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    clientId: str = camel_field("clientId", min_length=1, description="客户端幂等 ID")
+    clientId: str = Field(min_length=1, description="客户端幂等 ID")
     username: str = Field(min_length=1, description="全局唯一用户名")
     nickname: str = Field(min_length=1, description="展示昵称")
     avatar: Optional[str] = Field(default=None, description="头像地址")
@@ -51,10 +51,10 @@ class UserDeviceBind(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    clientId: str = camel_field("clientId", min_length=1, description="该设备记录的客户端幂等 ID")
-    deviceId: str = camel_field("deviceId", min_length=1, description="前端本地设备 ID")
-    deviceName: Optional[str] = camel_field("deviceName", default=None, description="设备展示名")
-    deviceType: Optional[str] = camel_field("deviceType", default=None, description="设备类型")
+    clientId: str = Field(min_length=1, description="该设备记录的客户端幂等 ID")
+    deviceId: str = Field(min_length=1, description="前端本地设备 ID")
+    deviceName: Optional[str] = Field(default=None, description="设备展示名")
+    deviceType: Optional[str] = Field(default=None, description="设备类型")
 
 
 class UserDeviceRead(BaseModel):

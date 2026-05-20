@@ -1,46 +1,46 @@
-const PROP_LOCAL_KEYS = {
-  hint_card: 'hintCard',
-  revive_card: 'reviveCard',
-  match3_shuffle: 'match3Shuffle',
-  match3_bomb: 'match3Bomb'
-};
-
 /**
+ * 远端背包列表 → 按 gameCode 分组的 propCode 数量。
  * @param {object[]} inventory
- * @returns {{ hintCard: number; reviveCard: number; match3Shuffle?: number; match3Bomb?: number }}
+ * @returns {Record<string, Record<string, number>>}
  */
-export function mapRemoteInventoryToLocalProps(inventory) {
-  const props = { hintCard: 0, reviveCard: 0 };
+export function mapRemoteInventoryToBagByGame(inventory) {
+  /** @type {Record<string, Record<string, number>>} */
+  const byGame = {};
   if (!Array.isArray(inventory)) {
-    return props;
+    return byGame;
   }
   for (const row of inventory) {
-    const key = PROP_LOCAL_KEYS[row.propCode];
-    if (key) {
-      props[key] = Number(row.quantity) || 0;
+    const gameCode = row.gameCode;
+    const propCode = row.propCode;
+    if (!gameCode || !propCode) {
+      continue;
     }
+    if (!byGame[gameCode]) {
+      byGame[gameCode] = {};
+    }
+    byGame[gameCode][propCode] = Math.max(0, Number(row.quantity) || 0);
   }
-  return props;
+  return byGame;
 }
 
 /**
- * 购买结果中的单条背包项 → 本地 props 补丁。
- * @param {object} inventoryItem
- * @returns {{ hintCard?: number; reviveCard?: number }}
+ * 单游戏背包列表 → propCode 数量。
+ * @param {object[]} inventory
+ * @returns {Record<string, number>}
  */
-export function mapRemoteInventoryItemToLocalProps(inventoryItem) {
-  if (!inventoryItem || !inventoryItem.propCode) {
-    return {};
+export function mapRemoteInventoryListToQuantities(inventory) {
+  /** @type {Record<string, number>} */
+  const map = {};
+  if (!Array.isArray(inventory)) {
+    return map;
   }
-  const qty = Number(inventoryItem.quantity) || 0;
-  const key = PROP_LOCAL_KEYS[inventoryItem.propCode];
-  if (key === 'hintCard') {
-    return { hintCard: qty };
+  for (const row of inventory) {
+    if (!row?.propCode) {
+      continue;
+    }
+    map[row.propCode] = Math.max(0, Number(row.quantity) || 0);
   }
-  if (key === 'reviveCard') {
-    return { reviveCard: qty };
-  }
-  return {};
+  return map;
 }
 
 /**

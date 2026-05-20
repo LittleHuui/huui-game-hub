@@ -1,28 +1,36 @@
 """成绩域数据访问。"""
 
-from typing import Any, List, Optional
+import json
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.time_utils import now_ms
+from app.modules.game.repository import GameDefinitionRepository
 from app.modules.ranking.schemas import LeaderboardRow
-from app.modules.score.models import ScoreRecord
-from app.modules.score.ranking_rules import (
-    MATCH3_LEADERBOARD_CANDIDATE_LIMIT,
+from app.modules.score.leaderboard_rule import (
     SCORE_RESULT_WIN,
-    is_match3_leaderboard,
-    resolve_order_by,
-    sort_match3_leaderboard_rows,
+    build_sql_order_by,
+    candidate_preorder_by,
+    resolve_mode_rule,
+    rule_requires_payload_sort,
+    sort_leaderboard_rows,
 )
+from app.modules.score.models import ScoreRecord
 from app.modules.user.models import UserAccount
 
 
 class ScoreRecordRepository:
     """``score_record`` 表 CRUD。"""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: Session,
+        game_definitions: Optional[GameDefinitionRepository] = None,
+    ) -> None:
         self._session = session
+        self._game_definitions = game_definitions
 
     def get_by_user_and_client_id(
         self,
@@ -73,7 +81,10 @@ class ScoreRecordRepository:
         stmt = select(ScoreRecord).where(ScoreRecord.user_id == user_id)
         if active_only:
             stmt = stmt.where(ScoreRecord.deleted_at.is_(None))
-        stmt = stmt.order_by(ScoreRecord.created_at.desc()).limit(limit)
+        stmt = stmt.order_by(
+            ScoreRecord.updated_at.desc(),
+            ScoreRecord.created_at.desc(),
+        ).limit(limit)
         return list(self._session.scalars(stmt).all())
 
     def add(self, entity: ScoreRecord) -> ScoreRecord:
@@ -116,7 +127,7 @@ class ScoreRecordRepository:
         limit: int,
     ) -> List[LeaderboardRow]:
         """
-        查询排行榜候选行（关联用户昵称）。
+        查询排行榜候选行（关联用户昵称），按游戏配置排序。
 
         :param game_code: 游戏编码。
         :param mode: 玩法模式。
@@ -124,6 +135,7 @@ class ScoreRecordRepository:
         :param limit: 返回条数上限。
         :return: 排行榜原始行列表。
         """
+        rule = resolve_mode_rule(self._load_game_config(game_code), mode)
         conditions = [
             ScoreRecord.game_code == game_code,
             ScoreRecord.mode == mode,
@@ -133,8 +145,24 @@ class ScoreRecordRepository:
         ]
         if difficulty_code is not None:
             conditions.append(ScoreRecord.difficulty_code == difficulty_code)
-        if is_match3_leaderboard(game_code, mode):
-            return self._list_match3_leaderboard(conditions, mode, limit)
+        if rule_requires_payload_sort(rule):
+            return self._list_leaderboard_with_payload(conditions, rule, limit)
+        return self._list_leaderboard_sql(conditions, rule, limit)
+
+    def _list_leaderboard_sql(
+        self,
+        conditions: List[Any],
+        rule: Any,
+        limit: int,
+    ) -> List[LeaderboardRow]:
+        """
+        纯 SQL 列排序的排行榜查询。
+
+        :param conditions: 过滤条件。
+        :param rule: 模式规则。
+        :param limit: 返回条数上限。
+        :return: 排行榜行列表。
+        """
         stmt = (
             select(
                 ScoreRecord.user_id,
@@ -145,7 +173,7 @@ class ScoreRecordRepository:
             )
             .join(UserAccount, ScoreRecord.user_id == UserAccount.server_id)
             .where(*conditions)
-            .order_by(*resolve_order_by(game_code))
+            .order_by(*build_sql_order_by(rule))
             .limit(limit)
         )
         rows = self._session.execute(stmt).all()
@@ -160,22 +188,19 @@ class ScoreRecordRepository:
             for row in rows
         ]
 
-    def _list_match3_leaderboard(
+    def _list_leaderboard_with_payload(
         self,
         conditions: List[Any],
-        mode: str,
+        rule: Any,
         limit: int,
     ) -> List[LeaderboardRow]:
         """
-        查询 Color Crush 排行榜候选行并在 Python 层按 payload 排序。
+        含 payload 指标时：先按主 SQL 指标取候选池，再 Python 排序。
 
-        先按 score 降序取前 ``MATCH3_LEADERBOARD_CANDIDATE_LIMIT`` 条作为候选，
-        再按 match3 规则排序并截断至 ``limit``。
-
-        :param conditions: 已组装的通用过滤条件。
-        :param mode: 玩法模式。
-        :param limit: 返回条数上限（接口层最大 100）。
-        :return: 排序后的排行榜原始行列表。
+        :param conditions: 过滤条件。
+        :param rule: 模式规则。
+        :param limit: 返回条数上限。
+        :return: 排序后的排行榜行列表。
         """
         stmt = (
             select(
@@ -188,8 +213,8 @@ class ScoreRecordRepository:
             )
             .join(UserAccount, ScoreRecord.user_id == UserAccount.server_id)
             .where(*conditions)
-            .order_by(ScoreRecord.score.desc())
-            .limit(MATCH3_LEADERBOARD_CANDIDATE_LIMIT)
+            .order_by(*candidate_preorder_by(rule))
+            .limit(rule.candidate_limit)
         )
         rows = self._session.execute(stmt).all()
         leaderboard_rows = [
@@ -203,4 +228,24 @@ class ScoreRecordRepository:
             )
             for row in rows
         ]
-        return sort_match3_leaderboard_rows(leaderboard_rows, mode, limit)
+        return sort_leaderboard_rows(leaderboard_rows, rule, limit)
+
+    def _load_game_config(self, game_code: str) -> Dict[str, Any]:
+        """
+        读取游戏扩展配置对象。
+
+        :param game_code: 游戏编码。
+        :return: 配置字典，缺失或解析失败时返回空对象。
+        """
+        if self._game_definitions is None:
+            return {}
+        game = self._game_definitions.get_by_game_code(game_code)
+        if game is None or game.config_json is None or not str(game.config_json).strip():
+            return {}
+        try:
+            parsed = json.loads(game.config_json)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        return parsed

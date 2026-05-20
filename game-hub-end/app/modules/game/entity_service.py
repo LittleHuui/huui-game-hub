@@ -1,6 +1,7 @@
 """游戏域单实体服务。"""
 
-from typing import List, Optional
+import json
+from typing import Any, Dict, List, Optional
 
 from app.core.database import new_entity_ids
 from app.core.exceptions import NotFoundException, ValidationException
@@ -45,6 +46,17 @@ class GameDefinitionEntityService:
     def list_enabled(self) -> List[GameDefinition]:
         """列出已启用游戏。"""
         return self._repository.list_enabled()
+
+    def save_config_json(self, game: GameDefinition, config: Dict[str, Any]) -> GameDefinition:
+        """
+        持久化游戏扩展配置对象。
+
+        :param game: 游戏定义实体。
+        :param config: 配置字典。
+        :return: 更新后的实体。
+        """
+        game.config_json = json.dumps(config, ensure_ascii=False, separators=(",", ":"))
+        return self._repository.save(game)
 
     def create_if_not_exists(
         self,

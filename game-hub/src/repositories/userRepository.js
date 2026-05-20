@@ -2,7 +2,6 @@ import { createClientId } from '../utils/idService.js';
 import { nowMs } from '../utils/timeService.js';
 import { mapRemoteUserToLocal } from '../mappers/userMapper.js';
 import { mapRemoteWalletToLocal } from '../mappers/walletMapper.js';
-import { mapRemoteInventoryToLocalProps } from '../mappers/inventoryMapper.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useSettingStore } from '../stores/settingStore.js';
 import { remoteRepository } from './remoteRepository.js';
@@ -65,9 +64,6 @@ export function applyAuthSession(session) {
     const scores = mapRemoteWalletToLocal(session.wallet);
     localUser.score = scores.score;
     localUser.totalScore = scores.totalScore;
-  }
-  if (session.inventory) {
-    localUser.props = mapRemoteInventoryToLocalProps(session.inventory);
   }
   const idx = userStore.users.findIndex(
     (u) => u.serverId === localUser.serverId || u.userId === localUser.userId || u.clientId === localUser.clientId
@@ -139,9 +135,6 @@ export function mergeCloudUser(cloudUser, wallet, inventory) {
     localUser.score = scores.score;
     localUser.totalScore = scores.totalScore;
   }
-  if (inventory) {
-    localUser.props = mapRemoteInventoryToLocalProps(inventory);
-  }
   const idx = userStore.users.findIndex(
     (u) => u.serverId === localUser.serverId || u.userId === localUser.userId
   );
@@ -151,6 +144,9 @@ export function mergeCloudUser(cloudUser, wallet, inventory) {
     userStore.addUser(localUser);
   }
   userStore.setCurrentUserId(localUser.userId);
+  if (inventory) {
+    inventoryRepository.applyCloudInventory(inventory, localUser.userId);
+  }
 }
 
 /**
@@ -173,7 +169,6 @@ export function applyBootContext(boot) {
       ...localUser,
       score: prev.score,
       totalScore: prev.totalScore,
-      props: prev.props,
       autoRevive: prev.autoRevive,
       prefs: prev.prefs
     };
@@ -239,14 +234,8 @@ export function collectSystemSetting() {
 export function collectGameSetting(userId, gameCode) {
   const userStore = useUserStore();
   const u = userStore.users.find((x) => x.userId === userId);
-  if (!u) {
+  if (!u || !gameCode) {
     return {};
-  }
-  if (gameCode === 'minesweeper') {
-    return {
-      autoRevive: !!u.autoRevive,
-      neighborHoverRing: u.prefs?.neighborHoverRing !== false
-    };
   }
   return {};
 }
@@ -257,21 +246,8 @@ export function collectGameSetting(userId, gameCode) {
  * @param {object} setting
  */
 export function applyGameSettingToLocal(gameCode, setting) {
-  if (!setting || typeof setting !== 'object') {
+  if (!setting || typeof setting !== 'object' || !gameCode) {
     return;
-  }
-  const userStore = useUserStore();
-  const uid = userStore.auth.currentUserId;
-  if (!uid) {
-    return;
-  }
-  if (gameCode === 'minesweeper') {
-    if (typeof setting.autoRevive === 'boolean') {
-      userStore.setAutoRevive(uid, setting.autoRevive);
-    }
-    if (typeof setting.neighborHoverRing === 'boolean') {
-      userStore.setUserPrefs(uid, { neighborHoverRing: setting.neighborHoverRing });
-    }
   }
 }
 
@@ -364,7 +340,6 @@ export function createLocalUser(form) {
     nickname: form.nickname,
     score: 0,
     totalScore: 0,
-    props: { hintCard: 0, reviveCard: 0 },
     autoRevive: false,
     prefs: { neighborHoverRing: true },
     createdAt: t,

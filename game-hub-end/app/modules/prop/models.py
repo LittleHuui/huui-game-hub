@@ -36,4 +36,5 @@ class GamePropRule(Base, TimestampMixin):
     trigger_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     effect_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     rule_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sort_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")

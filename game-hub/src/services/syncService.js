@@ -10,6 +10,7 @@ import * as historyRepository from '../repositories/historyRepository.js';
 import * as rankingService from './rankingService.js';
 import * as inventoryService from './inventoryService.js';
 import { canFetchRemote } from './remoteGate.js';
+import { requireGameCode } from '../utils/requireGameCode.js';
 
 export { canFetchRemote };
 
@@ -64,13 +65,17 @@ export async function refreshRemoteAfterSettle(opts = {}) {
   if (!serverId) {
     return;
   }
+  const gameCode = requireGameCode(opts.gameCode, 'refreshRemoteAfterSettle');
   try {
-    await historyRepository.refreshMatches(serverId, opts.gameCode || 'minesweeper');
+    await historyRepository.refreshMatches(serverId, gameCode);
   } catch {
     /* 历史刷新失败不阻断排行榜 */
   }
-  await inventoryService.refreshGameBag(opts.gameCode || 'minesweeper');
-  if (opts.includeRanking && opts.difficultyCode) {
-    await rankingService.refreshGameLeaderboard(opts.gameCode || 'minesweeper', opts.difficultyCode, opts.mode || 'single');
+  await inventoryService.refreshGameBag(gameCode);
+  if (opts.includeRanking) {
+    if (!opts.difficultyCode || !opts.mode) {
+      throw new Error('刷新排行榜需要 difficultyCode 与 mode');
+    }
+    await rankingService.refreshGameLeaderboard(gameCode, opts.difficultyCode, opts.mode);
   }
 }

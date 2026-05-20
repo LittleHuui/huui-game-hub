@@ -1,5 +1,6 @@
 import { GAME_SEED_CONFIG } from '../constants/gameSeedConfig.js';
 import { GAME_REGISTRY } from '../constants/gameRegistry.js';
+import { getSeedGameConfig } from '../mappers/gameConfigMapper.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { canFetchRemote } from './remoteGate.js';
 
@@ -54,6 +55,31 @@ function resolveRawGames() {
     return bootGames;
   }
   return GAME_SEED_CONFIG.games;
+}
+
+/**
+ * 解析游戏展示名（目录 > 注册表 > 种子 > gameCode）。
+ * @param {string} gameCode
+ * @returns {string}
+ */
+export function resolveGameDisplayName(gameCode) {
+  if (gameCode == null || String(gameCode).length === 0) {
+    return '';
+  }
+  const platform = usePlatformStore();
+  const fromCatalog = platform.gameCatalog.find((g) => g.code === gameCode);
+  if (fromCatalog?.name) {
+    return fromCatalog.name;
+  }
+  const reg = GAME_REGISTRY[gameCode];
+  if (reg?.name) {
+    return reg.name;
+  }
+  const seed = getSeedGameConfig(gameCode);
+  if (seed?.gameName) {
+    return seed.gameName;
+  }
+  return gameCode;
 }
 
 /**

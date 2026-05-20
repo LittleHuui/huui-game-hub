@@ -134,7 +134,7 @@ export function applyCloudSnapshot(cloud) {
 
   if (Array.isArray(cloud.userGameSettings)) {
     for (const row of cloud.userGameSettings) {
-      const code = row.gameCode || row.game_code;
+      const code = row.gameCode;
       const st = row.setting;
       if (code && st && typeof st === 'object') {
         userRepository.applyGameSettingToLocal(code, st);
@@ -149,7 +149,6 @@ export function applyCloudSnapshot(cloud) {
 
   for (const u of userStore.users) {
     walletRepository.recomputeFromLedgers(u.userId);
-    inventoryRepository.recomputeFromLedgers(u.userId);
   }
 
   const snap = {
@@ -161,6 +160,7 @@ export function applyCloudSnapshot(cloud) {
     settings: settingStore.settings,
     walletLedgers: walletStore.walletLedgersByUser,
     inventoryLedgers: inventoryStore.inventoryLedgersByUser,
+    inventoryBags: inventoryStore.bagByUser,
     purchaseRecords: historyStore.purchaseRecordsByUser,
     propUsageRecords: historyStore.propUsageRecordsByUser,
     matchRecords: historyStore.matchRecordsByUser,

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -33,14 +33,14 @@ from app.modules.game.models import GameDefinition
 from app.modules.game.module_service import GameModuleService
 from app.modules.inventory.module_service import InventoryModuleService
 from app.modules.inventory.models import PropUsageRecord
-from app.modules.match.models import MatchRecord
+from app.modules.match.schemas import to_match_record_response
 from app.modules.match.module_service import MatchModuleService
 from app.modules.purchase.models import PropPurchaseRecord
 from app.modules.score.models import ScoreRecord
 from app.modules.purchase.module_service import PurchaseModuleService
 from app.modules.score.module_service import ScoreModuleService
 from app.modules.sync.entity_service import SyncLogEntityService
-from app.modules.sync.module_service import SyncModuleService
+from app.modules.sync.module_service import SyncModuleService, order_cloud_save_events
 from app.modules.sync.schemas import PendingEvent
 from app.modules.user.schemas import UserGameSettingRead
 from app.modules.user.models import UserAccount, UserSystemSetting
@@ -52,47 +52,6 @@ from app.modules.wallet.module_service import WalletModuleService
 
 logger = get_logger(__name__)
 
-SyncEventResult = Literal["success", "duplicate"]
-
-_SUPPORTED_SYNC_EVENT_TYPES = frozenset(
-    {
-        "user_update",
-        "user_system_setting_update",
-        "user_game_setting_update",
-        "wallet_ledger",
-        "prop_purchase",
-        "prop_usage",
-        "match_record",
-        "score_record",
-    }
-)
-
-# 状态类同步事件：需按 updatedAt LWW 合并；与事件类（幂等追加）区分处理顺序。
-_STATE_SYNC_EVENT_TYPES = frozenset(
-    {
-        "user_update",
-        "user_system_setting_update",
-        "user_game_setting_update",
-    }
-)
-
-
-def _order_cloud_save_events(
-    events: List[PendingSyncEventRequest],
-) -> List[PendingSyncEventRequest]:
-    """
-    构造云存档同步处理顺序。
-
-    状态类事件先按 ``updatedAt`` 升序、同戳按 ``clientId`` 升序排序后处理（LWW）；
-    事件类（wallet_ledger / match_record 等）保持 ``pendingEvents`` 中的相对顺序，不重排。
-
-    :param events: 客户端上报的待同步事件列表。
-    :return: 实际分发顺序列表。
-    """
-    state_events = [event for event in events if event.eventType in _STATE_SYNC_EVENT_TYPES]
-    action_events = [event for event in events if event.eventType not in _STATE_SYNC_EVENT_TYPES]
-    state_events.sort(key=lambda item: (item.updatedAt, item.clientId))
-    return state_events + action_events
 
 def _boot_event_to_pending(event: PendingSyncEventRequest) -> PendingEvent:
     """
@@ -255,33 +214,6 @@ def _to_prop_usage_response(record: PropUsageRecord) -> PropUsageRecordResponse:
         propCode=record.prop_code,
         quantity=record.quantity,
         useReason=record.use_reason,
-        payload=_parse_optional_json_dict(record.payload_json, strict=False),
-        syncedAt=record.synced_at,
-        createdAt=record.created_at,
-        updatedAt=record.updated_at,
-        deletedAt=record.deleted_at,
-    )
-
-
-def _to_match_record_response(record: MatchRecord) -> MatchRecordResponse:
-    """
-    将对局记录 ORM 转为启动模块响应。
-
-    :param record: 对局记录实体。
-    :return: ``MatchRecordResponse``。
-    """
-    return MatchRecordResponse(
-        serverId=record.server_id,
-        clientId=record.client_id,
-        userId=record.user_id,
-        deviceId=record.device_id,
-        gameCode=record.game_code,
-        mode=record.mode,
-        result=record.result,
-        difficultyCode=record.difficulty_code,
-        durationMs=record.duration_ms,
-        score=record.score,
-        propUses=_parse_optional_json_dict(record.prop_uses_json, strict=False),
         payload=_parse_optional_json_dict(record.payload_json, strict=False),
         syncedAt=record.synced_at,
         createdAt=record.created_at,
@@ -568,7 +500,7 @@ class BootModuleService:
         score_records: List[ScoreRecordResponse] = []
         if self._match_module_service is not None:
             match_records = [
-                _to_match_record_response(row)
+                to_match_record_response(row)
                 for row in self._match_module_service.list_user_matches(request.userId, limit=100)
             ]
         if self._score_module_service is not None:
@@ -603,37 +535,6 @@ class BootModuleService:
             scoreRecords=score_records,
         )
 
-    async def _dispatch_sync_event(
-        self,
-        user_id: str,
-        device_id: str,
-        event: PendingSyncEventRequest,
-    ) -> SyncEventResult:
-        """
-        按 eventType 分发同步事件。
-
-        :param user_id: 用户主键。
-        :param device_id: 设备 ID。
-        :param event: 待处理事件。
-        :return: ``success`` 或 ``duplicate``。
-        """
-        event_type = event.eventType
-        if event_type not in _SUPPORTED_SYNC_EVENT_TYPES:
-            raise ValidationException("不支持的 eventType: {0}".format(event_type))
-        if event_type == "wallet_ledger" and self._wallet_ledger_exists(user_id, event.clientId):
-            return "duplicate"
-        if event_type == "prop_purchase" and self._prop_purchase_exists(user_id, event.clientId):
-            return "duplicate"
-        if event_type == "prop_usage" and self._prop_usage_exists(user_id, event.clientId):
-            return "duplicate"
-        if event_type == "match_record" and self._match_record_exists(user_id, event.clientId):
-            return "duplicate"
-        if event_type == "score_record" and self._score_record_exists(user_id, event.clientId):
-            return "duplicate"
-        sync_module = self._require_sync_module()
-        sync_module.dispatch_pending_event(user_id, device_id, _boot_event_to_pending(event))
-        return "success"
-
     def _require_wallet_module(self) -> WalletModuleService:
         """
         获取已注入的钱包模块服务。
@@ -656,17 +557,6 @@ class BootModuleService:
             raise NotFoundException("同步服务不可用")
         return self._sync_module_service
 
-    def _require_purchase_module(self) -> PurchaseModuleService:
-        """
-        获取已注入的购买模块服务。
-
-        :return: 购买模块服务。
-        :raises NotFoundException: 未注入购买模块。
-        """
-        if self._purchase_module_service is None:
-            raise NotFoundException("购买服务不可用")
-        return self._purchase_module_service
-
     def _require_inventory_module(self) -> InventoryModuleService:
         """
         获取已注入的背包模块服务。
@@ -677,83 +567,6 @@ class BootModuleService:
         if self._inventory_module_service is None:
             raise NotFoundException("背包服务不可用")
         return self._inventory_module_service
-
-    def _require_score_module(self) -> ScoreModuleService:
-        """
-        获取已注入的成绩模块服务。
-
-        :return: 成绩模块服务。
-        :raises NotFoundException: 未注入成绩模块。
-        """
-        if self._score_module_service is None:
-            raise NotFoundException("成绩服务不可用")
-        return self._score_module_service
-
-    def _require_match_module(self) -> MatchModuleService:
-        """
-        获取已注入的对局模块服务。
-
-        :return: 对局模块服务。
-        :raises NotFoundException: 未注入对局模块。
-        """
-        if self._match_module_service is None:
-            raise NotFoundException("对局服务不可用")
-        return self._match_module_service
-
-    def _wallet_ledger_exists(self, user_id: str, client_id: str) -> bool:
-        """
-        判断钱包流水是否已按 userId + clientId 存在。
-
-        :param user_id: 用户主键。
-        :param client_id: 事件 clientId。
-        :return: 已存在为 True。
-        """
-        wallet_module = self._require_wallet_module()
-        return wallet_module.ledger_exists(user_id, client_id)
-
-    def _prop_purchase_exists(self, user_id: str, client_id: str) -> bool:
-        """
-        判断道具购买记录是否已存在。
-
-        :param user_id: 用户主键。
-        :param client_id: 事件 clientId。
-        :return: 已存在为 True。
-        """
-        purchase_module = self._require_purchase_module()
-        return purchase_module.purchase_exists(user_id, client_id)
-
-    def _prop_usage_exists(self, user_id: str, client_id: str) -> bool:
-        """
-        判断道具使用记录是否已存在。
-
-        :param user_id: 用户主键。
-        :param client_id: 事件 clientId。
-        :return: 已存在为 True。
-        """
-        inventory_module = self._require_inventory_module()
-        return inventory_module.usage_exists(user_id, client_id)
-
-    def _match_record_exists(self, user_id: str, client_id: str) -> bool:
-        """
-        判断对局记录是否已存在。
-
-        :param user_id: 用户主键。
-        :param client_id: 事件 clientId。
-        :return: 已存在为 True。
-        """
-        match_module = self._require_match_module()
-        return match_module.match_record_exists(user_id, client_id)
-
-    def _score_record_exists(self, user_id: str, client_id: str) -> bool:
-        """
-        判断成绩记录是否已存在。
-
-        :param user_id: 用户主键。
-        :param client_id: 事件 clientId。
-        :return: 已存在为 True。
-        """
-        score_module = self._require_score_module()
-        return score_module.score_record_exists(user_id, client_id)
 
     async def health_check(self) -> HealthCheckResponse:
         """健康检查。"""
@@ -829,11 +642,12 @@ class BootModuleService:
         sync_result_label = "success"
 
         try:
-            # 状态类（如 user_system_setting_update）须按事件时间 LWW 合并，先排序再与事件类按序分发。
-            ordered_events = _order_cloud_save_events(request.pendingEvents)
+            sync_module = self._require_sync_module()
+            pending_events = [_boot_event_to_pending(event) for event in request.pendingEvents]
+            ordered_events = order_cloud_save_events(pending_events)
             for event in ordered_events:
                 try:
-                    result = await self._dispatch_sync_event(
+                    result = sync_module.dispatch_cloud_save_event(
                         request.userId,
                         request.deviceId,
                         event,

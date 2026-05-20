@@ -711,7 +711,7 @@
 | enabled | boolean | 是否启用 |
 | createdAt / updatedAt / deletedAt | number \| null | 时间戳 |
 
-`props[]`（GamePropRuleResponse）：结构同 [5.2](#52-查询游戏可用道具规则)。
+`props[]`（GamePropRuleResponse）：结构同 [5.3](#53-查询游戏可用道具规则)，含 `sortNo`，按 `sort_no` 升序返回。
 
 **注意事项：**
 
@@ -786,6 +786,7 @@
 | gameCode | string | 游戏编码 |
 | propCode | string | 道具编码 |
 | propName | string \| null | 道具名称（关联定义） |
+| sortNo | number | 排序号（按 seed/import 中 propRules 数组顺序写入） |
 | price | number | 本游戏内售价 |
 | maxUsePerMatch | number \| null | 单局最大使用次数 |
 | triggerType | string \| null | 触发类型 |
@@ -1109,14 +1110,32 @@
 
 **注意事项：**
 
-- 基于 `score_record` 实时计算。
-- `gameCode=match3&mode=timed` 排序：`score` 降序、`scoreRecord.payload.comboMax` 降序、`durationMs` 升序。
-- `gameCode=match3&mode=endless` 排序：`score` 降序、`scoreRecord.payload.comboMax` 降序、`scoreRecord.payload.moves` 降序。
-- match3 的 `comboMax` / `moves` 来源于同步写入的 `score_record.payload_json`（即 scoreRecord.payload）。
-- match3 先按 `score` 降序取前 **1000** 条候选，再在服务端按上述规则排序；`payload_json` 解析失败时 `comboMax` / `moves` 按 0 处理，不影响接口返回。
+- 基于 `score_record` 实时计算；排序规则来自 `game_definition.config_json` 中的 `ranking.modes[mode]`（见下文「排行榜规则配置」及 match3 import 示例）。
+- 未配置 `ranking.modes[mode]` 时默认：`score` 降序、`createdAt` 升序。
+- 规则含 `scoreRecord.payload` 内字段（如 `comboMax`、`moves`）时，先按 `score` 降序取候选池（默认 **1000** 条，可由 `ranking.candidateLimit` 覆盖），再在服务端按完整规则排序；`payload` 解析失败时 payload 指标按 0 处理。
 - 示例：`GET /api/game-hub/rankings?gameCode=match3&mode=timed&difficultyCode=normal&limit=10`。
 - 示例：`GET /api/game-hub/rankings?gameCode=match3&mode=endless&difficultyCode=normal&limit=10`。
 - 查询异常可能返回 `80001`。
+
+**排行榜规则配置（`game_definition.config.ranking`）：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| enabled | boolean | 是否启用排行榜（展示层用） |
+| candidateLimit | number | 含 payload 指标时的候选池上限，默认 1000 |
+| modes | object | 键为 `mode`（如 `single`、`timed`、`endless`） |
+
+`modes[mode]`：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| primaryMetric | string | 主排序指标：`score`、`durationMs`、`createdAt` 或 `payload` 内 camelCase 字段 |
+| orderDirection | string | `asc` 或 `desc` |
+| tieBreakers | array | 次级指标：`{ metric, orderDirection }` |
+
+兼容旧版 `sort: [{ field, direction }, ...]`（首项映射为 primaryMetric，其余为 tieBreakers）。
+
+扫雷 `minesweeper` + `single` 示例：`durationMs` asc → `score` desc → `createdAt` asc（与 easy/medium/hard 难度无关，难度仅作 Query 过滤）。
 
 ---
 
@@ -1207,6 +1226,7 @@
 |---|---|:---:|---|
 | propCode | string | 是 | 须存在于本次 `props` 或库内已有 `prop_definition` |
 | price | number | 是 | 该游戏内售价，`>= 0` |
+| （排序） | — | — | `sort_no` 由 `propRules` 数组下标自动生成（首项为 1），无需在 JSON 中传入 |
 | maxUsePerMatch | number | 否 | 单局最大使用次数，`>= 0` |
 | triggerType | string | 否 | 触发类型 |
 | effectType | string | 否 | 效果类型 |
@@ -1222,6 +1242,7 @@
 - 关键编码字段不得为空白：`gameCode`、`propCode`、`difficultyCode`、`clientType`。
 - `price`、`basePrice` 必须 `>= 0`；`maxUsePerMatch` 如传入也必须 `>= 0`。
 - `propRules[].propCode` 必须存在于本次 `props[]` 或库内已有 `prop_definition`。
+- `propRules` 数组顺序决定 `game_prop_rule.sort_no`（首项为 1，依次递增）；查询接口按该字段升序返回，前端无需再排序。
 
 #### match3 / Color Crush 示例
 
@@ -1269,19 +1290,24 @@
         },
         "ranking": {
           "enabled": true,
+          "candidateLimit": 1000,
           "modes": {
             "timed": {
-              "sort": [
-                {"field": "score", "direction": "desc"},
-                {"field": "comboMax", "direction": "desc"},
-                {"field": "durationMs", "direction": "asc"}
+              "primaryMetric": "score",
+              "orderDirection": "desc",
+              "tieBreakers": [
+                {"metric": "comboMax", "orderDirection": "desc"},
+                {"metric": "durationMs", "orderDirection": "asc"},
+                {"metric": "createdAt", "orderDirection": "asc"}
               ]
             },
             "endless": {
-              "sort": [
-                {"field": "score", "direction": "desc"},
-                {"field": "comboMax", "direction": "desc"},
-                {"field": "moves", "direction": "desc"}
+              "primaryMetric": "score",
+              "orderDirection": "desc",
+              "tieBreakers": [
+                {"metric": "comboMax", "orderDirection": "desc"},
+                {"metric": "moves", "orderDirection": "desc"},
+                {"metric": "createdAt", "orderDirection": "asc"}
               ]
             }
           }

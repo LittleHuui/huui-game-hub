@@ -59,6 +59,11 @@
   font-size: 13px;
   font-weight: 800;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   cursor: help;
   transform: none;
 }
@@ -101,7 +106,7 @@
   gap: 12px;
 }
 
-.game-card__body > :last-child {
+.game-card__body> :last-child {
   margin-bottom: 0;
 }
 
@@ -251,13 +256,24 @@
   padding: 5px 9px;
   border-radius: 10px;
   font-size: 12px;
-  line-height: 1.25;
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .game-inventory-icon {
   font-size: 1rem;
+}
+
+.game-inventory-slot :is(.game-inventory-icon, .game-inventory-name, .game-inventory-count),
+.game-inventory-use {
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
 }
 
 .game-inventory-name {
@@ -378,6 +394,9 @@
   background: rgba(59, 130, 246, 0.35);
   font-size: 12px;
   font-weight: 800;
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
 }
 
 .game-ranking-date {
@@ -389,6 +408,160 @@
   font-weight: 700;
   white-space: nowrap;
   color: #bbf7d0;
+}
+
+.game-stat-grid {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+}
+
+.game-stat-grid--compact {
+  gap: 4px;
+}
+
+.game-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--gstat-bg, rgba(15, 23, 42, 0.45));
+  border: 1px solid var(--gstat-border, rgba(148, 163, 184, 0.22));
+}
+
+.game-stat-card--inline {
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 8px;
+  min-height: 28px;
+}
+
+.game-stat-card--inline .game-stat-card__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.game-stat-card--accent {
+  background: var(--gstat-accent-bg, rgba(59, 130, 246, 0.28));
+  border-color: var(--gstat-accent-border, rgba(96, 165, 250, 0.45));
+}
+
+.game-stat-card--muted {
+  opacity: 0.9;
+}
+
+.game-stat-card__icon-inline {
+  margin-right: 2px;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.game-hud-stats :is(
+  .game-stat-card__label,
+  .game-stat-card__value,
+  .game-stat-card__helper-inline,
+  .game-stat-card__icon-inline,
+  .game-stat-quota-bar__label,
+  .game-stat-quota-bar__val
+) {
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
+.game-stat-card__label {
+  font-size: 0.65rem;
+  color: var(--gstat-label, rgba(148, 163, 184, 0.95));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game-stat-card--inline .game-stat-card__label {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.game-stat-card__value {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--gstat-value, #f8fafc);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.game-stat-card--accent .game-stat-card__value {
+  color: var(--gstat-accent-value, #dbeafe);
+}
+
+.game-stat-card__helper {
+  font-size: 0.62rem;
+  color: var(--gstat-label, rgba(148, 163, 184, 0.85));
+}
+
+.game-stat-card__helper-inline {
+  font-size: 0.6rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.game-stat-quota-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 4px 0 2px;
+  font-size: 0.74rem;
+  line-height: 1;
+}
+
+.game-stat-quota-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--gstat-pill-bg, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--gstat-pill-border, rgba(148, 163, 184, 0.2));
+  white-space: nowrap;
+}
+
+.game-stat-quota-bar__label {
+  color: var(--gstat-label, rgba(148, 163, 184, 0.95));
+}
+
+.game-stat-quota-bar__val {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gstat-pill-value, #e2e8f0);
+}
+
+.game-hud-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.game-hud-stats > .game-stat-grid + .game-stat-quota-bar {
+  margin-top: 6px;
+}
+
+.game-hud-stats__message {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: #dbeafe;
 }
 
 @media (max-width: 980px) {

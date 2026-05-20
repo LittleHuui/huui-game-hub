@@ -1,21 +1,27 @@
 import { GAME_SEED_CONFIG } from '../../constants/gameSeedConfig.js';
 import { getSeedGameConfig } from '../../mappers/gameConfigMapper.js';
+import { getEnabledDifficulties, setGameDifficulties } from '../../services/gameDifficultyService.js';
 
 const MATCH3 = 'match3';
-const DEFAULT_DIFFICULTY = 'normal';
 const DEFAULT_CLIENT = 'pc';
 
+/** Match3 道具 propCode（仅游戏层使用） */
+export const MATCH3_PROP = {
+  SHUFFLE: 'match3_shuffle',
+  BOMB: 'match3_bomb'
+};
+
 /**
- * @param {object} game
+ * 取当前启用难度中的首项并展开 config。
+ * @param {string} gameCode
  * @returns {object}
  */
-function firstDifficultyConfig(game) {
-  const list = Array.isArray(game?.difficulties) ? game.difficulties : [];
-  const normal = list.find((d) => d?.difficultyCode === DEFAULT_DIFFICULTY) || list[0] || {};
+function firstEnabledDifficultyConfig(gameCode) {
+  const first = getEnabledDifficulties(gameCode)[0] || {};
   return {
-    difficultyCode: normal.difficultyCode || DEFAULT_DIFFICULTY,
-    difficultyName: normal.difficultyName || '普通',
-    ...(normal.config || {})
+    difficultyCode: first.difficultyCode || '',
+    difficultyName: first.difficultyName || '',
+    ...(first.config || {})
   };
 }
 
@@ -27,7 +33,7 @@ function firstClientConfig(game) {
   const list = Array.isArray(game?.clientConfigs) ? game.clientConfigs : [];
   const pc = list.find((c) => c?.clientType === DEFAULT_CLIENT && c.enabled !== false) || list[0] || {};
   return {
-    difficultyCode: pc.difficultyCode || DEFAULT_DIFFICULTY,
+    difficultyCode: pc.difficultyCode || getEnabledDifficulties(MATCH3)[0]?.difficultyCode || '',
     clientType: pc.clientType || DEFAULT_CLIENT,
     enabled: pc.enabled !== false,
     ...(pc.config || {})
@@ -41,11 +47,13 @@ function seedGame() {
   return getSeedGameConfig(MATCH3, GAME_SEED_CONFIG) || {};
 }
 
+setGameDifficulties(MATCH3, seedGame().difficulties);
+
 export let MATCH3_GAME_CONFIG = {
   gameCode: MATCH3,
   gameName: '幻彩碰撞',
   featureFlags: {},
-  difficulty: firstDifficultyConfig(seedGame()),
+  difficulty: firstEnabledDifficultyConfig(MATCH3),
   client: firstClientConfig(seedGame()),
   propRules: seedGame().propRules || []
 };
@@ -70,11 +78,38 @@ export function normalizeMatch3Config(raw) {
       Array.isArray(game.clientConfigs) && game.clientConfigs.length ? game.clientConfigs : fallback.clientConfigs,
     propRules: Array.isArray(game.propRules) && game.propRules.length ? game.propRules : fallback.propRules
   };
+  const fallbackDifficulties = Array.isArray(fallback.difficulties) ? fallback.difficulties : [];
+  const remoteDifficulties = Array.isArray(base.difficulties) ? base.difficulties : [];
+  const seedFirst = fallbackDifficulties[0] || {};
+  const remoteFirst =
+    remoteDifficulties.find((d) => d?.enabled !== false) || remoteDifficulties[0] || {};
+  const mergedFirst = {
+    ...seedFirst,
+    ...remoteFirst,
+    config: mergeDifficultyConfig(seedFirst.config, remoteFirst.config)
+  };
+  const mergedDifficulties =
+    remoteDifficulties.length > 0
+      ? remoteDifficulties.map((d, index) => {
+          const seedDiff = fallbackDifficulties[index] || seedFirst;
+          return {
+            ...seedDiff,
+            ...d,
+            config: mergeDifficultyConfig(seedDiff.config, d.config)
+          };
+        })
+      : [{ ...mergedFirst }];
+  setGameDifficulties(MATCH3, mergedDifficulties);
+  const firstDifficulty = mergedDifficulties.find((d) => d?.enabled !== false) || mergedDifficulties[0] || {};
   return {
     gameCode: base.gameCode || MATCH3,
     gameName: base.gameName || '幻彩碰撞',
     featureFlags: base.config?.featureFlags || {},
-    difficulty: firstDifficultyConfig(base),
+    difficulty: {
+      difficultyCode: firstDifficulty.difficultyCode || '',
+      difficultyName: firstDifficulty.difficultyName || '',
+      ...(firstDifficulty.config || {})
+    },
     client: firstClientConfig(base),
     propRules: base.propRules || []
   };
@@ -113,4 +148,67 @@ export function getMatch3ClientConfig() {
  */
 export function getMatch3PropRule(propCode) {
   return MATCH3_GAME_CONFIG.propRules.find((r) => r?.propCode === propCode) || null;
+}
+
+/**
+ * 合并模式配置：远端覆盖种子，但保留种子中的 propUseLimits（远端未配置时）。
+ * @param {object} seedModes
+ * @param {object} remoteModes
+ * @returns {object}
+ */
+function mergeModes(seedModes, remoteModes) {
+  const seed = seedModes && typeof seedModes === 'object' ? seedModes : {};
+  const remote = remoteModes && typeof remoteModes === 'object' ? remoteModes : {};
+  const keys = new Set([...Object.keys(seed), ...Object.keys(remote)]);
+  const merged = {};
+  for (const key of keys) {
+    const seedMode = seed[key] || {};
+    const remoteMode = remote[key] || {};
+    merged[key] = { ...seedMode, ...remoteMode };
+    if (remoteMode.propUseLimits && typeof remoteMode.propUseLimits === 'object') {
+      merged[key].propUseLimits = remoteMode.propUseLimits;
+    } else if (seedMode.propUseLimits && typeof seedMode.propUseLimits === 'object') {
+      merged[key].propUseLimits = seedMode.propUseLimits;
+    }
+  }
+  return merged;
+}
+
+/**
+ * 合并难度玩法配置。
+ * @param {object} seedConfig
+ * @param {object} remoteConfig
+ * @returns {object}
+ */
+function mergeDifficultyConfig(seedConfig, remoteConfig) {
+  const seed = seedConfig && typeof seedConfig === 'object' ? seedConfig : {};
+  const remote = remoteConfig && typeof remoteConfig === 'object' ? remoteConfig : {};
+  return {
+    ...seed,
+    ...remote,
+    modes: mergeModes(seed.modes, remote.modes)
+  };
+}
+
+/**
+ * 读取指定模式下单道具的本局使用上限。
+ * @param {string} mode
+ * @param {string} propCode
+ * @returns {number|null}
+ */
+export function getMatch3ModePropLimit(mode, propCode) {
+  const modes = getMatch3DifficultyConfig()?.modes;
+  if (!modes || typeof modes !== 'object') {
+    return null;
+  }
+  const limits = modes[mode]?.propUseLimits;
+  if (!limits || typeof limits !== 'object') {
+    return null;
+  }
+  const value = limits[propCode];
+  if (value == null) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }

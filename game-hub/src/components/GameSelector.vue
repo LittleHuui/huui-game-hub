@@ -24,6 +24,8 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { activateGame } from '../services/gameLifecycleService.js';
+import * as toastService from '../services/toastService.js';
+import { GAME_SWITCH_LOCK_DEFAULT_REASON } from '../composables/useGameSwitchLock.js';
 
 defineProps({
   /** topbar：顶栏内紧凑排布；page：独立一行（预留） */
@@ -51,11 +53,21 @@ async function select(code) {
   if (code === platform.currentGameCode) {
     return;
   }
+  if (platform.gameSwitchLocked) {
+    toastService.push(
+      platform.gameSwitchLockReason || GAME_SWITCH_LOCK_DEFAULT_REASON,
+      'warning'
+    );
+    return;
+  }
   platform.setCurrentGame(code);
   await router.push({ name: entry.implemented ? code : 'game-unavailable', params: { gameCode: code } });
   if (!entry.implemented) {
     return;
   }
-  await activateGame(code);
+  await activateGame(code, {
+    includeLeaderboard: false,
+    includeInventory: false
+  });
 }
 </script>

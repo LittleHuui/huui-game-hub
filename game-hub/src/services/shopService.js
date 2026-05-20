@@ -6,8 +6,6 @@ import { mapGamePropRuleToShopItem } from '../mappers/propMapper.js';
 import { useShopStore } from '../stores/shopStore.js';
 import { canFetchRemote } from './remoteGate.js';
 
-const MINESWEEPER = 'minesweeper';
-
 /**
  * 拉取道具定义并转为 propCode → 定义 映射。
  * @returns {Promise<Record<string, object>>}
@@ -51,15 +49,6 @@ export function setGameShopItems(gameCode, items, fromApi = false) {
 }
 
 /**
- * 直接写入扫雷商城商品。
- * @param {import('../stores/shopStore.js').ShopItem[]} items
- * @param {boolean} [fromApi]
- */
-export function setMinesweeperShopItems(items, fromApi = false) {
-  setGameShopItems(MINESWEEPER, items, fromApi);
-}
-
-/**
  * 从 GET /games/{gameCode}/props 加载游戏商城。
  * @param {string} gameCode
  * @returns {Promise<void>}
@@ -77,27 +66,12 @@ export async function loadGameShopFromApi(gameCode) {
 }
 
 /**
- * 从 GET /games/{gameCode}/props 加载扫雷商城。
- * @returns {Promise<void>}
- */
-export async function loadMinesweeperShopFromApi() {
-  await loadGameShopFromApi(MINESWEEPER);
-}
-
-/**
  * 应用种子合并后的默认游戏商城。
  * @param {string} gameCode
  */
 export function applySeedGameShop(gameCode) {
   const items = mergeGameProps(GAME_SEED_CONFIG, gameCode);
   setGameShopItems(gameCode, items, false);
-}
-
-/**
- * 应用种子合并后的默认商城。
- */
-export function applySeedMinesweeperShop() {
-  applySeedGameShop(MINESWEEPER);
 }
 
 /**
@@ -115,20 +89,4 @@ export async function loadGameShop(gameCode) {
   } catch {
     applySeedGameShop(gameCode);
   }
-}
-
-/**
- * 在线时拉取商城；失败则使用种子合并结果。
- * @returns {Promise<void>}
- */
-export async function loadMinesweeperShop() {
-  await loadGameShop(MINESWEEPER);
-}
-
-/**
- * @param {{ networkMode?: string }} [_platform]
- * @returns {Promise<void>}
- */
-export async function loadMinesweeperShopIfOnline(_platform) {
-  await loadMinesweeperShop();
 }

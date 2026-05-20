@@ -10,6 +10,7 @@ import * as walletService from './walletService.js';
 import * as inventoryService from './inventoryService.js';
 import * as userService from './userService.js';
 import * as syncService from './syncService.js';
+import { requireGameCode } from '../utils/requireGameCode.js';
 
 /**
  * @param {string | (() => string) | undefined} raw
@@ -17,16 +18,45 @@ import * as syncService from './syncService.js';
  */
 function resolveGameCode(raw) {
   if (typeof raw === 'function') {
-    const v = raw();
-    if (v != null && String(v).length > 0) {
-      return String(v);
-    }
-    return 'minesweeper';
+    return requireGameCode(raw(), 'createGameSession');
   }
-  if (raw != null && String(raw).length > 0) {
-    return String(raw);
+  return requireGameCode(raw, 'createGameSession');
+}
+
+/**
+ * @param {unknown} v
+ * @param {string} field
+ * @returns {string}
+ */
+function requireMode(v, field = 'mode') {
+  if (v == null || String(v).trim() === '') {
+    throw new Error(`缺少 ${field}`);
   }
-  return 'minesweeper';
+  return String(v);
+}
+
+/**
+ * @param {unknown} v
+ * @param {string} field
+ * @returns {number}
+ */
+function requireDurationMs(v, field = 'durationMs') {
+  if (v == null || !Number.isFinite(Number(v))) {
+    throw new Error(`缺少或无效 ${field}`);
+  }
+  return Math.round(Number(v));
+}
+
+/**
+ * @param {unknown} v
+ * @param {string} field
+ * @returns {string}
+ */
+function requireDifficultyCode(v, field = 'difficultyCode') {
+  if (v == null || String(v).trim() === '') {
+    throw new Error(`缺少 ${field}`);
+  }
+  return String(v);
 }
 
 /**
@@ -77,7 +107,7 @@ export function createGameSession(options = {}) {
   }
 
   /**
-   * @param {{ result: string; score: number; difficulty: string; timeSec: number; propUses: unknown[]; mode?: string; payload?: Record<string, unknown> }} p
+   * @param {{ result: string; score: number; difficultyCode: string; durationMs: number; propUses: unknown[]; mode: string; payload?: Record<string, unknown> }} p
    */
   function appendMatchRecord(p) {
     const t = nowMs();
@@ -89,10 +119,10 @@ export function createGameSession(options = {}) {
         userId: uid,
         deviceId: localRepo.getDeviceId(),
         gameCode: gameCode.value,
-        mode: p.mode ?? 'single',
+        mode: requireMode(p.mode),
         result: p.result,
-        difficulty: p.difficulty,
-        time: p.timeSec,
+        difficultyCode: requireDifficultyCode(p.difficultyCode),
+        durationMs: requireDurationMs(p.durationMs),
         score: p.score,
         propUses: p.propUses,
         payload: p.payload || {},
@@ -106,7 +136,7 @@ export function createGameSession(options = {}) {
   }
 
   /**
-   * @param {{ score: number; difficulty: string; timeSec: number; mode?: string; payload?: Record<string, unknown> }} p
+   * @param {{ score: number; difficultyCode: string; durationMs: number; mode: string; payload?: Record<string, unknown> }} p
    */
   function appendScoreRecordWin(p) {
     const t = nowMs();
@@ -118,10 +148,10 @@ export function createGameSession(options = {}) {
         userId: uid,
         deviceId: localRepo.getDeviceId(),
         gameCode: gameCode.value,
-        mode: p.mode ?? 'single',
+        mode: requireMode(p.mode),
         result: 'win',
-        difficulty: p.difficulty,
-        time: p.timeSec,
+        difficultyCode: requireDifficultyCode(p.difficultyCode),
+        durationMs: requireDurationMs(p.durationMs),
         score: p.score,
         payload: p.payload || {},
         createdAt: t,
@@ -157,15 +187,19 @@ export function createGameSession(options = {}) {
    * @param {{ type: string; label: string; timerSec: number; sessionId: string; propCode?: string }} p
    */
   function trackPropUsage(matchPropUses, p) {
+    if (!p.propCode) {
+      return;
+    }
     const t = nowMs();
     matchPropUses.push({
-      type: p.type,
+      type: p.propCode,
+      propCode: p.propCode,
       label: p.label,
       timerSec: p.timerSec,
       createdAt: t
     });
     recordInventoryUse({
-      propCode: p.propCode || (p.type === 'hint' ? 'hint_card' : 'revive_card'),
+      propCode: p.propCode,
       amount: 1,
       reason: 'use',
       payload: { label: p.label, sessionId: p.sessionId, timerSec: p.timerSec }
@@ -198,7 +232,7 @@ export function createGameSession(options = {}) {
 
   /**
    * 主动结束对局结算。
-   * @param {{ score: number; rewardScore?: number; difficulty: string; timeSec: number; propUses: unknown[]; sessionId: string|null; mode?: string; payload?: Record<string, unknown>; matchPayload?: Record<string, unknown>; scorePayload?: Record<string, unknown> }} p
+   * @param {{ score: number; difficultyCode: string; durationMs: number; propUses: unknown[]; sessionId: string|null; mode: string; payload?: Record<string, unknown>; matchPayload?: Record<string, unknown> }} p
    * @returns {Promise<void>}
    */
   async function settleEnd(p) {
@@ -206,8 +240,9 @@ export function createGameSession(options = {}) {
     appendMatchRecord({
       result: 'end',
       score: p.score,
-      difficulty: p.difficulty,
-      timeSec: p.timeSec,
+      difficultyCode: p.difficultyCode,
+      durationMs: p.durationMs,
+      mode: p.mode,
       propUses: clonePropUses(p.propUses)
     });
     await finalizeSettle();
@@ -215,7 +250,7 @@ export function createGameSession(options = {}) {
 
   /**
    * 失败对局结算。
-   * @param {{ score: number; difficulty: string; timeSec: number; propUses: unknown[]; sessionId: string|null }} p
+   * @param {{ score: number; difficultyCode: string; durationMs: number; propUses: unknown[]; sessionId: string|null; mode: string }} p
    * @returns {Promise<void>}
    */
   async function settleFail(p) {
@@ -223,8 +258,9 @@ export function createGameSession(options = {}) {
     appendMatchRecord({
       result: 'fail',
       score: p.score,
-      difficulty: p.difficulty,
-      timeSec: p.timeSec,
+      difficultyCode: p.difficultyCode,
+      durationMs: p.durationMs,
+      mode: p.mode,
       propUses: clonePropUses(p.propUses)
     });
     await finalizeSettle();
@@ -232,7 +268,7 @@ export function createGameSession(options = {}) {
 
   /**
    * 胜利对局结算。
-   * @param {{ score: number; difficulty: string; timeSec: number; propUses: unknown[]; sessionId: string|null }} p
+   * @param {{ score: number; rewardScore?: number; difficultyCode: string; durationMs: number; propUses: unknown[]; sessionId: string|null; mode: string; payload?: Record<string, unknown>; matchPayload?: Record<string, unknown>; scorePayload?: Record<string, unknown> }} p
    * @returns {Promise<void>}
    */
   async function settleWin(p) {
@@ -240,20 +276,24 @@ export function createGameSession(options = {}) {
     appendMatchRecord({
       result: 'win',
       score: p.score,
-      difficulty: p.difficulty,
-      timeSec: p.timeSec,
-      propUses: clonePropUses(p.propUses),
+      difficultyCode: p.difficultyCode,
+      durationMs: p.durationMs,
       mode: p.mode,
+      propUses: clonePropUses(p.propUses),
       payload: p.matchPayload || p.payload
     });
     appendScoreRecordWin({
       score: p.score,
-      difficulty: p.difficulty,
-      timeSec: p.timeSec,
+      difficultyCode: p.difficultyCode,
+      durationMs: p.durationMs,
       mode: p.mode,
       payload: p.scorePayload || p.payload
     });
-    await finalizeSettle({ includeRanking: true, difficultyCode: p.difficulty, mode: p.mode });
+    await finalizeSettle({
+      includeRanking: true,
+      difficultyCode: p.difficultyCode,
+      mode: p.mode
+    });
   }
 
   return {

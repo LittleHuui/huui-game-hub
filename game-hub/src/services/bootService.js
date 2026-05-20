@@ -4,8 +4,6 @@ import { loadLocalIntoStores } from '../repositories/localPersistRepository.js';
 import * as userRepository from '../repositories/userRepository.js';
 import * as syncRepository from '../repositories/syncRepository.js';
 import * as historyRepository from '../repositories/historyRepository.js';
-import * as walletRepository from '../repositories/walletRepository.js';
-import * as inventoryRepository from '../repositories/inventoryRepository.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useRankingStore } from '../stores/rankingStore.js';
@@ -16,6 +14,7 @@ import * as toastService from './toastService.js';
 import * as syncService from './syncService.js';
 import * as gameCatalogService from './gameCatalogService.js';
 import * as gameLifecycleService from './gameLifecycleService.js';
+import { resolvePlatformGameCode } from '../utils/requireGameCode.js';
 
 /**
  * 设置启动 loading 文案。
@@ -34,7 +33,6 @@ export function createLocalGuestUser() {
   const userStore = useUserStore();
   const uid = `U_${nowMs()}`;
   const clientId = createClientId('user');
-  const deviceId = localRepo.getDeviceId();
   const t = nowMs();
   userStore.addUser({
     clientId,
@@ -44,7 +42,6 @@ export function createLocalGuestUser() {
     nickname: '游客玩家',
     score: 0,
     totalScore: 0,
-    props: { hintCard: 0, reviveCard: 0 },
     autoRevive: false,
     prefs: { neighborHoverRing: true },
     createdAt: t,
@@ -55,55 +52,6 @@ export function createLocalGuestUser() {
   });
   userStore.setCurrentUserId(uid);
   historyRepository.ensureHistoryBuckets(uid);
-
-  const onPending = (e) => syncRepository.appendPendingEvent(e);
-  walletRepository.pushWalletLedger(
-    {
-      userId: uid,
-      deviceId,
-      gameCode: 'minesweeper',
-      type: 'gain',
-      reason: 'initial_grant',
-      amount: 500,
-      createdAt: t,
-      updatedAt: t,
-      syncStatus: 'pending',
-      payload: { note: '初始赠送积分' }
-    },
-    onPending
-  );
-  inventoryRepository.pushInventoryLedger(
-    {
-      userId: uid,
-      deviceId,
-      gameCode: 'minesweeper',
-      propCode: 'hint_card',
-      type: 'gain',
-      amount: 3,
-      reason: 'initial_grant',
-      createdAt: t,
-      updatedAt: t,
-      syncStatus: 'pending',
-      payload: {}
-    },
-    onPending
-  );
-  inventoryRepository.pushInventoryLedger(
-    {
-      userId: uid,
-      deviceId,
-      gameCode: 'minesweeper',
-      propCode: 'revive_card',
-      type: 'gain',
-      amount: 1,
-      reason: 'initial_grant',
-      createdAt: t,
-      updatedAt: t,
-      syncStatus: 'pending',
-      payload: {}
-    },
-    onPending
-  );
 }
 
 /**
@@ -170,16 +118,21 @@ export async function continueAfterLogin() {
 }
 
 /**
- * boot 后加载游戏目录；扫雷由页面 onMounted 统一 activateGame。
+ * boot 后加载游戏目录并激活当前游戏。
  * @returns {Promise<void>}
  */
 async function finalizeBootCatalog() {
-  const platform = usePlatformStore();
   await gameCatalogService.loadGameCatalog();
-  const gameCode = platform.currentGameCode || 'minesweeper';
-  if (gameCode !== 'minesweeper') {
-    await gameLifecycleService.activateGame(gameCode);
+  let gameCode;
+  try {
+    gameCode = resolvePlatformGameCode('finalizeBootCatalog');
+  } catch {
+    return;
   }
+  await gameLifecycleService.activateGame(gameCode, {
+    includeLeaderboard: false,
+    includeInventory: false
+  });
 }
 
 /**
@@ -195,7 +148,6 @@ export async function initialize() {
   platform.networkMode = 'unknown';
   platform.remoteAvailable = false;
 
-  localRepo.migrateLegacyIfNeeded();
   loadLocalIntoStores();
   ranking.clear();
 

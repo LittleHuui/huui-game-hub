@@ -108,6 +108,45 @@ def wallet_ledger_event(
     }
 
 
+def match_record_event(
+    client_id: str,
+    *,
+    game_code: str,
+    mode: str = "single",
+    result: str = "win",
+    difficulty_code: Optional[str] = None,
+    score: int = 0,
+    duration_ms: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    构造 match_record 同步事件。
+
+    :param client_id: 事件幂等键。
+    :param game_code: 游戏编码。
+    :param mode: 玩法模式。
+    :param result: 对局结果。
+    :param difficulty_code: 难度编码，可空。
+    :param score: 得分。
+    :param duration_ms: 用时（毫秒），可空。
+    :return: pendingEvents 单条元素。
+    """
+    payload: Dict[str, Any] = {
+        "gameCode": game_code,
+        "mode": mode,
+        "result": result,
+        "score": score,
+    }
+    if difficulty_code is not None:
+        payload["difficultyCode"] = difficulty_code
+    if duration_ms is not None:
+        payload["durationMs"] = duration_ms
+    return {
+        "clientId": client_id,
+        "eventType": "match_record",
+        "payload": payload,
+    }
+
+
 def score_record_event(
     client_id: str,
     *,
@@ -117,6 +156,7 @@ def score_record_event(
     result: str,
     score: int,
     duration_ms: int,
+    payload: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     构造 score_record 同步事件。
@@ -128,17 +168,21 @@ def score_record_event(
     :param result: 对局结果。
     :param score: 分数。
     :param duration_ms: 用时（毫秒）。
+    :param payload: 扩展 payload 对象，可空。
     :return: pendingEvents 单条元素。
     """
+    event_payload: Dict[str, Any] = {
+        "gameCode": game_code,
+        "mode": mode,
+        "difficultyCode": difficulty_code,
+        "result": result,
+        "score": score,
+        "durationMs": duration_ms,
+    }
+    if payload is not None:
+        event_payload["payload"] = payload
     return {
         "clientId": client_id,
         "eventType": "score_record",
-        "payload": {
-            "gameCode": game_code,
-            "mode": mode,
-            "difficultyCode": difficulty_code,
-            "result": result,
-            "score": score,
-            "durationMs": duration_ms,
-        },
+        "payload": event_payload,
     }

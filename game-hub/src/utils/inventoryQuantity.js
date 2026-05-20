@@ -23,3 +23,28 @@ export function aggregateQuantitiesByGame(ledgers, gameCode) {
   }
   return map;
 }
+
+/**
+ * 合并服务端背包快照与本地待同步流水。
+ * @param {import('../stores/inventoryStore.js').InventoryLedger[]} ledgers
+ * @param {Record<string, number>|null} bag
+ * @param {string} gameCode
+ * @returns {Record<string, number>}
+ */
+export function quantitiesForUserGame(ledgers, bag, gameCode) {
+  if (!bag || Object.keys(bag).length === 0) {
+    return aggregateQuantitiesByGame(ledgers, gameCode);
+  }
+  const pending = aggregateQuantitiesByGame(
+    ledgers.filter((r) => r.syncStatus === 'pending' && r.gameCode === gameCode),
+    gameCode
+  );
+  const merged = { ...bag };
+  for (const code of Object.keys(pending)) {
+    merged[code] = Math.max(0, (merged[code] || 0) + pending[code]);
+  }
+  for (const code of Object.keys(merged)) {
+    merged[code] = Math.max(0, merged[code]);
+  }
+  return merged;
+}

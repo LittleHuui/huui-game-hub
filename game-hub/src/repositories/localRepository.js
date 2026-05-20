@@ -5,15 +5,14 @@ export const LS_KEYS = {
   SETTINGS: 'game_hub_settings',
   WALLET_LEDGERS: 'game_hub_wallet_ledgers',
   INVENTORY_LEDGERS: 'game_hub_inventory_ledgers',
+  INVENTORY_BAGS: 'game_hub_inventory_bags',
   PURCHASE_RECORDS: 'game_hub_purchase_records',
   MATCH_RECORDS: 'game_hub_match_records',
   SCORE_RECORDS: 'game_hub_score_records',
   PENDING_EVENTS: 'game_hub_pending_events',
   PROP_USAGE_RECORDS: 'game_hub_prop_usage_records',
   CLOUD_SNAPSHOT: 'game_hub_cloud_snapshot',
-  DEVICE: 'game_hub_device',
-  LEGACY_AUTH: 'mine_rush_auth',
-  LEGACY_USERS: 'mine_rush_users'
+  DEVICE: 'game_hub_device'
 };
 
 function readJson(key, fallback) {
@@ -87,6 +86,15 @@ export function writeInventoryLedgers(map) {
   writeJson(LS_KEYS.INVENTORY_LEDGERS, map);
 }
 
+export function readInventoryBags() {
+  const v = readJson(LS_KEYS.INVENTORY_BAGS, {});
+  return v && typeof v === 'object' ? v : {};
+}
+
+export function writeInventoryBags(map) {
+  writeJson(LS_KEYS.INVENTORY_BAGS, map);
+}
+
 export function readPurchaseRecords() {
   const v = readJson(LS_KEYS.PURCHASE_RECORDS, {});
   return v && typeof v === 'object' ? v : {};
@@ -138,39 +146,4 @@ export function readCloudSnapshot() {
 
 export function writeCloudSnapshot(snapshot) {
   writeJson(LS_KEYS.CLOUD_SNAPSHOT, snapshot);
-}
-
-/**
- * 若新键为空，尝试从旧 mine_rush_* 迁移基础用户数据（一次性）。
- */
-export function migrateLegacyIfNeeded() {
-  const users = readUsers();
-  if (users.length > 0) {
-    return;
-  }
-  const legacyUsers = readJson(LS_KEYS.LEGACY_USERS, []);
-  const legacyAuth = readJson(LS_KEYS.LEGACY_AUTH, { currentUserId: '' });
-  if (!Array.isArray(legacyUsers) || legacyUsers.length === 0) {
-    return;
-  }
-  const now = Date.now();
-  const migrated = legacyUsers.map((u) => ({
-    clientId: `mig_${u.userId}`,
-    serverId: null,
-    userId: u.userId,
-    username: u.username,
-    nickname: u.nickname,
-    score: u.score ?? 0,
-    totalScore: u.totalScore ?? 0,
-    autoRevive: !!u.autoRevive,
-    prefs: u.prefs || { neighborHoverRing: true },
-    props: u.props || { hintCard: 0, reviveCard: 0 },
-    createdAt: now,
-    updatedAt: now,
-    serverCreatedAt: null,
-    serverUpdatedAt: null,
-    syncedAt: null
-  }));
-  writeUsers(migrated);
-  writeAuth({ currentUserId: legacyAuth.currentUserId || migrated[0].userId });
 }

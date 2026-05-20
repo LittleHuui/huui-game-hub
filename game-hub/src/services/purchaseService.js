@@ -41,8 +41,12 @@ function resolvePropPrice(gameCode, propCode) {
  * @param {{ propCode: string; sessionId?: import('vue').Ref | string | null; gameCode?: string }} opts
  */
 export async function buyProp(opts) {
-  const gameCode = opts.gameCode || 'minesweeper';
+  const gameCode = opts.gameCode;
   const propCode = opts.propCode;
+  if (!gameCode) {
+    toastService.push('缺少 gameCode', 'warning');
+    return;
+  }
   const shopStore = useShopStore();
   const item = shopStore.findItem(gameCode, propCode);
   const label = item ? `购买${item.name} ×1` : `购买道具 ×1`;
@@ -70,22 +74,6 @@ export async function buyProp(opts) {
     gameCode
   });
   toastService.push(`已购买 1 张${item?.name || '道具'}`, 'success');
-}
-
-/**
- * 购买提示卡。
- * @param {{ sessionId?: import('vue').Ref | string | null; gameCode?: string }} [opts]
- */
-export async function buyHintCard(opts = {}) {
-  await buyProp({ ...opts, propCode: 'hint_card', gameCode: opts.gameCode || 'minesweeper' });
-}
-
-/**
- * 购买复活卡。
- * @param {{ sessionId?: import('vue').Ref | string | null; gameCode?: string }} [opts]
- */
-export async function buyReviveCard(opts = {}) {
-  await buyProp({ ...opts, propCode: 'revive_card', gameCode: opts.gameCode || 'minesweeper' });
 }
 
 /**

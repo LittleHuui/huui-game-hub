@@ -225,6 +225,12 @@ onBeforeUnmount(() => {
 }
 
 .match3-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   border: 2px solid rgba(255, 255, 255, 0.42);
   border-radius: 12px;
   cursor: grab;
@@ -271,7 +277,13 @@ onBeforeUnmount(() => {
 }
 
 .match3-cell-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 22px;
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
 }
 
 @keyframes match3Shuffle {

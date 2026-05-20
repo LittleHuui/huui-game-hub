@@ -45,7 +45,6 @@ def get_sync_log_entity_service(
 
 def get_sync_module_service(
     user_module: UserModuleService = Depends(get_user_module_service),
-    sync_log_entity: SyncLogEntityService = Depends(get_sync_log_entity_service),
     wallet_module: WalletModuleService = Depends(get_wallet_module_service),
     purchase_module: PurchaseModuleService = Depends(get_purchase_module_service),
     inventory_module: InventoryModuleService = Depends(get_inventory_module_service),
@@ -56,7 +55,6 @@ def get_sync_module_service(
     组装同步模块服务依赖。
 
     :param user_module: 用户模块服务。
-    :param sync_log_entity: 同步日志实体服务。
     :param wallet_module: 钱包模块服务。
     :param purchase_module: 购买模块服务。
     :param inventory_module: 背包模块服务。
@@ -65,7 +63,6 @@ def get_sync_module_service(
     :return: ``SyncModuleService`` 实例。
     """
     return SyncModuleService(
-        sync_log_entity,
         user_module,
         wallet_module,
         purchase_module,

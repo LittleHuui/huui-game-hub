@@ -5,7 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.common.base_entity import BaseEntityResponse
-from app.common.camel_schema import CAMEL_MODEL_CONFIG, camel_field
+from app.common.camel_schema import CAMEL_MODEL_CONFIG
 from app.modules.system.models import SystemConfig
 
 
@@ -33,7 +33,7 @@ class SystemConfigUpsert(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    configValue: Optional[str] = camel_field("configValue", default=None)
+    configValue: Optional[str] = Field(default=None)
     description: Optional[str] = None
     enabled: Optional[int] = Field(default=None, description="0 禁用，1 启用")
 

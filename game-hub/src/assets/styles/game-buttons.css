@@ -1,0 +1,41 @@
+/* 跨游戏操作按钮语义（开始/重开/结束/暂停等） */
+
+button.btn-action-start {
+    background: linear-gradient(145deg, #10b981, #059669);
+    color: #fff;
+}
+
+button.btn-action-start:hover {
+    background: linear-gradient(145deg, #059669, #047857);
+    transform: translateY(-2px);
+}
+
+button.btn-action-safe {
+    background: linear-gradient(145deg, #0ea5e9, #0284c7);
+    color: #fff;
+}
+
+button.btn-action-safe:hover {
+    background: linear-gradient(145deg, #0284c7, #0369a1);
+    transform: translateY(-2px);
+}
+
+button.btn-action-restart {
+    background: linear-gradient(145deg, #f59e0b, #d97706);
+    color: #1c1917;
+}
+
+button.btn-action-restart:hover {
+    background: linear-gradient(145deg, #d97706, #b45309);
+    transform: translateY(-2px);
+}
+
+button.btn-action-end {
+    background: linear-gradient(145deg, #ef4444, #dc2626);
+    color: #fff;
+}
+
+button.btn-action-end:hover {
+    background: linear-gradient(145deg, #dc2626, #b91c1c);
+    transform: translateY(-2px);
+}

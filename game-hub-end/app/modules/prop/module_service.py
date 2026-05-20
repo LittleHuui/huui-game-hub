@@ -77,6 +77,7 @@ def _to_game_prop_rule_response(
         effectType=rule.effect_type,
         rule=_parse_optional_json_dict(rule.rule_json),
         enabled=bool(rule.enabled),
+        sortNo=rule.sort_no,
     )
 
 

@@ -35,11 +35,11 @@
 
       <template v-else-if="activeModal === 'history'">
         <div v-if="currentHistory.length === 0" class="empty-text">暂无历史对局</div>
-        <div v-else class="history-list">
+        <div v-else class="history-list hub-scrollbar">
           <div v-for="(item, index) in currentHistory" :key="item.clientId || index" class="history-item">
-            <strong>{{ historyResultText(item.result) }} · {{ diffLabel(item.difficulty) }}</strong>
+            <strong>{{ matchGameLabel(item) }} · {{ historyResultText(item.result) }} · {{ diffLabel(item) }}</strong>
             <span class="muted-small">
-              用时：{{ item.time }} 秒 ｜ 得分：{{ item.score || 0 }} ｜ {{ formatDisplayTime(item.createdAt) }}
+              用时：{{ formatHistoryDuration(item.durationMs) }} ｜ 得分：{{ item.score || 0 }} ｜ {{ formatDisplayTime(item.createdAt) }}
             </span>
             <div v-if="item.propUses && item.propUses.length" class="history-prop-line">
               本局道具：{{ formatPropUsesLine(item.propUses) }}
@@ -50,7 +50,7 @@
 
       <template v-else-if="activeModal === 'propUsage'">
         <div v-if="propUsageRows.length === 0" class="empty-text">暂无道具使用记录</div>
-        <div v-else class="log-list">
+        <div v-else class="log-list hub-scrollbar">
           <div v-for="(row, i) in propUsageRows" :key="row.clientId || i" class="log-item">
             <span class="muted-small">{{ formatDisplayTime(row.createdAt) }}</span>
             · {{ row.payload?.label || row.reason }}
@@ -61,17 +61,17 @@
 
       <template v-else-if="activeModal === 'purchase'">
         <div v-if="purchaseRows.length === 0" class="empty-text">暂无购买记录</div>
-        <div v-else class="log-list">
+        <div v-else class="log-list hub-scrollbar">
           <div v-for="(row, i) in purchaseRows" :key="row.clientId || i" class="log-item">
             <span class="muted-small">{{ formatDisplayTime(row.createdAt) }}</span>
-            · {{ row.payload?.label || '购买' }} · 花费 {{ row.payload?.cost ?? 0 }} 积分
+            · {{ purchaseRecordLabel(row) }} · 花费 {{ row.payload?.cost ?? 0 }} 积分
           </div>
         </div>
       </template>
 
       <template v-else-if="activeModal === 'ledger'">
         <div v-if="ledgerRows.length === 0" class="empty-text">暂无积分流水</div>
-        <div v-else class="log-list">
+        <div v-else class="log-list hub-scrollbar">
           <div v-for="(row, i) in ledgerRows" :key="row.clientId || i" class="log-item">
             <span class="muted-small">{{ formatDisplayTime(row.createdAt) }}</span>
             · {{ row.reason }}
@@ -141,7 +141,7 @@ import AppModal from '../components/AppModal.vue';
 import UserMenu from '../components/UserMenu.vue';
 import GameSelector from '../components/GameSelector.vue';
 import UserLoginModal from '../components/UserLoginModal.vue';
-import { GH_MINESWEEPER_SESSION_LOCK, GH_OPEN_HUB_MODAL } from '../constants/injectionKeys.js';
+import { GH_OPEN_HUB_MODAL } from '../constants/injectionKeys.js';
 import { createGameSession } from '../services/gameSessionService.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { useUserStore } from '../stores/userStore.js';
@@ -149,8 +149,12 @@ import { useWalletStore } from '../stores/walletStore.js';
 import { useInventoryStore } from '../stores/inventoryStore.js';
 import { useHistoryStore } from '../stores/historyStore.js';
 import { useSettingStore } from '../stores/settingStore.js';
-import { MINESWEEPER_PRESETS } from '../games/minesweeper/minesweeperConfig.js';
+import { getDifficultyName } from '../services/gameDifficultyService.js';
+import { resolveGameDisplayName } from '../services/gameCatalogService.js';
+import { resolveMatchGameCode } from '../mappers/matchMapper.js';
 import { formatDisplayTime } from '../utils/formatTime.js';
+import { resolvePropDisplayName } from '../utils/resolvePropDisplayName.js';
+import { recentHistoryRecords } from '../utils/historySort.js';
 import * as userService from '../services/userService.js';
 import * as walletService from '../services/walletService.js';
 import * as toastService from '../services/toastService.js';
@@ -164,7 +168,7 @@ const historyStore = useHistoryStore();
 const settingStore = useSettingStore();
 
 const user = session.currentUser;
-const sessionLocked = ref(false);
+const sessionLocked = computed(() => platform.gameSwitchLocked);
 const gamePageRef = ref(null);
 
 const registerForm = reactive({ username: '', nickname: '' });
@@ -176,26 +180,24 @@ const neighborHoverRingEnabled = computed(() => user.value.prefs?.neighborHoverR
 
 const currentHistory = computed(() => {
   const uid = userStore.auth.currentUserId;
-  const list = historyStore.matchesForUser(uid);
-  return list.slice().reverse();
+  return historyStore.matchesForUser(uid);
 });
 
 const propUsageRows = computed(() => {
   const uid = userStore.auth.currentUserId;
   const fromRemote = historyStore.propUsageForUser(uid);
   if (fromRemote.length > 0) {
-    return fromRemote.slice().reverse();
+    return fromRemote;
   }
-  return inventoryStore
-    .listForUser(uid)
-    .filter((r) => r.reason === 'use')
-    .slice()
-    .reverse();
+  return recentHistoryRecords(
+    inventoryStore.listForUser(uid).filter((r) => r.reason === 'use'),
+    50
+  );
 });
 
 const purchaseRows = computed(() => {
   const uid = userStore.auth.currentUserId;
-  return historyStore.purchasesForUser(uid).slice().reverse();
+  return historyStore.purchasesForUser(uid);
 });
 
 const ledgerRows = computed(() => {
@@ -213,12 +215,6 @@ const modalTitle = computed(() => {
     user: '切换或创建用户'
   };
   return map[activeModal.value] || '';
-});
-
-provide(GH_MINESWEEPER_SESSION_LOCK, {
-  setLocked(locked) {
-    sessionLocked.value = !!locked;
-  }
 });
 
 function openModal(type) {
@@ -245,9 +241,47 @@ function historyResultText(result) {
   return m[result] || '未知结果';
 }
 
-function diffLabel(value) {
-  const preset = MINESWEEPER_PRESETS[value];
-  return preset?.label || '未知难度';
+/**
+ * 历史条目游戏展示名。
+ * @param {object} item
+ * @returns {string}
+ */
+function matchGameLabel(item) {
+  const code = resolveMatchGameCode(item);
+  const name = resolveGameDisplayName(code);
+  return name || code || '未知游戏';
+}
+
+/**
+ * 历史条目难度展示名。
+ * @param {object} item
+ * @returns {string}
+ */
+function diffLabel(item) {
+  const gameCode = resolveMatchGameCode(item);
+  if (!gameCode) {
+    return item?.difficultyCode || '—';
+  }
+  return getDifficultyName(gameCode, item?.difficultyCode);
+}
+
+/**
+ * 购买记录道具展示名。
+ * @param {object} row
+ * @returns {string}
+ */
+function purchaseRecordLabel(row) {
+  const propCode = row?.propCode || row?.payload?.propCode || '';
+  const gameCode = row?.gameCode || '';
+  const name = resolvePropDisplayName(propCode, gameCode);
+  return name || '购买';
+}
+
+function formatHistoryDuration(durationMs) {
+  if (durationMs != null && Number.isFinite(durationMs)) {
+    return `${(durationMs / 1000).toFixed(1)} 秒`;
+  }
+  return '—';
 }
 
 function formatPropUsesLine(list) {
@@ -300,7 +334,7 @@ function onLoginSuccess() {
 watch(
   () => platform.currentGameCode,
   () => {
-    sessionLocked.value = false;
+    platform.unlockGameSwitch();
   }
 );
 </script>

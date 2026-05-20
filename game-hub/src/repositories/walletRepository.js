@@ -9,6 +9,7 @@ import * as localRepo from './localRepository.js';
 import { ensureUserBucket } from './helpers.js';
 import { resolveServerUserId } from './userRepository.js';
 import { persistAllLocal } from './localPersistRepository.js';
+import { requireGameCode } from '../utils/requireGameCode.js';
 
 const PAGE = { pageNum: 1, pageSize: 20 };
 
@@ -52,7 +53,7 @@ export function pushWalletLedger(partial, onPending) {
     serverId: null,
     userId: uid,
     deviceId: partial.deviceId || localRepo.getDeviceId(),
-    gameCode: partial.gameCode || 'minesweeper',
+    gameCode: requireGameCode(partial.gameCode, 'pushWalletLedger'),
     type: partial.type,
     reason: partial.reason,
     amount: Math.abs(Number(partial.amount) || 0),

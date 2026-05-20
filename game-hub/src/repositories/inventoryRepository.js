@@ -1,7 +1,8 @@
 import { createClientId } from '../utils/idService.js';
 import { nowMs } from '../utils/timeService.js';
 import {
-  mapRemoteInventoryToLocalProps,
+  mapRemoteInventoryToBagByGame,
+  mapRemoteInventoryListToQuantities,
   mapPropUsageRecord,
   mapLocalInventoryLedgerToPayload
 } from '../mappers/inventoryMapper.js';
@@ -14,45 +15,9 @@ import * as localRepo from './localRepository.js';
 import { ensureUserBucket } from './helpers.js';
 import { resolveServerUserId } from './userRepository.js';
 import { persistAllLocal } from './localPersistRepository.js';
+import { requireGameCode } from '../utils/requireGameCode.js';
 
 const PAGE = { pageNum: 1, pageSize: 20 };
-
-/**
- * 从道具流水重算背包。
- * @param {string} userId
- */
-export function recomputeFromLedgers(userId) {
-  const userStore = useUserStore();
-  const inventoryStore = useInventoryStore();
-  let hint = 0;
-  let revive = 0;
-  let match3Shuffle = 0;
-  let match3Bomb = 0;
-  const sorted = [...inventoryStore.listForUser(userId)].sort(
-    (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
-  );
-  for (const e of sorted) {
-    if (e.syncStatus === 'failed') {
-      continue;
-    }
-    const amt = Math.abs(Number(e.amount) || 0);
-    if (e.propCode === 'hint_card') {
-      hint += e.type === 'gain' ? amt : -amt;
-    } else if (e.propCode === 'revive_card') {
-      revive += e.type === 'gain' ? amt : -amt;
-    } else if (e.propCode === 'match3_shuffle') {
-      match3Shuffle += e.type === 'gain' ? amt : -amt;
-    } else if (e.propCode === 'match3_bomb') {
-      match3Bomb += e.type === 'gain' ? amt : -amt;
-    }
-  }
-  userStore.patchUserProps(userId, {
-    hintCard: Math.max(0, hint),
-    reviveCard: Math.max(0, revive),
-    match3Shuffle: Math.max(0, match3Shuffle),
-    match3Bomb: Math.max(0, match3Bomb)
-  });
-}
 
 /**
  * @param {Omit<import('../stores/inventoryStore.js').InventoryLedger, 'syncedAt' | 'serverId'>} partial
@@ -68,7 +33,7 @@ export function pushInventoryLedger(partial, onPending) {
     serverId: null,
     userId: uid,
     deviceId: partial.deviceId || localRepo.getDeviceId(),
-    gameCode: partial.gameCode || 'minesweeper',
+    gameCode: requireGameCode(partial.gameCode, 'pushInventoryLedger'),
     propCode: partial.propCode,
     type: partial.type,
     amount: Math.abs(Number(partial.amount) || 0),
@@ -80,7 +45,6 @@ export function pushInventoryLedger(partial, onPending) {
     payload: partial.payload || {}
   };
   inventoryStore.inventoryLedgersByUser[uid].push(row);
-  recomputeFromLedgers(uid);
   if (row.syncStatus === 'pending' && resolveServerUserId() && row.reason === 'use' && onPending) {
     onPending({
       clientId: row.clientId,
@@ -91,17 +55,41 @@ export function pushInventoryLedger(partial, onPending) {
     });
   }
   localRepo.writeInventoryLedgers(inventoryStore.inventoryLedgersByUser);
+  localRepo.writeInventoryBags(inventoryStore.bagByUser);
   persistAllLocal();
 }
 
 /**
+ * 应用云端背包快照（user_prop_bag）。
  * @param {object[]} inventory
  * @param {string} userId
  */
 export function applyCloudInventory(inventory, userId) {
-  const userStore = useUserStore();
-  const list = Array.isArray(inventory) ? inventory : [];
-  userStore.patchUserProps(userId, mapRemoteInventoryToLocalProps(list));
+  const inventoryStore = useInventoryStore();
+  const byGame = mapRemoteInventoryToBagByGame(Array.isArray(inventory) ? inventory : []);
+  const prev = inventoryStore.bagByUser[userId] || {};
+  inventoryStore.setBagForUser(userId, { ...prev, ...byGame });
+  localRepo.writeInventoryBags(inventoryStore.bagByUser);
+  persistAllLocal();
+}
+
+/**
+ * 购买结果中的单条背包项合并进快照。
+ * @param {string} userId
+ * @param {object} inventoryItem
+ */
+export function applyPurchaseInventoryItem(userId, inventoryItem) {
+  if (!inventoryItem?.propCode || !inventoryItem?.gameCode) {
+    return;
+  }
+  const inventoryStore = useInventoryStore();
+  const prev = inventoryStore.bagForGame(userId, inventoryItem.gameCode) || {};
+  inventoryStore.setBagForGame(userId, inventoryItem.gameCode, {
+    ...prev,
+    [inventoryItem.propCode]: Math.max(0, Number(inventoryItem.quantity) || 0)
+  });
+  localRepo.writeInventoryBags(inventoryStore.bagByUser);
+  persistAllLocal();
 }
 
 /**
@@ -116,7 +104,7 @@ export function applyCloudPropUsage(propUsageRecords) {
 }
 
 /**
- * @param {string} userId
+ * @param {string} serverUserId
  * @param {string} gameCode
  */
 export async function refreshInventory(serverUserId, gameCode) {
@@ -124,10 +112,12 @@ export async function refreshInventory(serverUserId, gameCode) {
   const usagePage = await remoteRepository.getPropUsageRecords(serverUserId, { gameCode, ...PAGE });
   const userStore = useUserStore();
   const historyStore = useHistoryStore();
+  const inventoryStore = useInventoryStore();
   const localKey = userStore.auth.currentUserId;
   const list = pageItems(inventory).length ? pageItems(inventory) : Array.isArray(inventory) ? inventory : [];
-  userStore.patchUserProps(localKey, mapRemoteInventoryToLocalProps(list));
+  inventoryStore.setBagForGame(localKey, gameCode, mapRemoteInventoryListToQuantities(list));
   ensureUserBucket(historyStore.propUsageRecordsByUser, localKey);
   historyStore.propUsageRecordsByUser[localKey] = pageItems(usagePage).map(mapPropUsageRecord);
+  localRepo.writeInventoryBags(inventoryStore.bagByUser);
   persistAllLocal();
 }

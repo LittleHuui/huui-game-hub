@@ -49,7 +49,7 @@ const props = defineProps({
   },
   mode: {
     type: String,
-    default: 'single'
+    required: true
   },
   difficultyCode: {
     type: String,
@@ -66,6 +66,12 @@ const props = defineProps({
   showUnavailable: {
     type: Boolean,
     default: true
+  },
+  /** 排行榜主展示指标：score | durationMs */
+  valueMetric: {
+    type: String,
+    default: 'score',
+    validator: (v) => ['score', 'durationMs'].includes(v)
   }
 });
 
@@ -131,14 +137,17 @@ function displayAt(item) {
  * @returns {string}
  */
 function formatValue(item) {
+  if (props.valueMetric === 'durationMs') {
+    if (item.durationMs != null && Number.isFinite(item.durationMs)) {
+      return `${(item.durationMs / 1000).toFixed(1)} 秒`;
+    }
+    return '—';
+  }
   if (item.score != null && Number.isFinite(Number(item.score))) {
     return `${item.score} 分`;
   }
   if (item.durationMs != null && Number.isFinite(item.durationMs)) {
     return `${(item.durationMs / 1000).toFixed(1)} 秒`;
-  }
-  if (item.time != null) {
-    return `${item.time} 秒`;
   }
   return '—';
 }

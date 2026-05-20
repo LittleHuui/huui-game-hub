@@ -9,6 +9,9 @@ import * as gameCatalogService from './gameCatalogService.js';
 import * as gameLifecycleService from './gameLifecycleService.js';
 import * as toastService from './toastService.js';
 import { canFetchRemote } from './remoteGate.js';
+import { getDefaultDifficultyCode, isDifficultyEnabled } from './gameDifficultyService.js';
+import { getGameConfig } from '../constants/gameRegistry.js';
+import { resolvePlatformGameCode } from '../utils/requireGameCode.js';
 
 /**
  * 按数据模式更新 platform.networkMode。
@@ -48,20 +51,30 @@ async function probeRemoteAvailable() {
 }
 
 /**
- * 构建当前游戏的 activateGame 参数。
+ * 构建当前游戏的 activateGame 参数（难度来自 registry 默认，mode 来自 platform/registry）。
  * @param {string} gameCode
  * @returns {import('./gameLifecycleService.js').ActivateGameOptions}
  */
 function buildActivateOptions(gameCode) {
   const platform = usePlatformStore();
-  if (gameCode === 'minesweeper') {
-    return {
-      difficultyCode: platform.minesweeperDifficulty || 'easy',
-      includeLeaderboard: true,
-      includeInventory: true
-    };
+  const reg = getGameConfig(gameCode);
+  const mode = platform.currentGameMode || reg?.modes?.[0];
+  if (!mode) {
+    throw new Error(`游戏 ${gameCode} 缺少 mode`);
   }
-  return { includeLeaderboard: true, includeInventory: true };
+  const stored = getDefaultDifficultyCode(gameCode);
+  const difficultyCode = isDifficultyEnabled(gameCode, stored)
+    ? stored
+    : getDefaultDifficultyCode(gameCode);
+  if (!difficultyCode) {
+    throw new Error(`游戏 ${gameCode} 缺少 difficultyCode`);
+  }
+  return {
+    difficultyCode,
+    mode,
+    includeLeaderboard: true,
+    includeInventory: true
+  };
 }
 
 /**
@@ -102,11 +115,8 @@ export async function switchRepositoryMode(nextMode) {
 
   await gameCatalogService.loadGameCatalog();
 
-  const gameCode = platform.currentGameCode || 'minesweeper';
+  const gameCode = resolvePlatformGameCode('switchRepositoryMode');
   await gameLifecycleService.activateGame(gameCode, buildActivateOptions(gameCode));
 
   return { success: true, networkMode: platform.networkMode };
 }
-
-/** @deprecated 使用 switchRepositoryMode */
-export const switchDataMode = switchRepositoryMode;

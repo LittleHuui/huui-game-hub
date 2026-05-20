@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.common.camel_schema import CAMEL_MODEL_CONFIG, camel_field
+from app.common.camel_schema import CAMEL_MODEL_CONFIG
 from app.modules.boot.schemas import (
     PropPurchaseRecordResponse,
     UserPropBagResponse,
@@ -17,14 +17,14 @@ class CreatePropPurchaseRequest(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
-    clientId: str = camel_field("clientId", min_length=1)
-    userId: str = camel_field("userId", min_length=1)
-    deviceId: Optional[str] = camel_field("deviceId", default=None)
-    gameCode: str = camel_field("gameCode", min_length=1)
-    propCode: str = camel_field("propCode", min_length=1)
+    clientId: str = Field(min_length=1)
+    userId: str = Field(min_length=1)
+    deviceId: Optional[str] = Field(default=None)
+    gameCode: str = Field(min_length=1)
+    propCode: str = Field(min_length=1)
     quantity: int = Field(ge=1)
-    createdAt: int = camel_field("createdAt")
-    updatedAt: int = camel_field("updatedAt")
+    createdAt: int
+    updatedAt: int
 
 
 class PropPurchaseResultResponse(BaseModel):

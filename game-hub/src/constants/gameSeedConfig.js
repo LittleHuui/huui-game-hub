@@ -42,21 +42,42 @@ export const GAME_SEED_CONFIG = {
       supportOnline: false,
       enabled: true,
       sortNo: 1,
-      config: {},
+      config: {
+        featureFlags: { leaderboard: true },
+        ranking: {
+          enabled: true,
+          modes: {
+            single: {
+              primaryMetric: 'durationMs',
+              orderDirection: 'asc',
+              tieBreakers: [
+                { metric: 'score', orderDirection: 'desc' },
+                { metric: 'createdAt', orderDirection: 'asc' }
+              ]
+            }
+          }
+        }
+      },
       difficulties: [
         {
           difficultyCode: 'easy',
           difficultyName: '初级',
+          enabled: true,
+          sortNo: 1,
           config: { rows: 9, cols: 9, mines: 10, winReward: 100, failRewardPerCorrectFlag: 3 }
         },
         {
           difficultyCode: 'medium',
           difficultyName: '中级',
+          enabled: true,
+          sortNo: 2,
           config: { rows: 16, cols: 16, mines: 40, winReward: 300, failRewardPerCorrectFlag: 3 }
         },
         {
           difficultyCode: 'hard',
           difficultyName: '高级',
+          enabled: true,
+          sortNo: 3,
           config: { rows: 16, cols: 30, mines: 100, winReward: 800, failRewardPerCorrectFlag: 3 }
         }
       ],
@@ -64,6 +85,7 @@ export const GAME_SEED_CONFIG = {
       propRules: [
         {
           propCode: 'hint_card',
+          sortNo: 1,
           price: 500,
           maxUsePerMatch: 5,
           triggerType: 'manual_select_cell',
@@ -77,6 +99,7 @@ export const GAME_SEED_CONFIG = {
         },
         {
           propCode: 'revive_card',
+          sortNo: 2,
           price: 800,
           maxUsePerMatch: 1,
           triggerType: 'on_mine_hit',
@@ -133,6 +156,8 @@ export const GAME_SEED_CONFIG = {
         {
           difficultyCode: 'normal',
           difficultyName: '普通',
+          enabled: true,
+          sortNo: 1,
           config: {
             rows: 9,
             cols: 9,
@@ -163,10 +188,18 @@ export const GAME_SEED_CONFIG = {
             },
             modes: {
               timed: {
-                timeLimitSec: 180
+                timeLimitSec: 180,
+                propUseLimits: {
+                  match3_shuffle: 2,
+                  match3_bomb: 2
+                }
               },
               endless: {
-                timeLimitSec: 0
+                timeLimitSec: 0,
+                propUseLimits: {
+                  match3_shuffle: 4,
+                  match3_bomb: 3
+                }
               }
             },
             settlement: {
@@ -204,6 +237,7 @@ export const GAME_SEED_CONFIG = {
       propRules: [
         {
           propCode: 'match3_shuffle',
+          sortNo: 1,
           price: 800,
           maxUsePerMatch: 3,
           triggerType: 'manual',
@@ -217,6 +251,7 @@ export const GAME_SEED_CONFIG = {
         },
         {
           propCode: 'match3_bomb',
+          sortNo: 2,
           price: 1200,
           maxUsePerMatch: 3,
           triggerType: 'manual_select_cell',

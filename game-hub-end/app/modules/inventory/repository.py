@@ -84,11 +84,14 @@ class PropUsageRecordRepository:
         return self._session.scalar(stmt)
 
     def list_by_user(self, user_id: str, *, active_only: bool = True) -> List[PropUsageRecord]:
-        """按创建时间升序列出用户使用记录。"""
+        """按更新时间倒序列出用户使用记录。"""
         stmt = select(PropUsageRecord).where(PropUsageRecord.user_id == user_id)
         if active_only:
             stmt = stmt.where(PropUsageRecord.deleted_at.is_(None))
-        stmt = stmt.order_by(PropUsageRecord.created_at.asc())
+        stmt = stmt.order_by(
+            PropUsageRecord.updated_at.desc(),
+            PropUsageRecord.created_at.desc(),
+        )
         return list(self._session.scalars(stmt).all())
 
     def count_by_user(
@@ -147,7 +150,10 @@ class PropUsageRecordRepository:
         if active_only:
             stmt = stmt.where(PropUsageRecord.deleted_at.is_(None))
         offset = (page_num - 1) * page_size
-        stmt = stmt.order_by(PropUsageRecord.created_at.desc()).offset(offset).limit(page_size)
+        stmt = stmt.order_by(
+            PropUsageRecord.updated_at.desc(),
+            PropUsageRecord.created_at.desc(),
+        ).offset(offset).limit(page_size)
         return list(self._session.scalars(stmt).all())
 
     def add(self, entity: PropUsageRecord) -> PropUsageRecord:
