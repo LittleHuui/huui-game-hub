@@ -44,6 +44,38 @@ export function resolveBootUserId() {
 }
 
 /**
+ * 本地缓存的用户列表（已由 loadLocalIntoStores 写入 store）。
+ * @returns {import('../stores/userStore.js').GameUser[]}
+ */
+export function getCachedUserList() {
+  return [...useUserStore().users];
+}
+
+/**
+ * 解析有效的当前登录用户（auth.currentUserId 且存在于 users 列表）。
+ * @returns {import('../stores/userStore.js').GameUser|null}
+ */
+export function resolveCachedCurrentUser() {
+  const userStore = useUserStore();
+  const currentUserId = userStore.auth.currentUserId;
+  if (!currentUserId) {
+    return null;
+  }
+  return userStore.users.find((u) => u.userId === currentUserId) || null;
+}
+
+/**
+ * 设置当前登录用户并持久化本地缓存。
+ * @param {string} userId
+ */
+export function setCurrentUser(userId) {
+  const userStore = useUserStore();
+  userStore.setCurrentUserId(userId);
+  historyRepository.ensureHistoryBuckets(userId);
+  persistAllLocal();
+}
+
+/**
  * 清空本地登录态。
  */
 export function clearAuth() {

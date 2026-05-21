@@ -2,8 +2,6 @@ import * as localRepo from '../repositories/localRepository.js';
 import { remoteRepository } from '../repositories/remoteRepository.js';
 import { loadLocalIntoStores } from '../repositories/localPersistRepository.js';
 import * as userRepository from '../repositories/userRepository.js';
-import * as syncRepository from '../repositories/syncRepository.js';
-import * as historyRepository from '../repositories/historyRepository.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useRankingStore } from '../stores/rankingStore.js';
@@ -25,14 +23,15 @@ function setBootMessage(message) {
 }
 
 /**
- * 创建本地游客及初始流水（仅本地/离线无用户时使用）。
+ * 创建本地游客（平台积分为 0，不赠送初始积分）。
+ * @returns {import('../stores/userStore.js').GameUser}
  */
 export function createLocalGuestUser() {
   const userStore = useUserStore();
   const uid = `U_${nowMs()}`;
   const clientId = createClientId('user');
   const t = nowMs();
-  userStore.addUser({
+  const guest = {
     clientId,
     serverId: null,
     userId: uid,
@@ -47,9 +46,30 @@ export function createLocalGuestUser() {
     serverCreatedAt: null,
     serverUpdatedAt: null,
     syncedAt: null
-  });
-  userStore.setCurrentUserId(uid);
-  historyRepository.ensureHistoryBuckets(uid);
+  };
+  userStore.addUser(guest);
+  userRepository.setCurrentUser(uid);
+  return guest;
+}
+
+/**
+ * 服务不可用时解析当前登录用户：优先复用本地缓存，最后才创建游客。
+ * @returns {import('../stores/userStore.js').GameUser}
+ */
+export function resolveOfflineCurrentUser() {
+  const cachedCurrent = userRepository.resolveCachedCurrentUser();
+  if (cachedCurrent) {
+    return cachedCurrent;
+  }
+
+  const cachedUsers = userRepository.getCachedUserList();
+  if (cachedUsers.length > 0) {
+    const first = cachedUsers[0];
+    userRepository.setCurrentUser(first.userId);
+    return first;
+  }
+
+  return createLocalGuestUser();
 }
 
 /**
@@ -142,9 +162,7 @@ export async function initialize() {
   const repoMode = settingStore.settings.repositoryMode || 'auto';
 
   if (repoMode === 'local') {
-    if (userStore.users.length === 0) {
-      createLocalGuestUser();
-    }
+    resolveOfflineCurrentUser();
     platform.markReady('offline', '本地模式：仅使用本机缓存，不同步云端');
     await finalizeBootCatalog();
     return;
@@ -161,9 +179,7 @@ export async function initialize() {
 
   if (!apiOk) {
     ranking.clear();
-    if (userStore.users.length === 0) {
-      createLocalGuestUser();
-    }
+    resolveOfflineCurrentUser();
     if (repoMode === 'remote') {
       toastService.push('无法连接服务器', 'error');
       platform.markError('远程模式：服务不可用');
