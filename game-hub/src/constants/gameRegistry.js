@@ -14,36 +14,6 @@ export const GAME_REGISTRY = {
       offline: true
     }
   },
-  snake: {
-    code: 'snake',
-    logo: '🐍',
-    name: '贪吃蛇',
-    subName: 'Snake Battle',
-    supportOnline: true,
-    modes: ['single', 'online'],
-    capabilities: {
-      leaderboard: false,
-      inventory: false,
-      shop: false,
-      offline: true,
-      onlineBattle: true
-    }
-  },
-  tetris: {
-    code: 'tetris',
-    logo: '🧱',
-    name: '俄罗斯方块',
-    subName: 'Tetris Battle',
-    supportOnline: true,
-    modes: ['single', 'online'],
-    capabilities: {
-      leaderboard: false,
-      inventory: false,
-      shop: false,
-      offline: true,
-      onlineBattle: true
-    }
-  },
   match3: {
     code: 'match3',
     logo: '🌈',
@@ -51,6 +21,21 @@ export const GAME_REGISTRY = {
     subName: 'Color Crush',
     supportOnline: false,
     modes: ['timed', 'endless'],
+    capabilities: {
+      leaderboard: true,
+      inventory: true,
+      shop: true,
+      offline: true,
+      onlineBattle: false
+    }
+  },
+  2048: {
+    code: '2048',
+    logo: '🔢',
+    name: '数字方舟',
+    subName: '2048 Ark',
+    supportOnline: false,
+    modes: ['classic'],
     capabilities: {
       leaderboard: true,
       inventory: true,

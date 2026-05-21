@@ -5,7 +5,7 @@ import { usePlatformStore } from '../stores/platformStore.js';
 import { canFetchRemote } from './remoteGate.js';
 
 /** 当前已有前端玩法实现的游戏。未实现游戏仍可进入占位页。 */
-const IMPLEMENTED_GAME_CODES = new Set(['minesweeper', 'match3']);
+const IMPLEMENTED_GAME_CODES = new Set(['minesweeper', 'match3', '2048']);
 
 /**
  * 将种子或服务端游戏条目转为顶栏展示结构。

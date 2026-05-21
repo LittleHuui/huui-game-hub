@@ -6,11 +6,13 @@ import {
   mapGameSeedToMinesweeperConfig
 } from '../mappers/gameConfigMapper.js';
 import { applyMatch3Config } from '../games/match3/match3Config.js';
+import { applyGame2048Config } from '../games/game2048/game2048Config.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { canFetchRemote } from './remoteGate.js';
 
 const MINESWEEPER = 'minesweeper';
 const MATCH3 = 'match3';
+const GAME2048 = '2048';
 
 /**
  * @typedef {object} GameConfigHandler
@@ -42,6 +44,19 @@ const GAME_CONFIG_HANDLERS = {
     },
     applySeed() {
       applyMatch3Config(getSeedGameConfig(MATCH3, GAME_SEED_CONFIG));
+    }
+  },
+  [GAME2048]: {
+    async loadRemote() {
+      try {
+        const data = await gameConfigRepository.fetchGameConfig(GAME2048);
+        applyGame2048Config(data);
+      } catch {
+        applyGame2048Config(getSeedGameConfig(GAME2048, GAME_SEED_CONFIG));
+      }
+    },
+    applySeed() {
+      applyGame2048Config(getSeedGameConfig(GAME2048, GAME_SEED_CONFIG));
     }
   }
 };

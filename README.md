@@ -8,7 +8,7 @@
 |------|----------|------|
 | 雷区突围 | `minesweeper` | 已接入 |
 | 幻彩碰撞 | `match3` | 已接入 |
-| 贪吃蛇 / 俄罗斯方块 | `snake` / `tetris` | 占位，未接入 |
+| 数字方舟 | `2048` | 已接入 |
 
 ## 技术栈
 
@@ -46,7 +46,18 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 启动后 `init_db()` 只会**建表**。首次或清空数据库后，需导入业务种子（与前端 `GAME_SEED_CONFIG` 一致），例如在 `game-hub` 已执行 `npm run export:seed` 的前提下：
 
 ```powershell
-curl.exe -sS -X POST http://127.0.0.1:8000/api/game-hub/admin/config/import-game-seed `
+# 合并导入（默认：仅新增/更新，不删库内多余项）
+curl.exe -sS -X POST "http://127.0.0.1:8000/api/game-hub/admin/config/import-game-seed?importMode=merge" `
+  -H "Content-Type: application/json" `
+  --data-binary @..\game-hub\dist\game-seed.json
+
+# 全量逻辑覆盖（软删 + 禁用种子未提及的配置，适合线上运维）
+curl.exe -sS -X POST "http://127.0.0.1:8000/api/game-hub/admin/config/import-game-seed?importMode=full&deleteMode=logical" `
+  -H "Content-Type: application/json" `
+  --data-binary @..\game-hub\dist\game-seed.json
+
+# 全量物理覆盖（仅开发/测试；物理删除种子未提及项）
+curl.exe -sS -X POST "http://127.0.0.1:8000/api/game-hub/admin/config/import-game-seed?importMode=full&deleteMode=physical" `
   -H "Content-Type: application/json" `
   --data-binary @..\game-hub\dist\game-seed.json
 ```

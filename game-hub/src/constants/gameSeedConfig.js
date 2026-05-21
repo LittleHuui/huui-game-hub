@@ -32,6 +32,14 @@ export const GAME_SEED_CONFIG = {
       icon: '💥',
       basePrice: 1200,
       enabled: true
+    },
+    {
+      propCode: 'game2048_clear_cell',
+      propName: '清除锤',
+      description: '清除一个数字格子，并扣除该格子对应的游戏分数',
+      icon: '🔨',
+      basePrice: 1000,
+      enabled: true
     }
   ],
   games: [
@@ -111,30 +119,6 @@ export const GAME_SEED_CONFIG = {
           }
         }
       ]
-    },
-    {
-      gameCode: 'snake',
-      gameName: '贪吃蛇',
-      gameSubName: 'Snake Battle',
-      supportOnline: true,
-      enabled: true,
-      sortNo: 3,
-      config: {},
-      difficulties: [],
-      clientConfigs: [],
-      propRules: []
-    },
-    {
-      gameCode: 'tetris',
-      gameName: '俄罗斯方块',
-      gameSubName: 'Tetris Battle',
-      supportOnline: true,
-      enabled: true,
-      sortNo: 4,
-      config: {},
-      difficulties: [],
-      clientConfigs: [],
-      propRules: []
     },
     {
       gameCode: 'match3',
@@ -285,6 +269,77 @@ export const GAME_SEED_CONFIG = {
             radius: 1,
             shape: 'square',
             chainAfterUse: true
+          }
+        }
+      ]
+    },
+    {
+      gameCode: '2048',
+      gameName: '数字方舟',
+      gameSubName: '2048 Ark',
+      supportOnline: false,
+      enabled: true,
+      sortNo: 3,
+      config: {
+        featureFlags: {
+          leaderboard: true,
+          shop: true,
+          inventory: true,
+          offline: true,
+          onlineBattle: false
+        },
+        ranking: {
+          enabled: true,
+          candidateLimit: 1000,
+          modes: {
+            classic: {
+              primaryMetric: 'score',
+              orderDirection: 'desc',
+              tieBreakers: [
+                { metric: 'maxTile', orderDirection: 'desc' },
+                { metric: 'moves', orderDirection: 'asc' },
+                { metric: 'durationMs', orderDirection: 'asc' },
+                { metric: 'createdAt', orderDirection: 'asc' }
+              ]
+            }
+          }
+        }
+      },
+      difficulties: [
+        {
+          difficultyCode: 'standard',
+          difficultyName: '标准',
+          enabled: true,
+          sortNo: 1,
+          config: {
+            rows: 4,
+            cols: 4,
+            modes: {
+              classic: {
+                propUseLimits: [{ propCode: 'game2048_clear_cell', maxUse: 2 }]
+              }
+            },
+            settlement: {
+              rewardRate: 0.02,
+              minReward: 0
+            }
+          }
+        }
+      ],
+      clientConfigs: [],
+      propRules: [
+        {
+          propCode: 'game2048_clear_cell',
+          sortNo: 1,
+          price: 1000,
+          maxUsePerMatch: 2,
+          triggerType: 'manual_select_cell',
+          effectType: 'clear_cell',
+          enabled: true,
+          rule: {
+            selectTarget: 'cell',
+            consumeOnUse: true,
+            noSpawnAfterUse: true
           }
         }
       ]
