@@ -1,5 +1,5 @@
 # ---------- 前端构建 ----------
-FROM node:22.22.0-alpine AS frontend-build
+FROM crpi-ao151px1a1enkjia.cn-hangzhou.personal.cr.aliyuncs.com/wang_huui/node:22.22.0-alpine AS frontend-build
 
 WORKDIR /build/game-hub
 
@@ -15,7 +15,7 @@ ENV VITE_API_BASE=
 RUN npm run build && npm run export:seed
 
 # ---------- 运行镜像 ----------
-FROM python:3.8.11-slim-bullseye
+FROM crpi-ao151px1a1enkjia.cn-hangzhou.personal.cr.aliyuncs.com/wang_huui/python:3.8.11-slim-bullseye
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nginx supervisor \
