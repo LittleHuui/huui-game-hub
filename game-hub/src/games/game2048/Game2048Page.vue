@@ -76,16 +76,16 @@
       </template>
     </GamePlayLayout>
 
-    <Game2048ResultModal
+    <GameResultModal
       :visible="resultModal.visible"
-      :score="resultModal.score"
-      :reward="resultModal.reward"
-      :moves="resultModal.moves"
-      :max-tile="resultModal.maxTile"
-      :reached2048="resultModal.reached2048"
-      :clear-cell-uses="resultModal.clearCellUses"
-      :score-penalty="resultModal.scorePenalty"
-      :game-over="resultModal.gameOver"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :result-type="resultModal.resultType"
+      :stats="resultModal.stats"
+      :rewards="resultModal.rewards"
+      :highlights="resultModal.highlights"
+      :actions="resultModal.actions"
+      @action="onResultModalAction"
       @close="resultModal.visible = false"
     />
   </div>
@@ -96,7 +96,7 @@ import './game2048.css';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import Game2048Board from './components/Game2048Board.vue';
 import Game2048Hud from './components/Game2048Hud.vue';
-import Game2048ResultModal from './components/Game2048ResultModal.vue';
+import GameResultModal from '../../components/game/GameResultModal.vue';
 import GamePlayLayout from '../../components/game/GamePlayLayout.vue';
 import GameConfigPanel from '../../components/game/GameConfigPanel.vue';
 import GameShopPanel from '../../components/game/GameShopPanel.vue';
@@ -169,14 +169,13 @@ const clearingTileId = ref(null);
 
 const resultModal = reactive({
   visible: false,
-  score: 0,
-  reward: 0,
-  moves: 0,
-  maxTile: 0,
-  reached2048: false,
-  clearCellUses: 0,
-  scorePenalty: 0,
-  gameOver: true
+  title: '本局结算',
+  subtitle: '',
+  resultType: 'neutral',
+  stats: [],
+  rewards: [],
+  highlights: [],
+  actions: []
 });
 
 let timerId = null;
@@ -696,16 +695,65 @@ async function settleGame(naturalGameOver) {
   }
 
   gameStatus.value = 'ended';
-  resultModal.visible = true;
-  resultModal.score = score.value;
-  resultModal.reward = reward;
-  resultModal.moves = moves.value;
-  resultModal.maxTile = maxTile.value;
-  resultModal.reached2048 = reached2048Flag.value;
-  resultModal.clearCellUses = clearCellUses.value;
-  resultModal.scorePenalty = scorePenalty.value;
-  resultModal.gameOver = naturalGameOver;
+  openResultModal(naturalGameOver, reward);
   gameMessage.value = naturalGameOver ? '无可移动方向，对局结束' : '对局已结束';
+}
+
+/**
+ * @param {boolean} naturalGameOver
+ * @param {number} reward
+ */
+function openResultModal(naturalGameOver, reward) {
+  const reached = reached2048Flag.value;
+  const highlights = [
+    { label: '达成 2048', value: reached ? '是' : '否' },
+    { label: '清除锤使用次数', value: clearCellUses.value }
+  ];
+  if (scorePenalty.value > 0) {
+    highlights.push({ label: '清除锤扣分', value: scorePenalty.value });
+  }
+  Object.assign(resultModal, {
+    visible: true,
+    title: '本局结算',
+    subtitle: naturalGameOver ? '无可移动方向，对局结束' : '对局已结束',
+    resultType: reached ? 'success' : naturalGameOver ? 'failed' : 'neutral',
+    stats: [
+      { label: '最终分数', value: score.value },
+      { label: '最大数字', value: maxTile.value },
+      { label: '移动次数', value: moves.value },
+      { label: '用时', value: formatDurationMmSs(elapsedSec.value) }
+    ],
+    rewards: [{ label: '平台积分', value: `+${reward}` }],
+    highlights,
+    actions: [
+      { key: 'restart', label: '再来一局', type: 'primary', disabled: false },
+      { key: 'close', label: '关闭', type: 'secondary', disabled: false }
+    ]
+  });
+}
+
+/**
+ * @param {string} actionKey
+ */
+function onResultModalAction(actionKey) {
+  if (actionKey === 'restart') {
+    startOrRestartGame();
+    return;
+  }
+  if (actionKey === 'close') {
+    resultModal.visible = false;
+  }
+}
+
+/**
+ * @param {number} totalSec
+ * @returns {string}
+ */
+function formatDurationMmSs(totalSec) {
+  const sec = Math.max(0, Math.floor(totalSec));
+  const minutes = Math.floor(sec / 60);
+  const seconds = sec % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 /**

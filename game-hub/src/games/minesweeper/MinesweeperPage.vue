@@ -107,6 +107,19 @@
       @confirm="confirmReviveOffer"
       @decline="declineReviveOffer"
     />
+
+    <GameResultModal
+      :visible="resultModal.visible"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :result-type="resultModal.resultType"
+      :stats="resultModal.stats"
+      :rewards="resultModal.rewards"
+      :highlights="resultModal.highlights"
+      :actions="resultModal.actions"
+      @action="onResultModalAction"
+      @close="resultModal.visible = false"
+    />
   </div>
 </template>
 
@@ -116,6 +129,7 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import MinesweeperHud from './components/MinesweeperHud.vue';
 import MinesweeperReviveModal from './components/MinesweeperReviveModal.vue';
 import MinesweeperBattlePanel from './components/MinesweeperBattlePanel.vue';
+import GameResultModal from '../../components/game/GameResultModal.vue';
 import GamePlayLayout from '../../components/game/GamePlayLayout.vue';
 import GameConfigPanel from '../../components/game/GameConfigPanel.vue';
 import GameShopPanel from '../../components/game/GameShopPanel.vue';
@@ -195,6 +209,16 @@ const reviveOffer = reactive({
 });
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200);
 const neighborRingKeys = ref({});
+const resultModal = reactive({
+  visible: false,
+  title: '本局结算',
+  subtitle: '',
+  resultType: 'neutral',
+  stats: [],
+  rewards: [],
+  highlights: [],
+  actions: []
+});
 
 const isGameInProgress = computed(() => gameStarted.value && !gameOver.value);
 
@@ -521,11 +545,85 @@ function safeStartHint() {
   }
 }
 
+/**
+ * @returns {number}
+ */
+function countFlaggedCells() {
+  let count = 0;
+  for (const cell of flatBoard.value) {
+    if (cell?.flagged) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * @param {'win'|'fail'|'end'} kind
+ * @param {number} rewardScore
+ */
+function openResultModal(kind, rewardScore) {
+  const resultLabel = kind === 'win' ? '胜利' : kind === 'fail' ? '失败' : '已结束';
+  const resultType = kind === 'win' ? 'success' : kind === 'fail' ? 'failed' : 'neutral';
+  const subtitle =
+    kind === 'win'
+      ? '恭喜通关，本局成绩已记录'
+      : kind === 'fail'
+        ? '踩雷失败，本局成绩已记录'
+        : '对局已手动结束';
+  Object.assign(resultModal, {
+    visible: true,
+    title: '本局结算',
+    subtitle,
+    resultType,
+    stats: [
+      { label: '结果', value: resultLabel },
+      { label: '难度', value: difficultyLabel.value },
+      { label: '用时', value: formatDurationMmSs(timer.value) },
+      { label: '剩余地雷数', value: remainMines.value },
+      { label: '翻开格子数', value: Svc.countOpened(board.value, rows.value, cols.value) },
+      { label: '标记数', value: countFlaggedCells() }
+    ],
+    rewards: [{ label: '平台积分', value: `+${rewardScore}` }],
+    highlights: [{ label: '是否进入排行榜', value: kind === 'win' ? '是' : '否' }],
+    actions: [
+      { key: 'restart', label: '再来一局', type: 'primary', disabled: false },
+      { key: 'close', label: '关闭', type: 'secondary', disabled: false }
+    ]
+  });
+}
+
+/**
+ * @param {string} actionKey
+ */
+function onResultModalAction(actionKey) {
+  if (actionKey === 'restart') {
+    resultModal.visible = false;
+    startOrRestartGame();
+    return;
+  }
+  if (actionKey === 'close') {
+    resultModal.visible = false;
+  }
+}
+
+/**
+ * @param {number} totalSec
+ * @returns {string}
+ */
+function formatDurationMmSs(totalSec) {
+  const sec = Math.max(0, Math.floor(totalSec));
+  const minutes = Math.floor(sec / 60);
+  const seconds = sec % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 async function endCurrentGame() {
   if (!isGameInProgress.value) {
     return;
   }
   stopTimer();
+  gameOver.value = true;
   const correctFlags = Svc.countCorrectFlags(board.value, rows.value, cols.value);
   const endScore = correctFlags * 3;
   await session.settleEnd({
@@ -536,7 +634,8 @@ async function endCurrentGame() {
     propUses: currentMatchPropUses.value,
     sessionId: matchSessionId.value
   });
-  startGame(`已结束对局，获得 ${endScore} 积分`);
+  openResultModal('end', endScore);
+  gameMessage.value = `已结束对局，获得 ${endScore} 积分`;
 }
 
 async function failGame() {
@@ -548,7 +647,6 @@ async function failGame() {
   boardShake.value = true;
   const correctFlags = Svc.countCorrectFlags(board.value, rows.value, cols.value);
   const failScore = correctFlags * 3;
-  gameMessage.value = `游戏失败，获得 ${failScore} 积分`;
   await session.settleFail({
     score: failScore,
     difficultyCode: difficulty.value,
@@ -565,13 +663,14 @@ async function failGame() {
   setTimeout(() => {
     boardShake.value = false;
   }, 500);
+  openResultModal('fail', failScore);
+  gameMessage.value = `游戏失败，获得 ${failScore} 积分`;
 }
 
 async function winGame() {
   gameOver.value = true;
   gameWin.value = true;
   stopTimer();
-  const correctFlags = Svc.countCorrectFlags(board.value, rows.value, cols.value);
   const score = MINESWEEPER_PRESETS[difficulty.value].scoreWin;
   await session.settleWin({
     score,
@@ -581,6 +680,7 @@ async function winGame() {
     propUses: currentMatchPropUses.value,
     sessionId: matchSessionId.value
   });
+  openResultModal('win', score);
   gameMessage.value = `胜利！获得 ${score} 积分`;
   showToast('恭喜胜利', 'success');
 }

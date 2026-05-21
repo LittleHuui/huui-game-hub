@@ -86,14 +86,16 @@
       </template>
     </GamePlayLayout>
 
-    <Match3ResultModal
+    <GameResultModal
       :visible="resultModal.visible"
-      :mode="mode"
-      :score="resultModal.score"
-      :reward="resultModal.reward"
-      :moves="resultModal.moves"
-      :combo-max="resultModal.comboMax"
-      :dead-board="resultModal.deadBoard"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :result-type="resultModal.resultType"
+      :stats="resultModal.stats"
+      :rewards="resultModal.rewards"
+      :highlights="resultModal.highlights"
+      :actions="resultModal.actions"
+      @action="onResultModalAction"
       @close="resultModal.visible = false"
     />
   </div>
@@ -103,7 +105,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import Match3Board from './components/Match3Board.vue';
 import Match3Hud from './components/Match3Hud.vue';
-import Match3ResultModal from './components/Match3ResultModal.vue';
+import GameResultModal from '../../components/game/GameResultModal.vue';
 import GamePlayLayout from '../../components/game/GamePlayLayout.vue';
 import GameConfigPanel from '../../components/game/GameConfigPanel.vue';
 import GameShopPanel from '../../components/game/GameShopPanel.vue';
@@ -137,7 +139,10 @@ import { createGameSession } from '../../services/gameSessionService.js';
 import { activateGame } from '../../services/gameLifecycleService.js';
 import * as toastService from '../../services/toastService.js';
 import { usePlatformStore } from '../../stores/platformStore.js';
-import { getDefaultDifficultyCode } from '../../services/gameDifficultyService.js';
+import {
+  getDefaultDifficultyCode,
+  getDifficultyName
+} from '../../services/gameDifficultyService.js';
 
 const MATCH3 = 'match3';
 /** 统计区配色：0–9 | 主题名 | random */
@@ -172,11 +177,13 @@ const usedProps = reactive({
 });
 const resultModal = reactive({
   visible: false,
-  score: 0,
-  reward: 0,
-  moves: 0,
-  comboMax: 0,
-  deadBoard: false
+  title: '本局结算',
+  subtitle: '',
+  resultType: 'neutral',
+  stats: [],
+  rewards: [],
+  highlights: [],
+  actions: []
 });
 
 let timerId = null;
@@ -906,13 +913,65 @@ async function settleGame(deadBoard) {
     matchPayload,
     scorePayload: payload
   });
-  resultModal.visible = true;
-  resultModal.score = score.value;
-  resultModal.reward = reward;
-  resultModal.moves = moves.value;
-  resultModal.comboMax = comboMax.value;
-  resultModal.deadBoard = deadBoard;
+  openResultModal(deadBoard, reward);
   gameMessage.value = deadBoard ? '棋盘无解，对局结束' : '对局已结束';
+}
+
+/**
+ * @param {boolean} deadBoard
+ * @param {number} reward
+ */
+function openResultModal(deadBoard, reward) {
+  const timed = mode.value === 'timed';
+  const highlights = [
+    { label: '最大连击', value: comboMax.value },
+    { label: '洗牌道具', value: `${usedProps[MATCH3_PROP.SHUFFLE]} 次` },
+    { label: '炸弹道具', value: `${usedProps[MATCH3_PROP.BOMB]} 次` }
+  ];
+  Object.assign(resultModal, {
+    visible: true,
+    title: '本局结算',
+    subtitle: deadBoard ? '棋盘已无可用步数，对局结束' : '对局已结束',
+    resultType: deadBoard ? 'failed' : 'neutral',
+    stats: [
+      { label: '最终分数', value: score.value },
+      { label: '模式', value: timed ? '限时' : '无尽' },
+      { label: '难度', value: getDifficultyName(MATCH3, difficultyCode.value) },
+      { label: '用时', value: formatDurationMmSs(elapsedSec.value) },
+      { label: '步数', value: moves.value }
+    ],
+    rewards: [{ label: '平台积分', value: `+${reward}` }],
+    highlights,
+    actions: [
+      { key: 'restart', label: '再来一局', type: 'primary', disabled: false },
+      { key: 'close', label: '关闭', type: 'secondary', disabled: false }
+    ]
+  });
+}
+
+/**
+ * @param {string} actionKey
+ */
+function onResultModalAction(actionKey) {
+  if (actionKey === 'restart') {
+    resultModal.visible = false;
+    restartGame();
+    return;
+  }
+  if (actionKey === 'close') {
+    resultModal.visible = false;
+  }
+}
+
+/**
+ * @param {number} totalSec
+ * @returns {string}
+ */
+function formatDurationMmSs(totalSec) {
+  const sec = Math.max(0, Math.floor(totalSec));
+  const minutes = Math.floor(sec / 60);
+  const seconds = sec % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 /**
