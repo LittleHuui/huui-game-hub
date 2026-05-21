@@ -1,7 +1,7 @@
-"""管理配置导入单实体 upsert 服务。"""
+"""管理配置导入单实体 upsert 与清理服务。"""
 
 import json
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import new_entity_ids
 from app.modules.game.models import GameClientConfig, GameDefinition, GameDifficulty
@@ -86,6 +86,32 @@ class PropDefinitionImportEntityService:
         )
         return self._repository.add(entity), True
 
+    def list_all(self, *, active_only: bool = False) -> List[PropDefinition]:
+        """
+        列出全部道具定义。
+
+        :param active_only: 为 ``True`` 时仅返回未软删记录。
+        :return: 道具定义列表。
+        """
+        return self._repository.list_all(active_only=active_only)
+
+    def logical_disable(self, entity: PropDefinition) -> PropDefinition:
+        """
+        逻辑删除道具定义（软删 + 禁用）。
+
+        :param entity: 道具定义实体。
+        :return: 更新后的实体。
+        """
+        return self._repository.soft_delete(entity)
+
+    def physical_remove(self, entity: PropDefinition) -> None:
+        """
+        物理删除道具定义。
+
+        :param entity: 道具定义实体。
+        """
+        self._repository.physical_delete(entity)
+
 
 class GameDefinitionImportEntityService:
     """游戏定义导入 upsert。"""
@@ -144,6 +170,32 @@ class GameDefinitionImportEntityService:
         )
         return self._repository.add(entity), True
 
+    def list_all(self, *, active_only: bool = False) -> List[GameDefinition]:
+        """
+        列出全部游戏定义。
+
+        :param active_only: 为 ``True`` 时仅返回未软删记录。
+        :return: 游戏定义列表。
+        """
+        return self._repository.list_all(active_only=active_only)
+
+    def logical_disable(self, entity: GameDefinition) -> GameDefinition:
+        """
+        逻辑删除游戏定义（软删 + 禁用）。
+
+        :param entity: 游戏定义实体。
+        :return: 更新后的实体。
+        """
+        return self._repository.soft_delete(entity)
+
+    def physical_remove(self, entity: GameDefinition) -> None:
+        """
+        物理删除游戏定义。
+
+        :param entity: 游戏定义实体。
+        """
+        self._repository.physical_delete(entity)
+
 
 class GameDifficultyImportEntityService:
     """游戏难度导入 upsert。"""
@@ -201,6 +253,42 @@ class GameDifficultyImportEntityService:
         )
         return self._repository.add(entity), True
 
+    def list_by_game(self, game_code: str, *, active_only: bool = False) -> List[GameDifficulty]:
+        """
+        列出某游戏下全部难度配置。
+
+        :param game_code: 游戏编码。
+        :param active_only: 为 ``True`` 时仅返回未软删记录。
+        :return: 难度配置列表。
+        """
+        return self._repository.list_by_game(game_code, active_only=active_only)
+
+    def logical_disable(self, entity: GameDifficulty) -> GameDifficulty:
+        """
+        逻辑删除难度配置（软删 + 禁用）。
+
+        :param entity: 难度配置实体。
+        :return: 更新后的实体。
+        """
+        return self._repository.soft_delete(entity)
+
+    def physical_remove(self, entity: GameDifficulty) -> None:
+        """
+        物理删除难度配置。
+
+        :param entity: 难度配置实体。
+        """
+        self._repository.physical_delete(entity)
+
+    def physical_remove_by_game_code(self, game_code: str) -> int:
+        """
+        按游戏编码物理删除全部难度配置。
+
+        :param game_code: 游戏编码。
+        :return: 删除行数。
+        """
+        return self._repository.physical_delete_by_game_code(game_code)
+
 
 class GameClientConfigImportEntityService:
     """游戏客户端配置导入 upsert。"""
@@ -253,6 +341,42 @@ class GameClientConfigImportEntityService:
             deleted_at=None,
         )
         return self._repository.add(entity), True
+
+    def list_by_game(self, game_code: str, *, active_only: bool = False) -> List[GameClientConfig]:
+        """
+        列出某游戏下全部客户端配置。
+
+        :param game_code: 游戏编码。
+        :param active_only: 为 ``True`` 时仅返回未软删记录。
+        :return: 客户端配置列表。
+        """
+        return self._repository.list_by_game(game_code, active_only=active_only)
+
+    def logical_disable(self, entity: GameClientConfig) -> GameClientConfig:
+        """
+        逻辑删除客户端配置（软删 + 禁用）。
+
+        :param entity: 客户端配置实体。
+        :return: 更新后的实体。
+        """
+        return self._repository.soft_delete(entity)
+
+    def physical_remove(self, entity: GameClientConfig) -> None:
+        """
+        物理删除客户端配置。
+
+        :param entity: 客户端配置实体。
+        """
+        self._repository.physical_delete(entity)
+
+    def physical_remove_by_game_code(self, game_code: str) -> int:
+        """
+        按游戏编码物理删除全部客户端配置。
+
+        :param game_code: 游戏编码。
+        :return: 删除行数。
+        """
+        return self._repository.physical_delete_by_game_code(game_code)
 
 
 class GamePropRuleImportEntityService:
@@ -322,3 +446,58 @@ class GamePropRuleImportEntityService:
             deleted_at=None,
         )
         return self._repository.add(entity), True
+
+    def list_by_game(self, game_code: str, *, active_only: bool = False) -> List[GamePropRule]:
+        """
+        列出某游戏下全部道具规则。
+
+        :param game_code: 游戏编码。
+        :param active_only: 为 ``True`` 时仅返回未软删记录。
+        :return: 道具规则列表。
+        """
+        return self._repository.list_by_game(game_code, active_only=active_only)
+
+    def list_by_prop_code(self, prop_code: str, *, active_only: bool = False) -> List[GamePropRule]:
+        """
+        列出引用指定道具编码的全部游戏规则。
+
+        :param prop_code: 道具编码。
+        :param active_only: 为 ``True`` 时仅返回未软删记录。
+        :return: 道具规则列表。
+        """
+        return self._repository.list_by_prop_code(prop_code, active_only=active_only)
+
+    def logical_disable(self, entity: GamePropRule) -> GamePropRule:
+        """
+        逻辑删除道具规则（软删 + 禁用）。
+
+        :param entity: 道具规则实体。
+        :return: 更新后的实体。
+        """
+        return self._repository.soft_delete(entity)
+
+    def physical_remove(self, entity: GamePropRule) -> None:
+        """
+        物理删除道具规则。
+
+        :param entity: 道具规则实体。
+        """
+        self._repository.physical_delete(entity)
+
+    def physical_remove_by_game_code(self, game_code: str) -> int:
+        """
+        按游戏编码物理删除全部道具规则。
+
+        :param game_code: 游戏编码。
+        :return: 删除行数。
+        """
+        return self._repository.physical_delete_by_game_code(game_code)
+
+    def physical_remove_by_prop_code(self, prop_code: str) -> int:
+        """
+        按道具编码物理删除全部游戏规则。
+
+        :param prop_code: 道具编码。
+        :return: 删除行数。
+        """
+        return self._repository.physical_delete_by_prop_code(prop_code)

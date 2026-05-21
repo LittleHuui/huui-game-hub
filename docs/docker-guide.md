@@ -103,13 +103,32 @@ Invoke-RestMethod http://127.0.0.1/api/game-hub/health
 在容器已启动、健康检查通过后，从本机执行（使用 Windows 自带的 `curl.exe` 管道，避免手工复制 JSON）：
 
 ```powershell
+# 合并导入（默认，推荐日常/首次灌库）
 curl.exe -sS http://127.0.0.1/game-seed.json `
-  | curl.exe -sS -X POST http://127.0.0.1/api/game-hub/admin/config/import-game-seed `
+  | curl.exe -sS -X POST "http://127.0.0.1/api/game-hub/admin/config/import-game-seed?importMode=merge" `
+  -H "Content-Type: application/json" `
+  --data-binary @-
+
+# 全量逻辑覆盖（种子与库对齐：软删 + 禁用多余项）
+curl.exe -sS http://127.0.0.1/game-seed.json `
+  | curl.exe -sS -X POST "http://127.0.0.1/api/game-hub/admin/config/import-game-seed?importMode=full&deleteMode=logical" `
+  -H "Content-Type: application/json" `
+  --data-binary @-
+
+# 全量物理覆盖（仅开发/测试环境）
+curl.exe -sS http://127.0.0.1/game-seed.json `
+  | curl.exe -sS -X POST "http://127.0.0.1/api/game-hub/admin/config/import-game-seed?importMode=full&deleteMode=physical" `
   -H "Content-Type: application/json" `
   --data-binary @-
 ```
 
 成功时响应体 `code` 为 `0`。之后大厅、商城、排行榜等依赖库内配置的能力才会正常。
+
+| importMode | deleteMode | 行为摘要 |
+|---|---|---|
+| `merge`（默认） | 任意（不生效） | 仅 upsert 种子中的项，不删库内多余配置 |
+| `full` | `logical`（默认） | upsert 后，对种子未提及项设置 `deletedAt` 且 `enabled=false` |
+| `full` | `physical` | upsert 后物理删除种子未提及项（先子表后父表） |
 
 本地非 Docker 开发：在 `game-hub` 目录执行 `npm run export:seed`，再对 `http://127.0.0.1:8000` 等后端地址 POST 同上接口，请求体可使用生成的 `game-hub/dist/game-seed.json` 文件（`curl --data-binary @game-hub/dist/game-seed.json`）。
 
@@ -142,8 +161,15 @@ curl -s http://127.0.0.1/api/game-hub/health
 与 Windows 相同，空库需在健康检查通过后导入种子（静态文件 `http://127.0.0.1/game-seed.json`）：
 
 ```bash
+# 合并导入（默认）
 curl -sS http://127.0.0.1/game-seed.json \
-  | curl -sS -X POST http://127.0.0.1/api/game-hub/admin/config/import-game-seed \
+  | curl -sS -X POST 'http://127.0.0.1/api/game-hub/admin/config/import-game-seed?importMode=merge' \
+    -H 'Content-Type: application/json' \
+    --data-binary @-
+
+# 全量逻辑覆盖
+curl -sS http://127.0.0.1/game-seed.json \
+  | curl -sS -X POST 'http://127.0.0.1/api/game-hub/admin/config/import-game-seed?importMode=full&deleteMode=logical' \
     -H 'Content-Type: application/json' \
     --data-binary @-
 ```

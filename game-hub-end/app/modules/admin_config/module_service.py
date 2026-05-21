@@ -22,6 +22,52 @@ from app.modules.admin_config.schemas import (
     ImportGameSeedResponse,
 )
 from app.modules.prop.entity_service import PropDefinitionEntityService
+from app.modules.game.models import GameClientConfig, GameDifficulty
+from app.modules.prop.models import GamePropRule
+
+
+IMPORT_MODE_MERGE = "merge"
+IMPORT_MODE_FULL = "full"
+DELETE_MODE_LOGICAL = "logical"
+DELETE_MODE_PHYSICAL = "physical"
+_VALID_IMPORT_MODES = frozenset({IMPORT_MODE_MERGE, IMPORT_MODE_FULL})
+_VALID_DELETE_MODES = frozenset({DELETE_MODE_LOGICAL, DELETE_MODE_PHYSICAL})
+
+
+def _resolve_import_params(import_mode: str, delete_mode: str) -> Tuple[str, str]:
+    """
+    校验并规范化导入模式参数。
+
+    :param import_mode: 导入模式（merge / full）。
+    :param delete_mode: 删除模式（logical / physical），仅 full 时生效。
+    :return: 规范化后的 ``(import_mode, delete_mode)``。
+    :raises BizException: 参数非法时抛出。
+    """
+    mode = (import_mode or "").strip().lower()
+    delete = (delete_mode or "").strip().lower()
+    if mode not in _VALID_IMPORT_MODES:
+        raise BizException(
+            ErrorCode.PARAM_ERROR,
+            message="importMode 无效，仅支持 merge、full",
+        )
+    if delete not in _VALID_DELETE_MODES:
+        raise BizException(
+            ErrorCode.PARAM_ERROR,
+            message="deleteMode 无效，仅支持 logical、physical",
+        )
+    return mode, delete
+
+
+def _client_config_composite(difficulty_code: Optional[str], client_type: str) -> Tuple[str, str]:
+    """
+    生成客户端配置唯一键（与请求校验一致）。
+
+    :param difficulty_code: 难度编码，可空。
+    :param client_type: 客户端类型。
+    :return: ``(difficultyKey, clientType)`` 元组。
+    """
+    diff_key = difficulty_code if difficulty_code is not None else ""
+    return diff_key, client_type
 
 
 def _ensure_json_serializable(value: Any, field_label: str) -> None:
@@ -89,16 +135,30 @@ class AdminConfigModuleService:
         self._prop_rule_import = prop_rule_import
         self._prop_definitions = prop_definitions
 
-    def import_game_seed(self, request: ImportGameSeedRequest) -> ImportGameSeedResponse:
+    def import_game_seed(
+        self,
+        request: ImportGameSeedRequest,
+        import_mode: str = IMPORT_MODE_MERGE,
+        delete_mode: str = DELETE_MODE_LOGICAL,
+    ) -> ImportGameSeedResponse:
         """
-        导入统一游戏种子配置（upsert，不删除未提及记录）。
+        导入统一游戏种子配置。
+
+        merge：仅 upsert 种子中的记录，不处理库内多余项。
+        full：upsert 后按 deleteMode 清理库内种子未提及的配置。
 
         :param request: 导入请求体。
+        :param import_mode: 导入模式 ``merge`` / ``full``。
+        :param delete_mode: 删除模式 ``logical`` / ``physical``，仅 ``full`` 时生效。
         :return: 导入统计结果。
         :raises BizException: 校验失败时抛出。
         """
+        resolved_mode, resolved_delete = _resolve_import_params(import_mode, delete_mode)
         self._validate_request(request)
-        result = ImportGameSeedResponse()
+        result = ImportGameSeedResponse(
+            importMode=resolved_mode,
+            deleteMode=resolved_delete,
+        )
         request_prop_codes = {item.propCode for item in request.props}
 
         for prop_item in request.props:
@@ -125,7 +185,161 @@ class AdminConfigModuleService:
         for game_item in request.games:
             self._import_game(game_item, request_prop_codes, result)
 
+        if resolved_mode == IMPORT_MODE_FULL:
+            self._purge_absent_from_seed(request, resolved_delete)
+
         return result
+
+    def _purge_absent_from_seed(
+        self,
+        request: ImportGameSeedRequest,
+        delete_mode: str,
+    ) -> None:
+        """
+        全量导入后清理种子未提及的库内配置。
+
+        :param request: 导入请求体。
+        :param delete_mode: 删除模式 ``logical`` / ``physical``。
+        """
+        seed_prop_codes = {item.propCode for item in request.props}
+        seed_game_codes = {item.gameCode for item in request.games}
+        game_nested: Dict[str, Dict[str, Any]] = {}
+        for game_item in request.games:
+            game_nested[game_item.gameCode] = {
+                "difficulties": {d.difficultyCode for d in game_item.difficulties},
+                "client_configs": {
+                    _client_config_composite(c.difficultyCode, c.clientType)
+                    for c in game_item.clientConfigs
+                },
+                "prop_rules": {r.propCode for r in game_item.propRules},
+            }
+
+        for db_game in self._game_import.list_all(active_only=False):
+            if db_game.game_code not in seed_game_codes:
+                self._remove_game_tree(db_game.game_code, delete_mode)
+
+        for game_code, nested in game_nested.items():
+            self._purge_game_nested_orphans(game_code, nested, delete_mode)
+
+        for db_prop in self._prop_import.list_all(active_only=False):
+            if db_prop.prop_code not in seed_prop_codes:
+                self._remove_prop_orphans(db_prop.prop_code, delete_mode)
+
+    def _purge_game_nested_orphans(
+        self,
+        game_code: str,
+        nested: Dict[str, Any],
+        delete_mode: str,
+    ) -> None:
+        """
+        清理某游戏下种子未提及的嵌套配置。
+
+        :param game_code: 游戏编码。
+        :param nested: 种子内嵌套键集合。
+        :param delete_mode: 删除模式。
+        """
+        for db_rule in self._prop_rule_import.list_by_game(game_code, active_only=False):
+            if db_rule.prop_code not in nested["prop_rules"]:
+                self._remove_prop_rule(db_rule, delete_mode)
+
+        for db_client in self._client_config_import.list_by_game(game_code, active_only=False):
+            composite = _client_config_composite(db_client.difficulty_code, db_client.client_type)
+            if composite not in nested["client_configs"]:
+                self._remove_client_config(db_client, delete_mode)
+
+        for db_diff in self._difficulty_import.list_by_game(game_code, active_only=False):
+            if db_diff.difficulty_code not in nested["difficulties"]:
+                self._remove_difficulty(db_diff, delete_mode)
+
+    def _remove_game_tree(self, game_code: str, delete_mode: str) -> None:
+        """
+        删除整棵游戏配置树（含嵌套项）。
+
+        物理删除顺序：game_prop_rule → game_client_config → game_difficulty → game_definition。
+
+        :param game_code: 游戏编码。
+        :param delete_mode: 删除模式。
+        """
+        if delete_mode == DELETE_MODE_PHYSICAL:
+            self._prop_rule_import.physical_remove_by_game_code(game_code)
+            self._client_config_import.physical_remove_by_game_code(game_code)
+            self._difficulty_import.physical_remove_by_game_code(game_code)
+            for db_game in self._game_import.list_all(active_only=False):
+                if db_game.game_code == game_code:
+                    self._game_import.physical_remove(db_game)
+                    break
+            return
+
+        for db_rule in self._prop_rule_import.list_by_game(game_code, active_only=False):
+            self._prop_rule_import.logical_disable(db_rule)
+        for db_client in self._client_config_import.list_by_game(game_code, active_only=False):
+            self._client_config_import.logical_disable(db_client)
+        for db_diff in self._difficulty_import.list_by_game(game_code, active_only=False):
+            self._difficulty_import.logical_disable(db_diff)
+        for db_game in self._game_import.list_all(active_only=False):
+            if db_game.game_code == game_code:
+                self._game_import.logical_disable(db_game)
+                break
+
+    def _remove_prop_orphans(self, prop_code: str, delete_mode: str) -> None:
+        """
+        删除种子未提及的道具定义及其关联规则。
+
+        物理删除顺序：game_prop_rule（按 prop_code）→ prop_definition。
+
+        :param prop_code: 道具编码。
+        :param delete_mode: 删除模式。
+        """
+        if delete_mode == DELETE_MODE_PHYSICAL:
+            self._prop_rule_import.physical_remove_by_prop_code(prop_code)
+            for db_prop in self._prop_import.list_all(active_only=False):
+                if db_prop.prop_code == prop_code:
+                    self._prop_import.physical_remove(db_prop)
+                    break
+            return
+
+        for db_rule in self._prop_rule_import.list_by_prop_code(prop_code, active_only=False):
+            self._prop_rule_import.logical_disable(db_rule)
+        for db_prop in self._prop_import.list_all(active_only=False):
+            if db_prop.prop_code == prop_code:
+                self._prop_import.logical_disable(db_prop)
+                break
+
+    def _remove_prop_rule(self, entity: GamePropRule, delete_mode: str) -> None:
+        """
+        删除单条游戏道具规则。
+
+        :param entity: 道具规则实体。
+        :param delete_mode: 删除模式。
+        """
+        if delete_mode == DELETE_MODE_PHYSICAL:
+            self._prop_rule_import.physical_remove(entity)
+        else:
+            self._prop_rule_import.logical_disable(entity)
+
+    def _remove_client_config(self, entity: GameClientConfig, delete_mode: str) -> None:
+        """
+        删除单条客户端配置。
+
+        :param entity: 客户端配置实体。
+        :param delete_mode: 删除模式。
+        """
+        if delete_mode == DELETE_MODE_PHYSICAL:
+            self._client_config_import.physical_remove(entity)
+        else:
+            self._client_config_import.logical_disable(entity)
+
+    def _remove_difficulty(self, entity: GameDifficulty, delete_mode: str) -> None:
+        """
+        删除单条难度配置。
+
+        :param entity: 难度配置实体。
+        :param delete_mode: 删除模式。
+        """
+        if delete_mode == DELETE_MODE_PHYSICAL:
+            self._difficulty_import.physical_remove(entity)
+        else:
+            self._difficulty_import.logical_disable(entity)
 
     def _validate_request(self, request: ImportGameSeedRequest) -> None:
         """

@@ -1188,6 +1188,24 @@
 
 - **POST** `/admin/config/import-game-seed`
 - **完整路径示例**：`POST /api/game-hub/admin/config/import-game-seed`
+
+**Query 参数：**
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|:---:|---|---|
+| importMode | string | 否 | `merge` | `merge`：仅新增与更新种子中出现的项；`full`：全量覆盖（另清理库内种子未提及项） |
+| deleteMode | string | 否 | `logical` | `logical`：软删（`deletedAt`）并 `enabled=false`；`physical`：物理删除。**仅 `importMode=full` 时生效** |
+
+**调用示例：**
+
+| 场景 | 请求 |
+|---|---|
+| 合并导入（默认） | `POST .../import-game-seed?importMode=merge` |
+| 全量逻辑覆盖 | `POST .../import-game-seed?importMode=full&deleteMode=logical` |
+| 全量物理覆盖（开发/测试） | `POST .../import-game-seed?importMode=full&deleteMode=physical` |
+
+非法 `importMode` / `deleteMode` 返回 `10002`（PARAM_ERROR），不会静默回退默认值。
+
 - **Body：**
 
 ```json
@@ -1257,8 +1275,19 @@
 
 #### 处理规则摘要
 
+**`importMode=merge`（默认）**
+
 - 对 `prop_definition`、`game_definition`、`game_difficulty`、`game_client_config`、`game_prop_rule` 执行 **upsert**（按各表唯一键）。
-- **不删除**请求中未提及的旧配置；需禁用请传 `enabled: false`。
+- 种子中存在、库中存在 → 更新；种子中存在、库中不存在 → 新增；库中存在、种子中不存在 → **不处理**。
+- 需单独禁用某项时，在种子中传 `enabled: false`。
+
+**`importMode=full`**
+
+- 先执行与 merge 相同的 upsert。
+- 再按 `deleteMode` 清理库内**种子未提及**的配置：
+  - `logical`：设置 `deletedAt`（毫秒时间戳）且 `enabled=false`（表均有 `TimestampMixin.deleted_at` 与 `enabled` 字段）。
+  - `physical`：物理删除；顺序为 `game_prop_rule` → `game_client_config` → `game_difficulty` → `game_definition`（按游戏）；清理道具时为 `game_prop_rule`（按 `propCode`）→ `prop_definition`。**仅建议开发/测试环境使用。**
+
 - 新增记录 `createdAt` / `updatedAt` 均为当前毫秒时间戳；更新记录保留原 `createdAt`。
 - 请求内不允许重复：`propCode`、`gameCode`、同游戏下 `difficultyCode`、同游戏下 `difficultyCode+clientType`、同游戏下 `propCode`。
 - 关键编码字段不得为空白：`gameCode`、`propCode`、`difficultyCode`、`clientType`。
@@ -1452,6 +1481,8 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
+| importMode | string | 本次实际使用的导入模式（`merge` / `full`） |
+| deleteMode | string | 本次实际使用的删除模式（`logical` / `physical`；merge 时仅回显，不执行清理） |
 | importedGames | number | 新增游戏数 |
 | importedDifficulties | number | 新增难度数 |
 | importedClientConfigs | number | 新增客户端配置数 |

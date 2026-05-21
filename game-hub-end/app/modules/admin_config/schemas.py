@@ -89,6 +89,8 @@ class ImportGameSeedResponse(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
+    importMode: str = "merge"
+    deleteMode: str = "logical"
     importedGames: int = 0
     importedDifficulties: int = 0
     importedClientConfigs: int = 0
