@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/littlehuui/huui-game-hub:latest
+    image: crpi-ao151px1a1enkjia.cn-hangzhou.personal.cr.aliyuncs.com/wang_huui/game-hub:latest
     container_name: huui-game-hub
     ports:
       - "80:80"
