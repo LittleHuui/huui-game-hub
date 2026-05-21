@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------- 前端构建 ----------
-FROM node:22.22.0-alpine AS frontend-build
+FROM registry.cn-hangzhou.aliyuncs.com/library/node:22.22.0-alpine AS frontend-build
 
 WORKDIR /build/game-hub
 
@@ -17,7 +17,7 @@ ENV VITE_API_BASE=
 RUN npm run build && npm run export:seed
 
 # ---------- 运行镜像 ----------
-FROM python:3.8.11-slim-bullseye
+FROM registry.cn-hangzhou.aliyuncs.com/library/python:3.8.11-slim-bullseye
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nginx supervisor \
