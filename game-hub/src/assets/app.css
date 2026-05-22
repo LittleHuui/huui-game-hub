@@ -1,5 +1,6 @@
 @import './base.css';
 @import './styles/game-buttons.css';
+@import './styles/game-controls.css';
 @import './game-layout.css';
 
 /**
@@ -94,19 +95,30 @@
   text-overflow: ellipsis;
 }
 
-/* 顶栏游戏列表 / 弹窗与记录列表等共用窄滚动条（Chromium + Firefox） */
-.hub-scrollbar {
+/* 全站滚动条：与顶栏游戏横向列表视觉一致（Chromium + Firefox） */
+html {
   scrollbar-gutter: stable;
+}
+
+html,
+body,
+.hub-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(125, 211, 252, 0.55) rgba(255, 255, 255, 0.06);
+}
+
+.hub-scrollbar {
+  scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
 }
 
+*::-webkit-scrollbar,
 .hub-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 5px;
 }
 
+*::-webkit-scrollbar-track,
 .hub-scrollbar::-webkit-scrollbar-track {
   margin: 6px;
   border-radius: 999px;
@@ -117,6 +129,7 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
+*::-webkit-scrollbar-thumb,
 .hub-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(59, 130, 246, 0.75), rgba(125, 211, 252, 0.9));
@@ -124,11 +137,13 @@
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
 }
 
+*::-webkit-scrollbar-thumb:hover,
 .hub-scrollbar::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(90deg, rgba(96, 165, 250, 0.95), rgba(186, 230, 253, 1));
   box-shadow: 0 0 14px rgba(125, 211, 252, 0.5);
 }
 
+/* 顶栏游戏横向列表：轨道左右留白与列表对齐 */
 .site-topbar-games.hub-scrollbar::-webkit-scrollbar-track {
   margin: 0 6px;
 }

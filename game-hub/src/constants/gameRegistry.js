@@ -5,6 +5,8 @@ export const GAME_REGISTRY = {
     logo: '💣',
     name: '雷区突围',
     subName: 'Mine Rush',
+    /** 前端页面模板（不导出到 seed） */
+    viewTemplate: 'light-single',
     supportOnline: false,
     modes: ['single'],
     capabilities: {
@@ -19,6 +21,8 @@ export const GAME_REGISTRY = {
     logo: '🌈',
     name: '幻彩碰撞',
     subName: 'Color Crush',
+    /** 前端页面模板（不导出到 seed） */
+    viewTemplate: 'light-single',
     supportOnline: false,
     modes: ['timed', 'endless'],
     capabilities: {
@@ -34,6 +38,8 @@ export const GAME_REGISTRY = {
     logo: '🔢',
     name: '数字方舟',
     subName: '2048 Ark',
+    /** 前端页面模板（不导出到 seed） */
+    viewTemplate: 'light-single',
     supportOnline: false,
     modes: ['classic'],
     capabilities: {

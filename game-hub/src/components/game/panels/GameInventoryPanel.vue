@@ -9,7 +9,7 @@
         :class="{ 'is-exhausted': item.quantity <= 0 }"
       >
         <span v-if="item.icon" class="game-shop-icon game-inventory-icon" :title="item.name">{{ item.icon }}</span>
-        <span v-else class="game-shop-icon game-shop-icon--fallback game-inventory-icon" aria-hidden="true">?</span>
+        <span v-else class="game-shop-icon game-shop-icon--placeholder game-inventory-icon" aria-hidden="true">?</span>
         <span class="game-inventory-name">{{ item.name }}</span>
         <span class="game-inventory-count">×{{ item.quantity }}</span>
         <button
@@ -31,10 +31,10 @@
 
 <script setup>
 import { computed } from 'vue';
-import { useShopStore } from '../../stores/shopStore.js';
-import { useUserStore } from '../../stores/userStore.js';
-import { useInventoryStore } from '../../stores/inventoryStore.js';
-import { quantitiesForUserGame } from '../../utils/inventoryQuantity.js';
+import { useShopStore } from '../../../stores/shopStore.js';
+import { useUserStore } from '../../../stores/userStore.js';
+import { useInventoryStore } from '../../../stores/inventoryStore.js';
+import { quantitiesForUserGame } from '../../../utils/inventoryQuantity.js';
 
 const props = defineProps({
   gameCode: {

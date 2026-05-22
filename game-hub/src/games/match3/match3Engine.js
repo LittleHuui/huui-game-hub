@@ -223,10 +223,10 @@ export function createBoard(config) {
     }
   }
 
-  const fallback = Array.from({ length: rows }, (_, row) =>
+  const baselineBoard = Array.from({ length: rows }, (_, row) =>
     Array.from({ length: cols }, (_, col) => createCell(codes[(row + col) % codes.length], row, col))
   );
-  return shuffleBoard(fallback, config).board;
+  return shuffleBoard(baselineBoard, config).board;
 }
 
 /**

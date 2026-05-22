@@ -18,8 +18,8 @@ import {
   GAME_STAT_THEME_COUNT,
   gameStatThemeVars,
   resolveGameStatThemeIndex
-} from '../../constants/gameStatThemes.js';
-import { GAME_STAT_THEME_KEY, useGameStatThemeSlot } from '../../composables/useGameStatTheme.js';
+} from '../../../constants/gameStatThemes.js';
+import { GAME_STAT_THEME_KEY, useGameStatThemeSlot } from '../../../composables/useGameStatTheme.js';
 
 defineProps({
   items: { type: Array, default: () => [] },

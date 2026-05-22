@@ -1,6 +1,5 @@
 <template>
   <div
-    v-if="!paused"
     class="board board--adaptive"
     :style="wrapStyle"
     @mouseleave="$emit('clear-ring')"
@@ -35,14 +34,15 @@
 <script setup>
 import { computed } from 'vue';
 import * as Svc from './minesweeperService.js';
+import { computeCellPx } from './minesweeperBoardLayout.js';
 
 const props = defineProps({
   board: { type: Array, default: () => [] },
   rows: { type: Number, default: 9 },
   cols: { type: Number, default: 9 },
   windowWidth: { type: Number, default: 1200 },
-  neighborRingKeys: { type: Object, default: () => ({}) },
-  paused: { type: Boolean, default: false }
+  availableWidth: { type: Number, default: 0 },
+  neighborRingKeys: { type: Object, default: () => ({}) }
 });
 
 defineEmits(['cell-click', 'cell-right', 'ring-enter', 'ring-leave', 'clear-ring']);
@@ -50,18 +50,7 @@ defineEmits(['cell-click', 'cell-right', 'ring-enter', 'ring-leave', 'clear-ring
 const flat = computed(() => Svc.flattenBoard(props.board, props.rows, props.cols));
 
 const wrapStyle = computed(() => {
-  const gap = 2;
-  const boardHorizontalPad = 20;
-  const w = props.windowWidth || 1200;
-  const isStacked = w <= 900;
-  const outer = isStacked ? w - 80 : w - 420;
-  const innerForCells = Math.max(120, outer - boardHorizontalPad);
-  const raw = (innerForCells - (props.cols - 1) * gap) / props.cols;
-  let cellPx = Math.floor(raw);
-  if (!Number.isFinite(cellPx)) {
-    cellPx = 14;
-  }
-  cellPx = Math.min(32, Math.max(12, cellPx));
+  const cellPx = computeCellPx(props.availableWidth, props.cols, props.windowWidth);
   return {
     '--cell': `${cellPx}px`,
     gridTemplateColumns: `repeat(${props.cols}, ${cellPx}px)`

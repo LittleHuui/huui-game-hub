@@ -36,11 +36,11 @@
 
 <script setup>
 import { computed, watch, onMounted } from 'vue';
-import { hasGameCapability } from '../../constants/gameRegistry.js';
-import { useRankingStore } from '../../stores/rankingStore.js';
-import { usePlatformStore } from '../../stores/platformStore.js';
-import * as rankingService from '../../services/rankingService.js';
-import { formatDisplayTime } from '../../utils/formatTime.js';
+import { hasGameCapability } from '../../../constants/gameRegistry.js';
+import { useRankingStore } from '../../../stores/rankingStore.js';
+import { usePlatformStore } from '../../../stores/platformStore.js';
+import * as rankingService from '../../../services/rankingService.js';
+import { formatDisplayTime } from '../../../utils/formatTime.js';
 
 const props = defineProps({
   gameCode: {

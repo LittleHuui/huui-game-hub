@@ -13,7 +13,8 @@
 
 <script setup>
 import { computed } from 'vue';
-import { useGameStatTheme, useGameStatThemeSlot } from '../../composables/useGameStatTheme.js';
+import { useGameStatTheme, useGameStatThemeSlot } from '../../../composables/useGameStatTheme.js';
+import { GAME_STAT_TONE } from '../controls/gameControlEnums.js';
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -27,8 +28,8 @@ const props = defineProps({
   },
   tone: {
     type: String,
-    default: 'default',
-    validator: (v) => ['default', 'accent', 'muted'].includes(v)
+    default: 'neutral',
+    validator: (v) => Object.values(GAME_STAT_TONE).includes(v) || v === 'default'
   },
   themeSeed: { type: [Number, String], default: undefined },
   themeOffset: { type: Number, default: 0 }
@@ -37,5 +38,8 @@ const props = defineProps({
 useGameStatThemeSlot();
 const { themeVars } = useGameStatTheme(props.themeSeed, props.themeOffset);
 const layoutClass = computed(() => `game-stat-card--${props.layout}`);
-const toneClass = computed(() => `game-stat-card--${props.tone}`);
+const toneClass = computed(() => {
+  const resolved = props.tone === 'default' ? GAME_STAT_TONE.NEUTRAL : props.tone;
+  return `game-stat-card--${resolved}`;
+});
 </script>

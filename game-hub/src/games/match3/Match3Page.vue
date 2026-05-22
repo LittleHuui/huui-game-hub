@@ -1,29 +1,26 @@
 <template>
   <div>
-    <GamePlayLayout>
-      <template #config>
-        <GameConfigPanel :title="configPanelTitle">
-          <Match3Hud
-            section="config"
-            :mode="mode"
-            :score="score"
-            :moves="moves"
-            :combo-max="comboMax"
-            :remaining-sec="remainingSec"
-            :elapsed-sec="elapsedSec"
-            :game-status="gameStatus"
-            :locked="isGameInProgress"
-            :restart-disabled="!canRestartGame"
-            message=""
-            :prop-quotas="propQuotas"
-            :theme-seed="statThemeSeed"
-            @change-mode="changeMode"
-            @restart="restartGame"
-            @end="endCurrentGame"
-          />
-        </GameConfigPanel>
-      </template>
-
+    <LightSingleGameLayout
+      :game-title="layoutGameTitle"
+      :game-subtitle="layoutGameSubtitle"
+      :game-description="layoutGameDescription"
+      :game-status-text="layoutGameStatusText"
+      :control-fields="controlFields"
+      :action-items="actionItems"
+      :show-shop="true"
+      @field-change="onControlFieldChange"
+      @action="onLayoutAction"
+      :show-ranking="true"
+      :show-inventory="true"
+      :game-code="MATCH3"
+      :mode="mode"
+      :difficulty-code="difficultyCode"
+      board-title="对局信息"
+      board-frame-title="对局区域"
+      board-subtitle="拖动相邻方块交换以消除"
+      :paused="isPaused"
+      @resume="resumeGame"
+    >
       <template #shop>
         <GameShopPanel :game-code="MATCH3" :session-id="matchSessionId" />
       </template>
@@ -38,40 +35,32 @@
         />
       </template>
 
-      <template #hud>
-        <GameHudPanel>
-          <Match3Hud
-            section="hud"
-            :mode="mode"
-            :score="score"
-            :moves="moves"
-            :combo-max="comboMax"
-            :remaining-sec="remainingSec"
-            :elapsed-sec="elapsedSec"
-            :game-status="gameStatus"
-            :locked="isGameInProgress"
-            :message="gameMessage"
-            :prop-quotas="propQuotas"
-            :theme-seed="statThemeSeed"
-          />
-        </GameHudPanel>
+      <template #match-stats>
+        <GameMatchStatsPanel
+          :stats="matchStats"
+          :quotas="matchQuotas"
+          :message="gameMessage"
+          :theme-seed="statThemeSeed"
+        />
       </template>
 
       <template #board>
-        <div v-if="chainHint" class="match3-chain-hint">{{ chainHint }}</div>
-        <Match3Board
-          :board="board"
-          :items="gameConfig.items || []"
-          :active-tool="activeTool"
-          :cell-visuals="cellVisuals"
-          :cell-size="clientConfig.cellSize || 44"
-          :input-locked="inputLocked"
-          :swap-ms="animationConfig.swapMs"
-          :remove-ms="animationConfig.removeMs"
-          :drop-ms="animationConfig.dropMs"
-          @swap-request="handleSwapRequest"
-          @cell-click="handleBombCellClick"
-        />
+        <div class="match3-board-wrap">
+          <div v-if="chainHint" class="match3-chain-hint">{{ chainHint }}</div>
+          <Match3Board
+            :board="board"
+            :items="gameConfig.items || []"
+            :active-tool="activeTool"
+            :cell-visuals="cellVisuals"
+            :cell-size="clientConfig.cellSize || 44"
+            :input-locked="inputLocked"
+            :swap-ms="animationConfig.swapMs"
+            :remove-ms="animationConfig.removeMs"
+            :drop-ms="animationConfig.dropMs"
+            @swap-request="handleSwapRequest"
+            @cell-click="handleBombCellClick"
+          />
+        </div>
       </template>
 
       <template #inventory>
@@ -84,7 +73,7 @@
           @use-prop="useProp"
         />
       </template>
-    </GamePlayLayout>
+    </LightSingleGameLayout>
 
     <GameResultModal
       :visible="resultModal.visible"
@@ -104,14 +93,19 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import Match3Board from './components/Match3Board.vue';
-import Match3Hud from './components/Match3Hud.vue';
-import GameResultModal from '../../components/game/GameResultModal.vue';
-import GamePlayLayout from '../../components/game/GamePlayLayout.vue';
-import GameConfigPanel from '../../components/game/GameConfigPanel.vue';
-import GameShopPanel from '../../components/game/GameShopPanel.vue';
-import GameRankingPanel from '../../components/game/GameRankingPanel.vue';
-import GameHudPanel from '../../components/game/GameHudPanel.vue';
-import GameInventoryPanel from '../../components/game/GameInventoryPanel.vue';
+import { LightSingleGameLayout } from '../../game-templates/light-single/index.js';
+import {
+  GameMatchStatsPanel,
+  GameResultModal,
+  GameShopPanel,
+  GameRankingPanel,
+  GameInventoryPanel,
+  GAME_ACTION_SIZE,
+  GAME_ACTION_TYPE,
+  GAME_CONTROL_TYPE,
+  GAME_STAT_TONE
+} from '../../components/game/index.js';
+import { getGameConfig } from '../../constants/gameRegistry.js';
 import {
   applyBomb,
   canSwap,
@@ -135,6 +129,7 @@ import {
 } from './match3Config.js';
 import { useGamePropQuantities } from '../../composables/useGamePropQuantities.js';
 import { useGameSwitchLock } from '../../composables/useGameSwitchLock.js';
+import { usePageVisibilityPause } from '../../composables/usePageVisibilityPause.js';
 import { createGameSession } from '../../services/gameSessionService.js';
 import { activateGame } from '../../services/gameLifecycleService.js';
 import * as toastService from '../../services/toastService.js';
@@ -150,7 +145,24 @@ const statThemeSeed = 'random';
 const difficultyCode = computed(
   () => getMatch3DifficultyConfig().difficultyCode || getDefaultDifficultyCode(MATCH3)
 );
-const configPanelTitle = '游戏信息';
+const registryGame = getGameConfig(MATCH3);
+const layoutGameTitle = computed(() => registryGame?.name || '幻彩碰撞');
+const layoutGameSubtitle = computed(() => registryGame?.subName || 'Color Crush');
+const layoutGameDescription = computed(() => {
+  const diffName = getDifficultyName(MATCH3, difficultyCode.value);
+  return mode.value === 'timed' ? `限时模式 · ${diffName}` : `无限模式 · ${diffName}`;
+});
+const layoutGameStatusText = computed(() => {
+  if (isPaused.value && gameStatus.value === 'playing') {
+    return '对局已暂停';
+  }
+  const map = {
+    idle: '尚未开始对局',
+    playing: '对局进行中',
+    ended: '对局已结束'
+  };
+  return map[gameStatus.value] || '';
+});
 const CELL_GAP = 6;
 const session = createGameSession({ gameCode: MATCH3 });
 const platform = usePlatformStore();
@@ -187,6 +199,7 @@ const resultModal = reactive({
 });
 
 let timerId = null;
+const isPaused = ref(false);
 /** 棋盘动画/结算中（交换、下落、连击、补满等） */
 const animating = ref(false);
 /** 连锁消除与计分结算中 */
@@ -206,13 +219,23 @@ const isGameInProgress = computed(
   () => gameStatus.value === 'playing' || gameStatus.value === 'paused'
 );
 const canBoardInteract = computed(
-  () => gameStatus.value === 'idle' || gameStatus.value === 'playing'
+  () =>
+    !isPaused.value && (gameStatus.value === 'idle' || gameStatus.value === 'playing')
 );
 const inputLocked = computed(
   () => !canBoardInteract.value || animating.value || resultModal.visible
 );
-const canUseProps = computed(() => gameStatus.value === 'playing' && !animating.value);
+const canUseProps = computed(
+  () => gameStatus.value === 'playing' && !isPaused.value && !animating.value
+);
 const canRestartGame = computed(() => !animating.value && !boardResolving.value);
+const canPauseGame = computed(
+  () =>
+    gameStatus.value === 'playing' &&
+    !animating.value &&
+    !boardResolving.value &&
+    !inputLocked.value
+);
 const rankingSubtitle = computed(() =>
   mode.value === 'timed'
     ? '限时模式 · 全服前十名（按成绩排序）'
@@ -235,7 +258,7 @@ const inventoryUseLabels = computed(() => ({
   [MATCH3_PROP.BOMB]: activeTool.value === 'bomb' ? '取消' : '使用'
 }));
 
-const propQuotas = computed(() => [
+const matchQuotas = computed(() => [
   {
     label: '洗牌',
     used: propRemaining(MATCH3_PROP.SHUFFLE),
@@ -250,7 +273,167 @@ const propQuotas = computed(() => [
   }
 ]);
 
+const controlFields = computed(() => [
+  {
+    key: 'mode',
+    label: '模式',
+    type: GAME_CONTROL_TYPE.RADIO,
+    value: mode.value,
+    options: [
+      { label: '限时', value: 'timed' },
+      { label: '无限', value: 'endless' }
+    ],
+    disabled: isGameInProgress.value
+  }
+]);
+
+const canEndGame = computed(
+  () => gameStatus.value === 'playing' && !animating.value && !boardResolving.value
+);
+
+const actionItems = computed(() => {
+  const items = [];
+  const status = gameStatus.value;
+  const ended = status === 'ended';
+  const playing = status === 'playing';
+  const paused = playing && isPaused.value;
+  const settling = animating.value || boardResolving.value;
+
+  if (ended) {
+    items.push({
+      key: 'playAgain',
+      label: '再来一局',
+      type: GAME_ACTION_TYPE.PRIMARY,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: settling
+    });
+    return items;
+  }
+
+  if (status === 'idle') {
+    return items;
+  }
+
+  if (playing && !isPaused.value) {
+    items.push({
+      key: 'pause',
+      label: '暂停游戏',
+      type: GAME_ACTION_TYPE.PAUSE,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: !canPauseGame.value || settling
+    });
+  }
+
+  if (paused) {
+    items.push({
+      key: 'resume',
+      label: '继续游戏',
+      type: GAME_ACTION_TYPE.RESUME,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: settling
+    });
+  }
+
+  if (playing || paused) {
+    items.push({
+      key: 'restart',
+      label: '重新开始',
+      type: GAME_ACTION_TYPE.SECONDARY,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: !canRestartGame.value || settling
+    });
+    items.push({
+      key: 'end',
+      label: '结束对局',
+      type: GAME_ACTION_TYPE.DANGER,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: !canEndGame.value || settling
+    });
+  }
+
+  return items;
+});
+
+const matchStats = computed(() => {
+  const timed = mode.value === 'timed';
+  return [
+    {
+      key: 'score',
+      label: '得分',
+      value: score.value,
+      tone: GAME_STAT_TONE.ACCENT,
+      icon: '★'
+    },
+    {
+      key: 'time',
+      label: timed ? '剩余' : '用时',
+      value: timed ? `${remainingSec.value}s` : formatDurationMmSs(elapsedSec.value),
+      helper: timed ? '倒计时' : '累计',
+      icon: '⏱'
+    },
+    {
+      key: 'moves',
+      label: '步数',
+      value: moves.value,
+      icon: '↔'
+    },
+    {
+      key: 'comboMax',
+      label: '最大连击',
+      value: comboMax.value,
+      icon: '⚡'
+    },
+    {
+      key: 'mode',
+      label: '模式',
+      value: timed ? '限时' : '无限',
+      tone: GAME_STAT_TONE.MUTED
+    }
+  ];
+});
+
 useGameSwitchLock(isGameInProgress);
+
+/**
+ * 左侧配置项变更（模式切换）。
+ * @param {{ key: string; value: unknown }} payload
+ */
+function onControlFieldChange(payload) {
+  if (payload.key === 'mode' && payload.value !== mode.value) {
+    changeMode(payload.value);
+  }
+}
+
+/**
+ * 轻量单人模板操作按钮回调。
+ * @param {string} actionKey
+ */
+function onLayoutAction(actionKey) {
+  if (actionKey === 'playAgain') {
+    playAgain();
+    return;
+  }
+  if (actionKey === 'restart') {
+    restartGame();
+    return;
+  }
+  if (actionKey === 'pause') {
+    pauseGame();
+    return;
+  }
+  if (actionKey === 'resume') {
+    resumeGame();
+    return;
+  }
+  if (actionKey === 'end') {
+    endCurrentGame();
+  }
+}
 
 /**
  * @param {number} ms
@@ -340,6 +523,9 @@ function stopTimer() {
 function startTimer() {
   stopTimer();
   timerId = setInterval(() => {
+    if (isPaused.value || gameStatus.value !== 'playing') {
+      return;
+    }
     elapsedSec.value++;
     if (mode.value === 'timed') {
       remainingSec.value = Math.max(0, remainingSec.value - 1);
@@ -349,6 +535,45 @@ function startTimer() {
     }
   }, 1000);
 }
+
+/**
+ * 暂停对局：停止计时并锁定新输入（不打断进行中的动画）。
+ */
+function pauseGame() {
+  if (gameStatus.value !== 'playing' || isPaused.value) {
+    return;
+  }
+  if (!canPauseGame.value) {
+    showToast('请等待当前动画完成', 'warning');
+    return;
+  }
+  isPaused.value = true;
+  activeTool.value = '';
+  gameMessage.value = '游戏已暂停';
+}
+
+/**
+ * 恢复对局。
+ */
+function resumeGame() {
+  if (!isPaused.value) {
+    return;
+  }
+  isPaused.value = false;
+  if (gameStatus.value === 'playing') {
+    gameMessage.value = '对局已继续';
+  }
+}
+
+usePageVisibilityPause({
+  shouldPause: () => canPauseGame.value,
+  pause: () => {
+    pauseGame();
+    if (isPaused.value) {
+      gameMessage.value = '页面隐藏，游戏已暂停';
+    }
+  }
+});
 
 /**
  * 重置运行时状态
@@ -371,6 +596,7 @@ function resetRuntime(message) {
   usedProps[MATCH3_PROP.BOMB] = 0;
   animating.value = false;
   boardResolving.value = false;
+  isPaused.value = false;
   gameMessage.value = message || '拖动方块交换即可开始';
 }
 
@@ -412,7 +638,20 @@ function restartGame() {
     return;
   }
   resolutionGeneration++;
+  isPaused.value = false;
   setupBoard('已重新生成棋盘，拖动方块交换即可开始');
+}
+
+/**
+ * 已结束对局：再来一局（回到 idle，首次有效交换自动开局）。
+ */
+function playAgain() {
+  if (animating.value || boardResolving.value) {
+    showToast('棋盘结算中，请稍候', 'warning');
+    return;
+  }
+  resultModal.visible = false;
+  restartGame();
 }
 
 /**
@@ -891,6 +1130,7 @@ async function settleGame(deadBoard) {
   }
   ensureSession();
   gameStatus.value = 'ended';
+  isPaused.value = false;
   stopTimer();
   const reward = rewardForScore();
   const payload = {
@@ -955,7 +1195,7 @@ function openResultModal(deadBoard, reward) {
 function onResultModalAction(actionKey) {
   if (actionKey === 'restart') {
     resultModal.visible = false;
-    restartGame();
+    playAgain();
     return;
   }
   if (actionKey === 'close') {
@@ -974,27 +1214,6 @@ function formatDurationMmSs(totalSec) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-/**
- * 页面可见性变化时暂停/恢复计时。
- */
-function onVisibilityChange() {
-  if (document.hidden) {
-    if (gameStatus.value !== 'playing') {
-      return;
-    }
-    stopTimer();
-    gameStatus.value = 'paused';
-    gameMessage.value = '页面隐藏，计时已暂停';
-    return;
-  }
-  if (gameStatus.value !== 'paused') {
-    return;
-  }
-  gameStatus.value = 'playing';
-  startTimer();
-  gameMessage.value = '对局已继续';
-}
-
 onMounted(async () => {
   platform.setCurrentGame(MATCH3);
   await activateGame(MATCH3, {
@@ -1003,35 +1222,44 @@ onMounted(async () => {
     includeInventory: true
   });
   setupBoard('限时模式，首次有效交换后开始倒计时');
-  document.addEventListener('visibilitychange', onVisibilityChange);
 });
 
 onBeforeUnmount(() => {
   stopTimer();
-  document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
 
 <style scoped>
+.match3-board-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
 .match3-chain-hint {
   position: absolute;
   top: 0;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2;
   padding: 8px 16px;
   border-radius: 999px;
   color: #fff7ed;
   background: rgba(249, 115, 22, 0.86);
   animation: match3Hint 420ms ease;
+  pointer-events: none;
 }
 
 @keyframes match3Hint {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.9);
+    transform: translateX(-50%) translateY(10px) scale(0.9);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 </style>

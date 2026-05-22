@@ -10,7 +10,7 @@
 
 <script setup>
 import { computed, inject, toRef } from 'vue';
-import { GAME_STAT_THEME_KEY, provideGameStatTheme } from '../../composables/useGameStatTheme.js';
+import { GAME_STAT_THEME_KEY, provideGameStatTheme } from '../../../composables/useGameStatTheme.js';
 
 const props = defineProps({
   columns: { type: Number, default: 0 },

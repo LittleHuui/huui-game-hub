@@ -1,67 +1,14 @@
 /* 扫雷模块样式（仅由 MinesweeperPage 引入） */
 
-.difficulty-select {
-    position: relative;
-    max-width: 180px;
-}
-
-.difficulty-trigger {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, rgba(59, 130, 246, .9), rgba(37, 99, 235, .85));
-    color: white;
-    cursor: pointer;
-    user-select: none;
-    font-size: 14px;
-}
-
-.difficulty-arrow {
-    margin-right: 6px;
-    transition: transform .2s ease;
-}
-
-.difficulty-select.open .difficulty-arrow {
-    transform: rotate(180deg);
-}
-
-.difficulty-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    right: 0;
-    z-index: 5;
-    overflow: hidden;
-    border-radius: 14px;
-    background: #1e293b;
-    border: 1px solid rgba(255, 255, 255, .16);
-    box-shadow: 0 16px 36px rgba(0, 0, 0, .28);
-}
-
-.difficulty-option {
-    padding: 10px 14px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background .2s ease;
-}
-
-.difficulty-option:hover,
-.difficulty-option.active {
-    background: rgba(59, 130, 246, .35);
-}
-
 .board {
     display: inline-grid;
     gap: 2px;
     background: #111827;
     padding: 10px;
     border-radius: 14px;
-    overflow: auto;
     max-width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
 }
 
 .board--adaptive .cell {
@@ -142,22 +89,72 @@
 }
 
 .battle-panel {
-    display: flex;
-    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
     overflow: visible;
 }
 
-.pause-placeholder {
-    min-height: min(42vh, 360px);
-    max-height: 52vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: clamp(20px, 4vw, 28px);
-    font-weight: bold;
-    background: #0f172a;
-    border-radius: 14px;
+.minesweeper-auto-revive-btn {
+    position: relative;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(30, 41, 59, 0.85);
+    color: rgba(226, 232, 240, 0.95);
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.minesweeper-auto-revive-btn:hover:not(:disabled) {
+    background: rgba(51, 65, 85, 0.95);
+    border-color: rgba(186, 230, 253, 0.4);
+}
+
+.minesweeper-auto-revive-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.minesweeper-auto-revive-btn--active {
+    background: linear-gradient(135deg, rgba(8, 145, 178, 0.55), rgba(5, 150, 105, 0.45));
+    border-color: rgba(34, 211, 238, 0.4);
+    color: #ecfeff;
+}
+
+.minesweeper-auto-revive-btn--active::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 8px;
+    padding: 1px;
+    background: linear-gradient(90deg,
+            rgba(34, 211, 238, 0.12),
+            rgba(34, 211, 238, 0.65),
+            rgba(52, 211, 153, 0.55),
+            rgba(34, 211, 238, 0.12));
+    background-size: 280% 100%;
+    animation: minesweeper-auto-revive-border-flow 2.6s linear infinite;
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+@keyframes minesweeper-auto-revive-border-flow {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    100% {
+        background-position: 280% 50%;
+    }
 }
 
 @keyframes shake {
@@ -216,9 +213,9 @@
 
 /* 对局面板动效 */
 .battle-panel.shake {
-  animation: shake 0.35s;
+    animation: shake 0.35s;
 }
 
 .battle-panel.victory {
-  animation: glow 1s infinite alternate;
+    animation: glow 1s infinite alternate;
 }

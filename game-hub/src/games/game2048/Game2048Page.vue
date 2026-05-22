@@ -1,20 +1,25 @@
 <template>
   <div>
-    <GamePlayLayout>
-      <template #config>
-        <GameConfigPanel title="游戏信息">
-          <Game2048Hud
-            section="config"
-            :game-status="gameStatus"
-            :restart-disabled="!canStartOrRestartGame"
-            :show-end-game="shouldShowEndGameButton"
-            :can-end-game="canEndGame"
-            @start-or-restart="startOrRestartGame"
-            @end="endCurrentGame"
-          />
-        </GameConfigPanel>
-      </template>
-
+    <LightSingleGameLayout
+      :game-title="layoutGameTitle"
+      :game-subtitle="layoutGameSubtitle"
+      :game-description="layoutGameDescription"
+      :game-status-text="layoutGameStatusText"
+      :control-fields="controlFields"
+      :action-items="actionItems"
+      :show-shop="true"
+      :show-ranking="true"
+      :show-inventory="true"
+      :game-code="GAME2048_CODE"
+      :mode="GAME2048_MODE"
+      :difficulty-code="difficultyCode"
+      board-title="对局信息"
+      board-frame-title="对局区域"
+      board-subtitle="方向键 / WASD / 滑动操作"
+      :paused="isPaused"
+      @action="onLayoutAction"
+      @resume="resumeGame"
+    >
       <template #shop>
         <GameShopPanel :game-code="GAME2048_CODE" :session-id="matchSessionId" />
       </template>
@@ -29,39 +34,31 @@
         />
       </template>
 
-      <template #hud>
-        <GameHudPanel>
-          <Game2048Hud
-            section="hud"
-            :score="score"
-            :moves="moves"
-            :max-tile="maxTile"
-            :elapsed-sec="elapsedSec"
-            :clear-cell-uses="clearCellUses"
-            :score-penalty="scorePenalty"
-            :reward-score="rewardScorePreview"
-            :reached2048="reached2048Flag"
-            :message="gameMessage"
-            :prop-quotas="propQuotas"
-            theme-seed="2048"
-          />
-        </GameHudPanel>
+      <template #match-stats>
+        <GameMatchStatsPanel
+          :stats="matchStats"
+          :quotas="matchQuotas"
+          :message="matchStatsMessage"
+          theme-seed="2048"
+        />
       </template>
 
       <template #board>
-        <Game2048Board
-          ref="boardComponentRef"
-          :tiles="tiles"
-          :select-mode="isPropSelecting"
-          :move-input-locked="moveInputLocked"
-          :board-style="boardAnimationStyle"
-          :slide-offsets="slideOffsets"
-          :new-tile-ids="newTileIds"
-          :merged-tile-ids="mergedTileIds"
-          :clearing-tile-id="clearingTileId"
-          @move="handleMoveInput"
-          @cell-select="handleClearCellSelect"
-        />
+        <div class="game2048-wrap">
+          <Game2048Board
+            ref="boardComponentRef"
+            :tiles="tiles"
+            :select-mode="isPropSelecting"
+            :move-input-locked="moveInputLocked"
+            :board-style="boardAnimationStyle"
+            :slide-offsets="slideOffsets"
+            :new-tile-ids="newTileIds"
+            :merged-tile-ids="mergedTileIds"
+            :clearing-tile-id="clearingTileId"
+            @move="handleMoveInput"
+            @cell-select="handleClearCellSelect"
+          />
+        </div>
       </template>
 
       <template #inventory>
@@ -74,7 +71,7 @@
           @use-prop="useProp"
         />
       </template>
-    </GamePlayLayout>
+    </LightSingleGameLayout>
 
     <GameResultModal
       :visible="resultModal.visible"
@@ -95,14 +92,18 @@
 import './game2048.css';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import Game2048Board from './components/Game2048Board.vue';
-import Game2048Hud from './components/Game2048Hud.vue';
-import GameResultModal from '../../components/game/GameResultModal.vue';
-import GamePlayLayout from '../../components/game/GamePlayLayout.vue';
-import GameConfigPanel from '../../components/game/GameConfigPanel.vue';
-import GameShopPanel from '../../components/game/GameShopPanel.vue';
-import GameRankingPanel from '../../components/game/GameRankingPanel.vue';
-import GameHudPanel from '../../components/game/GameHudPanel.vue';
-import GameInventoryPanel from '../../components/game/GameInventoryPanel.vue';
+import { LightSingleGameLayout } from '../../game-templates/light-single/index.js';
+import {
+  GameMatchStatsPanel,
+  GameResultModal,
+  GameShopPanel,
+  GameRankingPanel,
+  GameInventoryPanel,
+  GAME_ACTION_SIZE,
+  GAME_ACTION_TYPE,
+  GAME_STAT_TONE
+} from '../../components/game/index.js';
+import { getGameConfig } from '../../constants/gameRegistry.js';
 import {
   applyScorePenalty,
   calcClearPenalty,
@@ -131,6 +132,7 @@ import {
 } from './game2048Config.js';
 import { useGamePropQuantities } from '../../composables/useGamePropQuantities.js';
 import { useGameSwitchLock } from '../../composables/useGameSwitchLock.js';
+import { usePageVisibilityPause } from '../../composables/usePageVisibilityPause.js';
 import { createGameSession } from '../../services/gameSessionService.js';
 import { activateGame } from '../../services/gameLifecycleService.js';
 import * as toastService from '../../services/toastService.js';
@@ -166,6 +168,7 @@ const slideOffsets = ref({});
 const newTileIds = ref({});
 const mergedTileIds = ref({});
 const clearingTileId = ref(null);
+const isPaused = ref(false);
 
 const resultModal = reactive({
   visible: false,
@@ -200,6 +203,7 @@ const isOperationLocked = computed(
 const canAcceptMoveInput = computed(
   () =>
     gameStatus.value === 'playing' &&
+    !isPaused.value &&
     !isOperationLocked.value &&
     !isPropSelecting.value &&
     !resultModal.visible
@@ -210,25 +214,29 @@ const moveInputLocked = computed(
   () =>
     gameStatus.value === 'ended' ||
     gameStatus.value === 'settling' ||
+    isPaused.value ||
     isOperationLocked.value ||
     isPropSelecting.value ||
     resultModal.visible
 );
 
-const canStartOrRestartGame = computed(
+const canRestartGame = computed(
   () => !isOperationLocked.value && gameStatus.value !== 'settling'
 );
 
-const shouldShowEndGameButton = computed(
-  () => gameStatus.value === 'playing' || gameStatus.value === 'settling'
+const canPlayAgain = computed(
+  () => gameStatus.value === 'ended' && !isOperationLocked.value
 );
 
 const canEndGame = computed(
-  () => gameStatus.value === 'playing' && !isOperationLocked.value
+  () =>
+    (gameStatus.value === 'playing' || gameStatus.value === 'settling') &&
+    !isOperationLocked.value
 );
 
 const canUseClearCell = computed(
   () =>
+    !isPaused.value &&
     !isOperationLocked.value &&
     gameStatus.value === 'playing' &&
     propRemaining(GAME2048_PROP.CLEAR_CELL) > 0
@@ -244,7 +252,9 @@ const inventoryUseLabels = computed(() => ({
     activeTool.value === GAME2048_PROP.CLEAR_CELL ? '取消' : '使用'
 }));
 
-const propQuotas = computed(() => [
+const controlFields = computed(() => []);
+
+const matchQuotas = computed(() => [
   {
     label: '清除锤',
     used: propRemaining(GAME2048_PROP.CLEAR_CELL),
@@ -252,7 +262,177 @@ const propQuotas = computed(() => [
   }
 ]);
 
+const matchStats = computed(() => [
+  {
+    key: 'score',
+    label: '当前分数',
+    value: score.value,
+    tone: GAME_STAT_TONE.ACCENT,
+    icon: '★'
+  },
+  {
+    key: 'maxTile',
+    label: '最大数字',
+    value: maxTile.value,
+    icon: '▣'
+  },
+  {
+    key: 'moves',
+    label: '移动次数',
+    value: moves.value,
+    icon: '↔'
+  },
+  {
+    key: 'duration',
+    label: '用时',
+    value: formatDurationMmSs(elapsedSec.value),
+    helper: '累计',
+    icon: '⏱'
+  },
+  {
+    key: 'clearUses',
+    label: '清除锤使用次数',
+    value: clearCellUses.value,
+    icon: '🔨'
+  },
+  {
+    key: 'penalty',
+    label: '扣除分数',
+    value: scorePenalty.value,
+    tone: GAME_STAT_TONE.MUTED
+  },
+  {
+    key: 'reward',
+    label: '预计平台积分',
+    value: rewardScorePreview.value,
+    helper: '预计',
+    icon: '◎'
+  }
+]);
+
+const matchStatsMessage = computed(() => {
+  if (reached2048Flag.value) {
+    return gameMessage.value
+      ? `已达成 2048 · ${gameMessage.value}`
+      : '已达成 2048';
+  }
+  return gameMessage.value;
+});
+
+const registryGame = getGameConfig(GAME2048_CODE);
+
+const layoutGameTitle = computed(() => registryGame?.name || '数字方舟');
+const layoutGameSubtitle = computed(() => registryGame?.subName || '2048 Ark');
+const layoutGameDescription = computed(() => '经典模式 · 标准难度');
+
+const layoutGameStatusText = computed(() => {
+  if (isPaused.value && gameStatus.value === 'playing') {
+    return '对局已暂停';
+  }
+  const map = {
+    idle: '尚未开始对局',
+    playing: '对局进行中',
+    settling: '正在结算…',
+    ended: '对局已结束'
+  };
+  return map[gameStatus.value] || '';
+});
+
+const actionItems = computed(() => {
+  const items = [];
+  const status = gameStatus.value;
+  const settling = status === 'settling';
+  const ended = status === 'ended';
+  const playing = status === 'playing';
+  const paused = playing && isPaused.value;
+
+  if (ended) {
+    items.push({
+      key: 'playAgain',
+      label: '再来一局',
+      type: GAME_ACTION_TYPE.PRIMARY,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: !canPlayAgain.value
+    });
+    return items;
+  }
+
+  if (status === 'idle') {
+    return items;
+  }
+
+  if (playing && !isPaused.value) {
+    items.push({
+      key: 'pause',
+      label: '暂停游戏',
+      type: GAME_ACTION_TYPE.PAUSE,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: isOperationLocked.value || settling
+    });
+  }
+
+  if (paused) {
+    items.push({
+      key: 'resume',
+      label: '继续游戏',
+      type: GAME_ACTION_TYPE.RESUME,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: settling
+    });
+  }
+
+  if (playing || paused || settling) {
+    items.push({
+      key: 'restart',
+      label: '重新开始',
+      type: GAME_ACTION_TYPE.SECONDARY,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: !canRestartGame.value
+    });
+    items.push({
+      key: 'end',
+      label: '结束对局',
+      type: GAME_ACTION_TYPE.DANGER,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: !canEndGame.value
+    });
+  }
+
+  return items;
+});
+
 useGameSwitchLock(isGameInProgress);
+
+/**
+ * 轻量单人模板操作按钮回调。
+ * @param {string} actionKey
+ */
+function onLayoutAction(actionKey) {
+  if (actionKey === 'playAgain') {
+    playAgain();
+    return;
+  }
+  if (actionKey === 'restart') {
+    restartGame();
+    return;
+  }
+  if (actionKey === 'pause') {
+    pauseGame();
+    return;
+  }
+  if (actionKey === 'resume') {
+    resumeGame();
+    return;
+  }
+  if (actionKey === 'end') {
+    endCurrentGame();
+  }
+}
 
 /**
  * @param {string} message
@@ -307,9 +487,41 @@ function stopTimer() {
 function startTimer() {
   stopTimer();
   timerId = setInterval(() => {
-    elapsedSec.value++;
+    if (!isPaused.value && gameStatus.value === 'playing') {
+      elapsedSec.value++;
+    }
   }, 1000);
 }
+
+/**
+ * 暂停对局：停止累计用时并锁定输入。
+ */
+function pauseGame() {
+  if (gameStatus.value !== 'playing' || isPaused.value) {
+    return;
+  }
+  isPaused.value = true;
+  activeTool.value = '';
+  gameMessage.value = '游戏已暂停';
+}
+
+/**
+ * 恢复对局。
+ */
+function resumeGame() {
+  if (!isPaused.value) {
+    return;
+  }
+  isPaused.value = false;
+  if (gameStatus.value === 'playing') {
+    gameMessage.value = '对局已继续';
+  }
+}
+
+usePageVisibilityPause({
+  shouldPause: () => gameStatus.value === 'playing' && !isPaused.value,
+  pause: pauseGame
+});
 
 /**
  * 重置本局运行时状态。
@@ -336,8 +548,9 @@ function resetRuntime(message) {
   newTileIds.value = {};
   mergedTileIds.value = {};
   clearingTileId.value = null;
+  isPaused.value = false;
   gameMessage.value =
-    message || '点击开始对局，或直接在棋盘用方向键 / WASD / 滑动开始';
+    message || '在棋盘用方向键 / WASD / 滑动即可开始对局';
 }
 
 /**
@@ -431,7 +644,7 @@ function markMergedTileIds(merges) {
  * @param {import('./game2048Engine.js').Game2048Direction} direction
  */
 async function handleMoveInput(direction) {
-  if (isOperationLocked.value || isPropSelecting.value || resultModal.visible) {
+  if (isPaused.value || isOperationLocked.value || isPropSelecting.value || resultModal.visible) {
     return;
   }
   if (gameStatus.value === 'ended' || gameStatus.value === 'settling') {
@@ -549,6 +762,10 @@ async function handleMove(direction) {
  * @param {string} propCode
  */
 function useProp(propCode) {
+  if (isPaused.value) {
+    showToast('游戏已暂停', 'warning');
+    return;
+  }
   if (gameStatus.value === 'ended' || gameStatus.value === 'settling') {
     showToast('对局已结束，无法使用道具', 'warning');
     return;
@@ -586,7 +803,12 @@ function useProp(propCode) {
  * @param {{ row: number; col: number }} pos
  */
 async function handleClearCellSelect(pos) {
-  if (!isPropSelecting.value || gameStatus.value !== 'playing' || isOperationLocked.value) {
+  if (
+    isPaused.value ||
+    !isPropSelecting.value ||
+    gameStatus.value !== 'playing' ||
+    isOperationLocked.value
+  ) {
     return;
   }
   const cleared = clearTile(tiles.value, pos.row, pos.col);
@@ -616,19 +838,33 @@ async function handleClearCellSelect(pos) {
 }
 
 /**
- * 开始或重新开始一局。
+ * 已结束对局：再来一局（回到 idle，首次滑动自动开局）。
  */
-async function startOrRestartGame() {
-  if (!canStartOrRestartGame.value) {
+async function playAgain() {
+  if (!canPlayAgain.value) {
     showToast('请等待当前操作完成', 'warning');
     return;
   }
-  const wasIdle = gameStatus.value === 'idle';
   moveGeneration++;
   resultModal.visible = false;
-  setupBoard(
-    wasIdle ? '对局已开始，滑动棋盘继续' : '已重新开始，滑动棋盘即可继续'
-  );
+  setupBoard('滑动棋盘开始新对局');
+  matchSessionId.value = session.newMatchSessionId();
+  currentMatchPropUses.value = [];
+  boardComponentRef.value?.focusBoard?.();
+}
+
+/**
+ * 进行中或暂停：重新开始当前对局。
+ */
+async function restartGame() {
+  if (!canRestartGame.value) {
+    showToast('请等待当前操作完成', 'warning');
+    return;
+  }
+  moveGeneration++;
+  resultModal.visible = false;
+  isPaused.value = false;
+  setupBoard('已重新开始，滑动棋盘继续');
   matchSessionId.value = session.newMatchSessionId();
   currentMatchPropUses.value = [];
   gameStatus.value = 'playing';
@@ -665,6 +901,7 @@ async function settleGame(naturalGameOver) {
   ensureSession();
   isSettling.value = true;
   gameStatus.value = 'settling';
+  isPaused.value = false;
   stopTimer();
   activeTool.value = '';
 
@@ -737,7 +974,7 @@ function openResultModal(naturalGameOver, reward) {
  */
 function onResultModalAction(actionKey) {
   if (actionKey === 'restart') {
-    startOrRestartGame();
+    playAgain();
     return;
   }
   if (actionKey === 'close') {

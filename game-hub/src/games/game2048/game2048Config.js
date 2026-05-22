@@ -72,26 +72,26 @@ function mergeDifficultyConfig(seedConfig, remoteConfig) {
  * @returns {object}
  */
 export function normalizeGame2048Config(raw) {
-  const fallback = seedGame();
-  const game = raw && typeof raw === 'object' ? raw : fallback;
+  const seedConfig = seedGame();
+  const game = raw && typeof raw === 'object' ? raw : seedConfig;
   const base = {
-    ...fallback,
+    ...seedConfig,
     ...game,
     config: {
-      ...(fallback.config || {}),
+      ...(seedConfig.config || {}),
       ...(game.config || {})
     },
     difficulties:
-      Array.isArray(game.difficulties) && game.difficulties.length ? game.difficulties : fallback.difficulties,
-    propRules: Array.isArray(game.propRules) && game.propRules.length ? game.propRules : fallback.propRules
+      Array.isArray(game.difficulties) && game.difficulties.length ? game.difficulties : seedConfig.difficulties,
+    propRules: Array.isArray(game.propRules) && game.propRules.length ? game.propRules : seedConfig.propRules
   };
-  const fallbackDifficulties = Array.isArray(fallback.difficulties) ? fallback.difficulties : [];
+  const seedDifficulties = Array.isArray(seedConfig.difficulties) ? seedConfig.difficulties : [];
   const remoteDifficulties = Array.isArray(base.difficulties) ? base.difficulties : [];
-  const seedFirst = fallbackDifficulties[0] || {};
+  const seedFirst = seedDifficulties[0] || {};
   const mergedDifficulties =
     remoteDifficulties.length > 0
       ? remoteDifficulties.map((d, index) => {
-          const seedDiff = fallbackDifficulties[index] || seedFirst;
+          const seedDiff = seedDifficulties[index] || seedFirst;
           return {
             ...seedDiff,
             ...d,

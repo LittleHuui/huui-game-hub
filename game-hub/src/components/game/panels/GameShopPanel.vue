@@ -11,7 +11,7 @@
         <div class="game-shop-item-head">
           <h3 class="game-shop-item-name">
             <span v-if="item.icon" class="game-shop-icon" aria-hidden="true">{{ item.icon }}</span>
-            <span v-else class="game-shop-icon game-shop-icon--fallback" aria-hidden="true">?</span>
+            <span v-else class="game-shop-icon game-shop-icon--placeholder" aria-hidden="true">?</span>
             {{ item.name }}
           </h3>
           <span class="game-shop-bag">背包 {{ bagCount(item.propCode) }} 张</span>
@@ -33,12 +33,12 @@
 
 <script setup>
 import { computed, inject } from 'vue';
-import { hasGameCapability } from '../../constants/gameRegistry.js';
-import { GH_OPEN_HUB_MODAL } from '../../constants/injectionKeys.js';
-import * as purchaseService from '../../services/purchaseService.js';
-import { useGamePropQuantities } from '../../composables/useGamePropQuantities.js';
-import { useShopStore } from '../../stores/shopStore.js';
-import { useUserStore } from '../../stores/userStore.js';
+import { hasGameCapability } from '../../../constants/gameRegistry.js';
+import { GH_OPEN_HUB_MODAL } from '../../../constants/injectionKeys.js';
+import * as purchaseService from '../../../services/purchaseService.js';
+import { useGamePropQuantities } from '../../../composables/useGamePropQuantities.js';
+import { useShopStore } from '../../../stores/shopStore.js';
+import { useUserStore } from '../../../stores/userStore.js';
 
 const props = defineProps({
   gameCode: {

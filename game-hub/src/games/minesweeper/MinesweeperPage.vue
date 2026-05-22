@@ -1,66 +1,56 @@
 ﻿<template>
   <div>
-    <GamePlayLayout>
-      <template #config>
-        <GameConfigPanel title="游戏信息">
-          <template #title-extra>
-            <div class="info-tip-wrap" tabindex="0">
-              <button type="button" class="info-tip-btn" aria-label="积分规则说明">!</button>
-              <div class="info-tip-bubble" role="tooltip">
-                积分规则：胜利直接获得当前难度满积分（初级100 / 中级300 / 高级800）；失败或主动结束时，按正确标记雷数 × 3 结算。
-              </div>
-            </div>
-          </template>
-          <MinesweeperHud
-          :difficulty-label="difficultyLabel"
-          :difficulty-open="difficultyOpen"
-          :is-game-in-progress="isGameInProgress"
-          :paused="paused"
-          :can-use-safe-start-hint="canUseSafeStartHint"
-          :difficulty="difficulty"
-          :difficulty-options="difficultyOptions"
-          @toggle-difficulty-menu="toggleDifficultyMenu"
-          @select-difficulty="selectDifficulty"
-          @toggle-pause="togglePause"
-          @start-or-restart="startOrRestartGame"
-          @safe-start="safeStartHint"
-          @end-game="endCurrentGame"
-          />
-        </GameConfigPanel>
+    <LightSingleGameLayout
+      :game-title="layoutGameTitle"
+      :game-subtitle="layoutGameSubtitle"
+      :game-description="layoutGameDescription"
+      :game-status-text="layoutGameStatusText"
+      :control-fields="controlFields"
+      :action-items="actionItems"
+      :show-shop="true"
+      :show-ranking="true"
+      :show-inventory="true"
+      :game-code="MINESWEEPER_GAME_CODE"
+      :mode="MINESWEEPER_MODE"
+      :difficulty-code="difficulty"
+      board-title="对局信息"
+      board-frame-title="对局区域"
+      board-subtitle="左键翻开 · 右键标记"
+      :paused="isPaused"
+      @field-change="handleControlChange"
+      @action="handleControlAction"
+      @resume="resumeGame"
+    >
+      <template #title-extra>
+        <div class="info-tip-wrap" tabindex="0">
+          <button type="button" class="info-tip-btn" aria-label="积分规则说明">!</button>
+          <div class="info-tip-bubble" role="tooltip">
+            积分规则：胜利直接获得当前难度满积分（初级100 / 中级300 / 高级800）；失败或主动结束时，按正确标记雷数 × 3 结算。
+          </div>
+        </div>
       </template>
 
       <template #shop>
-        <GameShopPanel game-code="minesweeper" :session-id="matchSessionId" />
+        <GameShopPanel :game-code="MINESWEEPER_GAME_CODE" :session-id="matchSessionId" />
       </template>
 
       <template #ranking>
         <GameRankingPanel
-          game-code="minesweeper"
-          mode="single"
+          :game-code="MINESWEEPER_GAME_CODE"
+          :mode="MINESWEEPER_MODE"
           :difficulty-code="difficulty"
           value-metric="durationMs"
           :subtitle="`${difficultyLabel} · 全服前十名（按用时排序）`"
         />
       </template>
 
-      <template #hud>
-        <GameHudPanel>
-          <GameHudStats :theme-seed="statThemeSeed">
-            <GameStatGrid compact :columns="3" min-column-width="84px">
-              <GameStatCard
-                label="积分"
-                :value="user.score || 0"
-                tone="accent"
-                icon="★"
-                layout="inline"
-              />
-              <GameStatCard label="剩余雷" :value="remainMines" icon="💣" layout="inline" />
-              <GameStatCard label="用时" :value="`${timer}s`" icon="⏱" layout="inline" />
-            </GameStatGrid>
-            <GameStatQuotaBar :items="statQuotaItems" />
-            <p v-if="gameMessage" class="game-hud-stats__message">{{ gameMessage }}</p>
-          </GameHudStats>
-        </GameHudPanel>
+      <template #match-stats>
+        <GameMatchStatsPanel
+          :stats="matchStats"
+          :quotas="matchQuotas"
+          :message="gameMessage"
+          :theme-seed="statThemeSeed"
+        />
       </template>
 
       <template #board>
@@ -70,7 +60,6 @@
           :cols="cols"
           :window-width="windowWidth"
           :neighbor-ring-keys="neighborRingKeys"
-          :paused="paused"
           :board-shake="boardShake"
           :game-win="gameWin"
           @cell-click="clickCell"
@@ -83,22 +72,29 @@
 
       <template #inventory>
         <GameInventoryPanel
-          game-code="minesweeper"
+          :game-code="MINESWEEPER_GAME_CODE"
           :usable-props="[MINESWEEPER_PROP.HINT]"
           :active-prop="activeTool === 'hint' ? MINESWEEPER_PROP.HINT : ''"
           :disabled-props="inventoryDisabledProps"
           :use-labels="inventoryUseLabels"
           @use-prop="onInventoryUseProp"
         >
-          <template #footer>
-            <label class="backpack-revive-inline" title="有卡且本局未复活时，踩雷自动消耗一张">
-              <input type="checkbox" :checked="!!user.autoRevive" @change="setAutoRevive($event.target.checked)" />
-              <span>复活卡自动使用</span>
-            </label>
+          <template #item-extra="{ item }">
+            <button
+              v-if="item.propCode === MINESWEEPER_PROP.REVIVE"
+              type="button"
+              class="game-inventory-use minesweeper-auto-revive-btn"
+              :class="{ 'minesweeper-auto-revive-btn--active': user.autoRevive }"
+              :disabled="reviveQty <= 0"
+              title="有卡且本局未复活时，踩雷自动消耗一张"
+              @click="setAutoRevive(!user.autoRevive)"
+            >
+              用
+            </button>
           </template>
         </GameInventoryPanel>
       </template>
-    </GamePlayLayout>
+    </LightSingleGameLayout>
 
     <MinesweeperReviveModal
       :visible="reviveOffer.visible"
@@ -126,20 +122,21 @@
 <script setup>
 import './minesweeper.css';
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import MinesweeperHud from './components/MinesweeperHud.vue';
 import MinesweeperReviveModal from './components/MinesweeperReviveModal.vue';
 import MinesweeperBattlePanel from './components/MinesweeperBattlePanel.vue';
-import GameResultModal from '../../components/game/GameResultModal.vue';
-import GamePlayLayout from '../../components/game/GamePlayLayout.vue';
-import GameConfigPanel from '../../components/game/GameConfigPanel.vue';
-import GameShopPanel from '../../components/game/GameShopPanel.vue';
-import GameRankingPanel from '../../components/game/GameRankingPanel.vue';
-import GameHudPanel from '../../components/game/GameHudPanel.vue';
-import GameHudStats from '../../components/game/GameHudStats.vue';
-import GameStatCard from '../../components/game/GameStatCard.vue';
-import GameStatGrid from '../../components/game/GameStatGrid.vue';
-import GameStatQuotaBar from '../../components/game/GameStatQuotaBar.vue';
-import GameInventoryPanel from '../../components/game/GameInventoryPanel.vue';
+import { LightSingleGameLayout } from '../../game-templates/light-single/index.js';
+import {
+  GameMatchStatsPanel,
+  GameResultModal,
+  GameShopPanel,
+  GameRankingPanel,
+  GameInventoryPanel,
+  GAME_ACTION_SIZE,
+  GAME_ACTION_TYPE,
+  GAME_CONTROL_TYPE,
+  GAME_STAT_TONE
+} from '../../components/game/index.js';
+import { getGameConfig } from '../../constants/gameRegistry.js';
 import * as Svc from './minesweeperService.js';
 import {
   MINESWEEPER_GAME_CODE,
@@ -159,12 +156,16 @@ import {
 import { activateGame } from '../../services/gameLifecycleService.js';
 import * as toastService from '../../services/toastService.js';
 import { useGameSwitchLock } from '../../composables/useGameSwitchLock.js';
+import { usePageVisibilityPause } from '../../composables/usePageVisibilityPause.js';
+import { usePlatformStore } from '../../stores/platformStore.js';
 
-/** 统计区配色：0–9 | 主题名（如 emerald）| random */
+/** 统计区配色：0–9 | 主题名 | random */
 const statThemeSeed = 'random';
 const session = createGameSession({ gameCode: MINESWEEPER_GAME_CODE });
+const platform = usePlatformStore();
 const user = session.currentUser;
 const propQuantities = useGamePropQuantities(MINESWEEPER_GAME_CODE);
+const registryGame = getGameConfig(MINESWEEPER_GAME_CODE);
 
 /**
  * @param {string} propCode
@@ -176,7 +177,6 @@ function propQty(propCode) {
 
 const hintQty = computed(() => propQty(MINESWEEPER_PROP.HINT));
 const reviveQty = computed(() => propQty(MINESWEEPER_PROP.REVIVE));
-const difficultyOpen = ref(false);
 const difficultyOptions = computed(() => toDifficultySelectorOptions(MINESWEEPER_GAME_CODE));
 const difficulty = ref(getDefaultDifficultyCode(MINESWEEPER_GAME_CODE) || 'easy');
 
@@ -195,7 +195,7 @@ const gameWin = ref(false);
 const boardShake = ref(false);
 const gameMessage = ref('开始你的扫雷挑战吧');
 const activeTool = ref('');
-const paused = ref(false);
+const isPaused = ref(false);
 const safeHintUsed = ref(false);
 const usedHintCount = ref(0);
 const revived = ref(false);
@@ -234,7 +234,17 @@ const remainMines = computed(() => {
   }
   return mines.value - flagCount;
 });
-const canUseBattleProps = computed(() => isGameInProgress.value && !paused.value && !reviveOffer.visible);
+const openedCount = computed(() => Svc.countOpened(board.value, rows.value, cols.value));
+const flaggedCount = computed(() => {
+  let count = 0;
+  for (const cell of flatBoard.value) {
+    if (cell?.flagged) {
+      count++;
+    }
+  }
+  return count;
+});
+const canUseBattleProps = computed(() => isGameInProgress.value && !isPaused.value && !reviveOffer.visible);
 const hintMatchLimit = computed(() => HINT_LIMIT_BY_DIFFICULTY[difficulty.value] ?? 2);
 const hintMatchRemaining = computed(() => {
   const matchQuota = Math.max(0, hintMatchLimit.value - usedHintCount.value);
@@ -250,13 +260,121 @@ const reviveMatchRemaining = computed(() => {
 const hintBackpackExhausted = computed(
   () => hintQty.value <= 0 || usedHintCount.value >= hintMatchLimit.value
 );
-const hintExhausted = computed(
-  () => hintQty.value <= 0 || usedHintCount.value >= hintMatchLimit.value
-);
 const canUseSafeStartHint = computed(() => !isGameInProgress.value);
 const difficultyLabel = computed(() => getDifficultyName(MINESWEEPER_GAME_CODE, difficulty.value));
 
-const statQuotaItems = computed(() => [
+const layoutGameTitle = computed(() => registryGame?.name || '雷区突围');
+const layoutGameSubtitle = computed(() => registryGame?.subName || 'Mine Rush');
+const layoutGameDescription = computed(() => `单人模式 · ${difficultyLabel.value}`);
+
+const layoutGameStatusText = computed(() => {
+  if (gameOver.value) {
+    return '对局已结束';
+  }
+  if (isGameInProgress.value && isPaused.value) {
+    return '对局已暂停';
+  }
+  if (isGameInProgress.value) {
+    return '对局进行中';
+  }
+  return '尚未开始对局';
+});
+
+const controlFields = computed(() => [
+  {
+    key: 'difficulty',
+    label: '难度',
+    type: GAME_CONTROL_TYPE.SELECT,
+    value: difficulty.value,
+    options: difficultyOptions.value,
+    disabled: isGameInProgress.value
+  }
+]);
+
+const actionItems = computed(() => {
+  const items = [];
+  const inProgress = isGameInProgress.value;
+  const ended = gameOver.value;
+  const paused = inProgress && isPaused.value;
+
+  if (ended) {
+    items.push({
+      key: 'playAgain',
+      label: '再来一局',
+      type: GAME_ACTION_TYPE.PRIMARY,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: false
+    });
+    if (canUseSafeStartHint.value) {
+      items.push({
+        key: 'safeStart',
+        label: '安全开局',
+        type: GAME_ACTION_TYPE.SUCCESS,
+        size: GAME_ACTION_SIZE.MD,
+        visible: true,
+        disabled: false
+      });
+    }
+    return items;
+  }
+
+  if (inProgress && !isPaused.value) {
+    items.push({
+      key: 'pause',
+      label: '暂停游戏',
+      type: GAME_ACTION_TYPE.PAUSE,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: false
+    });
+  }
+
+  if (paused) {
+    items.push({
+      key: 'resume',
+      label: '继续游戏',
+      type: GAME_ACTION_TYPE.RESUME,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: false
+    });
+  }
+
+  if (inProgress) {
+    items.push({
+      key: 'restart',
+      label: '重新开始',
+      type: GAME_ACTION_TYPE.SECONDARY,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: false
+    });
+    items.push({
+      key: 'end',
+      label: '结束对局',
+      type: GAME_ACTION_TYPE.DANGER,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: false
+    });
+  }
+
+  if (canUseSafeStartHint.value) {
+    items.push({
+      key: 'safeStart',
+      label: '安全开局',
+      type: GAME_ACTION_TYPE.SUCCESS,
+      size: GAME_ACTION_SIZE.MD,
+      visible: true,
+      disabled: false
+    });
+  }
+
+  return items;
+});
+
+const matchQuotas = computed(() => [
   {
     label: '提示可用',
     used: hintMatchRemaining.value,
@@ -271,6 +389,46 @@ const statQuotaItems = computed(() => [
   }
 ]);
 
+const matchStats = computed(() => [
+  {
+    key: 'score',
+    label: '当前积分',
+    value: user.value.score || 0,
+    tone: GAME_STAT_TONE.ACCENT,
+    icon: '★'
+  },
+  {
+    key: 'remainMines',
+    label: '剩余雷',
+    value: remainMines.value,
+    icon: '💣'
+  },
+  {
+    key: 'duration',
+    label: '用时',
+    value: `${timer.value}s`,
+    icon: '⏱'
+  },
+  {
+    key: 'opened',
+    label: '已翻开',
+    value: openedCount.value,
+    icon: '▣'
+  },
+  {
+    key: 'flagged',
+    label: '已标记',
+    value: flaggedCount.value,
+    icon: '⚑'
+  },
+  {
+    key: 'difficulty',
+    label: '难度',
+    value: difficultyLabel.value,
+    tone: GAME_STAT_TONE.MUTED
+  }
+]);
+
 const inventoryDisabledProps = computed(() => ({
   [MINESWEEPER_PROP.HINT]: !canUseBattleProps.value || hintBackpackExhausted.value
 }));
@@ -278,6 +436,46 @@ const inventoryDisabledProps = computed(() => ({
 const inventoryUseLabels = computed(() => ({
   [MINESWEEPER_PROP.HINT]: activeTool.value === 'hint' ? '选格' : '用'
 }));
+
+/**
+ * 左侧配置项变更。
+ * @param {{ key: string; value: unknown }} payload
+ */
+function handleControlChange(payload) {
+  if (payload.key === 'difficulty') {
+    changeDifficulty(payload.value);
+  }
+}
+
+/**
+ * 轻量单人模板操作按钮回调。
+ * @param {string} actionKey
+ */
+function handleControlAction(actionKey) {
+  if (actionKey === 'pause') {
+    pauseGame();
+    return;
+  }
+  if (actionKey === 'resume') {
+    resumeGame();
+    return;
+  }
+  if (actionKey === 'restart') {
+    restartGame();
+    return;
+  }
+  if (actionKey === 'playAgain') {
+    playAgain();
+    return;
+  }
+  if (actionKey === 'safeStart') {
+    safeStartHint();
+    return;
+  }
+  if (actionKey === 'end') {
+    endCurrentGame();
+  }
+}
 
 /**
  * 背包道具使用。
@@ -366,7 +564,9 @@ function onNeighborRingCellLeave() {
 function startTimer() {
   stopTimer();
   timerInstance = setInterval(() => {
-    timer.value++;
+    if (!isPaused.value && isGameInProgress.value) {
+      timer.value++;
+    }
   }, 1000);
 }
 
@@ -386,7 +586,6 @@ function resetMatchRuntimeState(message) {
   reviveOffer.secondsLeft = 5;
   matchSessionId.value = null;
   currentMatchPropUses.value = [];
-  difficultyOpen.value = false;
   timer.value = 0;
   gameStarted.value = false;
   gameOver.value = false;
@@ -395,7 +594,7 @@ function resetMatchRuntimeState(message) {
   usedHintCount.value = 0;
   revived.value = false;
   activeTool.value = '';
-  paused.value = false;
+  isPaused.value = false;
   safeHintUsed.value = false;
   gameMessage.value = message || '游戏开始';
 }
@@ -415,22 +614,27 @@ function startGame(message) {
   mines.value = nextMines;
 }
 
-function startOrRestartGame() {
+function restartGame() {
   startGame();
   ensureSession();
   gameStarted.value = true;
   startTimer();
+  gameMessage.value = '已重新开始，翻格继续';
 }
 
-function toggleDifficultyMenu() {
-  if (isGameInProgress.value) {
-    showToast('对局进行中，无法切换难度', 'warning');
-    return;
-  }
-  difficultyOpen.value = !difficultyOpen.value;
+/**
+ * 已结束对局：再来一局（重置棋盘，首次翻格自动开局）。
+ */
+function playAgain() {
+  resultModal.visible = false;
+  startGame('翻格即可开始新对局');
 }
 
-function selectDifficulty(value) {
+/**
+ * 切换难度（对局未进行中）。
+ * @param {string} value
+ */
+function changeDifficulty(value) {
   if (isGameInProgress.value) {
     showToast('对局进行中，无法切换难度', 'warning');
     return;
@@ -440,28 +644,45 @@ function selectDifficulty(value) {
     return;
   }
   difficulty.value = value;
-  difficultyOpen.value = false;
-  if (!isGameInProgress.value) {
-    startGame();
-  }
+  startGame();
 }
 
-function togglePause() {
-  if (gameOver.value) {
+/**
+ * 暂停对局：停止计时并锁定棋盘操作。
+ */
+function pauseGame() {
+  if (gameOver.value || isPaused.value) {
     return;
   }
-  paused.value = !paused.value;
-  if (paused.value) {
-    stopTimer();
-    gameMessage.value = '游戏已暂停';
-  } else if (gameStarted.value) {
-    startTimer();
+  isPaused.value = true;
+  gameMessage.value = '游戏已暂停';
+}
+
+/**
+ * 恢复对局。
+ */
+function resumeGame() {
+  if (!isPaused.value) {
+    return;
+  }
+  isPaused.value = false;
+  if (gameStarted.value && !gameOver.value) {
     gameMessage.value = '游戏继续';
   }
 }
 
+usePageVisibilityPause({
+  shouldPause: () => isGameInProgress.value && !isPaused.value,
+  pause: () => {
+    pauseGame();
+    if (isPaused.value) {
+      gameMessage.value = '已离开当前页面，游戏已自动暂停。返回后请点击「继续游戏」。';
+    }
+  }
+});
+
 function rightClick(cell) {
-  if (gameOver.value || paused.value || reviveOffer.visible) {
+  if (gameOver.value || isPaused.value || reviveOffer.visible) {
     return;
   }
   if (cell.opened) {
@@ -482,7 +703,7 @@ function rightClick(cell) {
 }
 
 function clickCell(cell) {
-  if (gameOver.value || paused.value || reviveOffer.visible) {
+  if (gameOver.value || isPaused.value || reviveOffer.visible) {
     return;
   }
   if (!gameStarted.value) {
@@ -546,19 +767,6 @@ function safeStartHint() {
 }
 
 /**
- * @returns {number}
- */
-function countFlaggedCells() {
-  let count = 0;
-  for (const cell of flatBoard.value) {
-    if (cell?.flagged) {
-      count++;
-    }
-  }
-  return count;
-}
-
-/**
  * @param {'win'|'fail'|'end'} kind
  * @param {number} rewardScore
  */
@@ -581,8 +789,8 @@ function openResultModal(kind, rewardScore) {
       { label: '难度', value: difficultyLabel.value },
       { label: '用时', value: formatDurationMmSs(timer.value) },
       { label: '剩余地雷数', value: remainMines.value },
-      { label: '翻开格子数', value: Svc.countOpened(board.value, rows.value, cols.value) },
-      { label: '标记数', value: countFlaggedCells() }
+      { label: '翻开格子数', value: openedCount.value },
+      { label: '标记数', value: flaggedCount.value }
     ],
     rewards: [{ label: '平台积分', value: `+${rewardScore}` }],
     highlights: [{ label: '是否进入排行榜', value: kind === 'win' ? '是' : '否' }],
@@ -599,7 +807,7 @@ function openResultModal(kind, rewardScore) {
 function onResultModalAction(actionKey) {
   if (actionKey === 'restart') {
     resultModal.visible = false;
-    startOrRestartGame();
+    playAgain();
     return;
   }
   if (actionKey === 'close') {
@@ -622,6 +830,7 @@ async function endCurrentGame() {
   if (!isGameInProgress.value) {
     return;
   }
+  isPaused.value = false;
   stopTimer();
   gameOver.value = true;
   const correctFlags = Svc.countCorrectFlags(board.value, rows.value, cols.value);
@@ -780,29 +989,19 @@ function handleResize() {
   windowWidth.value = window.innerWidth;
 }
 
-function pauseDueToPageHidden() {
-  if (!isGameInProgress.value || paused.value) {
-    return;
-  }
-  paused.value = true;
-  stopTimer();
-  gameMessage.value = '已离开当前页面，游戏已自动暂停。返回后请点击「继续游戏」。';
-}
-
 onMounted(async () => {
+  platform.setCurrentGame(MINESWEEPER_GAME_CODE);
   await activateGame(MINESWEEPER_GAME_CODE, {
     mode: MINESWEEPER_MODE,
     difficultyCode: difficulty.value,
     includeInventory: true
   });
   startGame('开始你的扫雷挑战吧');
-  document.addEventListener('visibilitychange', pauseDueToPageHidden);
   window.addEventListener('resize', handleResize);
   handleResize();
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener('visibilitychange', pauseDueToPageHidden);
   window.removeEventListener('resize', handleResize);
   stopTimer();
   stopReviveOfferTimer();

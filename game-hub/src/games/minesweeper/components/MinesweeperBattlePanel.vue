@@ -1,14 +1,16 @@
 <template>
-  <div class="panel battle-panel" :class="{ shake: boardShake, victory: gameWin }">
-    <div v-if="paused" class="pause-placeholder">游戏已暂停</div>
+  <div
+    ref="boardHostRef"
+    class="panel battle-panel"
+    :class="{ shake: boardShake, victory: gameWin }"
+  >
     <MinesweeperBoard
-      v-else
       :board="board"
       :rows="rows"
       :cols="cols"
       :window-width="windowWidth"
+      :available-width="boardHostWidth"
       :neighbor-ring-keys="neighborRingKeys"
-      :paused="paused"
       @cell-click="$emit('cell-click', $event)"
       @cell-right="$emit('cell-right', $event)"
       @ring-enter="$emit('ring-enter', $event)"
@@ -19,6 +21,7 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import MinesweeperBoard from '../MinesweeperBoard.vue';
 
 defineProps({
@@ -27,10 +30,33 @@ defineProps({
   cols: { type: Number, required: true },
   windowWidth: { type: Number, required: true },
   neighborRingKeys: { type: Object, required: true },
-  paused: { type: Boolean, required: true },
   boardShake: { type: Boolean, required: true },
   gameWin: { type: Boolean, required: true }
 });
 
 defineEmits(['cell-click', 'cell-right', 'ring-enter', 'ring-leave', 'clear-ring']);
+
+const boardHostRef = ref(null);
+const boardHostWidth = ref(0);
+let resizeObserver = null;
+
+onMounted(() => {
+  const el = boardHostRef.value;
+  if (!el) {
+    return;
+  }
+  if (typeof ResizeObserver === 'undefined') {
+    boardHostWidth.value = el.clientWidth;
+    return;
+  }
+  resizeObserver = new ResizeObserver((entries) => {
+    boardHostWidth.value = entries[0].contentRect.width;
+  });
+  resizeObserver.observe(el);
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+});
 </script>

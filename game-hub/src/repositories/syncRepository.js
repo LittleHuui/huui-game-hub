@@ -62,7 +62,7 @@ export function clearSyncedPending() {
 }
 
 /**
- * 从待同步事件中取最新的数据模式（云响应可能仍含旧 dataMode）。
+ * 从待同步事件中取最新的数据模式（云响应可能仍含先前写入的 dataMode）。
  * @param {object[]} events
  * @returns {'auto'|'local'|'remote'|null}
  */
