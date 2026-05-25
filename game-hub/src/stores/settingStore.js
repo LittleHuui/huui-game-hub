@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { setRepositoryModeRuntime } from '../utils/repositoryModeRuntime.js';
 
 export const useSettingStore = defineStore('setting', {
   state: () => ({
@@ -16,10 +17,12 @@ export const useSettingStore = defineStore('setting', {
               repositoryMode: s.repositoryMode || 'auto'
             }
           : { storageVersion: 1, repositoryMode: 'auto' };
+      setRepositoryModeRuntime(this.settings.repositoryMode);
     },
     setRepositoryMode(mode) {
       if (mode === 'auto' || mode === 'local' || mode === 'remote') {
         this.settings.repositoryMode = mode;
+        setRepositoryModeRuntime(mode);
       }
     }
   }

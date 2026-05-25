@@ -11,6 +11,7 @@ from app.modules.game.api import router as game_router
 from app.modules.prop.api import router as prop_router
 from app.modules.purchase.api import purchase_router
 from app.modules.match.api import router as match_router
+from app.modules.online.api import online_router
 from app.modules.ranking.api import router as ranking_router
 from app.modules.system.api import router as system_router
 from app.modules.user.api import router as user_router
@@ -29,4 +30,5 @@ router.include_router(game_router)
 router.include_router(match_router)
 router.include_router(ranking_router)
 router.include_router(system_router)
+router.include_router(online_router)
 router.include_router(admin_config_router)

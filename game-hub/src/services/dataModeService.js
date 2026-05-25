@@ -8,6 +8,9 @@ import * as syncRepository from '../repositories/syncRepository.js';
 import * as gameCatalogService from './gameCatalogService.js';
 import * as gameLifecycleService from './gameLifecycleService.js';
 import * as toastService from './toastService.js';
+import * as bootService from './bootService.js';
+import * as onlineService from './onlineService.js';
+import * as realtimeService from './realtimeService.js';
 import { canFetchRemote } from './remoteGate.js';
 import { getDefaultDifficultyCode, isDifficultyEnabled } from './gameDifficultyService.js';
 import { getGameConfig } from '../constants/gameRegistry.js';
@@ -86,6 +89,10 @@ export async function switchRepositoryMode(nextMode) {
   const settingStore = useSettingStore();
   const ranking = useRankingStore();
 
+  if (nextMode === 'local') {
+    await cleanupOnlineRuntime();
+  }
+
   if (nextMode === 'remote') {
     const ok = await probeRemoteAvailable();
     platform.remoteAvailable = ok;
@@ -112,10 +119,28 @@ export async function switchRepositoryMode(nextMode) {
   }
   persistAllLocal();
 
-  await gameCatalogService.loadGameCatalog();
+  if (nextMode !== 'local' && platform.remoteAvailable) {
+    await bootService.continueAfterLogin({ preserveRepositoryMode: true });
+    settingStore.setRepositoryMode(nextMode);
+    applyNetworkModeForRepository(nextMode, platform.remoteAvailable);
+  } else {
+    await gameCatalogService.loadGameCatalog();
+  }
 
   const gameCode = resolvePlatformGameCode('switchRepositoryMode');
   await gameLifecycleService.activateGame(gameCode, buildActivateOptions(gameCode));
 
   return { success: true, networkMode: platform.networkMode };
+}
+
+/**
+ * 清理在线运行期资源。
+ * @returns {Promise<void>}
+ */
+async function cleanupOnlineRuntime() {
+  onlineService.stopOnlineRefresh();
+  if (userRepository.resolveServerUserId()) {
+    await onlineService.markOffline();
+  }
+  realtimeService.disconnect({ manual: true });
 }

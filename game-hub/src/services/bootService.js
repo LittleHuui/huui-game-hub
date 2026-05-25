@@ -11,6 +11,8 @@ import { nowMs } from '../utils/timeService.js';
 import * as toastService from './toastService.js';
 import * as syncService from './syncService.js';
 import * as gameCatalogService from './gameCatalogService.js';
+import * as onlineService from './onlineService.js';
+import * as realtimeService from './realtimeService.js';
 
 /**
  * 设置启动 loading 文案。
@@ -74,9 +76,10 @@ export function resolveOfflineCurrentUser() {
 
 /**
  * 登录/创建用户后继续 boot/context 与云同步。
+ * @param {{ preserveRepositoryMode?: boolean }} [options]
  * @returns {Promise<void>}
  */
-export async function continueAfterLogin() {
+export async function continueAfterLogin(options = {}) {
   const platform = usePlatformStore();
   const settingStore = useSettingStore();
   const repoMode = settingStore.settings.repositoryMode || 'auto';
@@ -91,6 +94,8 @@ export async function continueAfterLogin() {
       clientTime: nowMs()
     });
     if (boot?.userExists === false) {
+      await onlineService.markOffline();
+      realtimeService.disconnect({ manual: true });
       userRepository.clearAuth();
       platform.markWaitingLogin('账号已失效，请重新登录');
       toastService.push('账号不存在或已失效，请重新登录', 'warning');
@@ -98,6 +103,9 @@ export async function continueAfterLogin() {
       return;
     }
     userRepository.applyBootContext(boot);
+    if (options.preserveRepositoryMode === true) {
+      settingStore.setRepositoryMode(repoMode);
+    }
     if (Array.isArray(boot?.games)) {
       platform.setBootGames(boot.games);
     }
@@ -115,7 +123,11 @@ export async function continueAfterLogin() {
     setBootMessage('正在同步云存档...');
     try {
       await syncService.sync();
+      if (options.preserveRepositoryMode === true) {
+        settingStore.setRepositoryMode(repoMode);
+      }
       platform.markReady('online', '云存档已同步');
+      await activateOnlineRuntime();
       await finalizeBootCatalog();
       return;
     } catch (e) {
@@ -125,13 +137,18 @@ export async function continueAfterLogin() {
         return;
       }
       toastService.push(e.message || '云存档同步失败，已使用本地数据', 'warning');
+      if (options.preserveRepositoryMode === true) {
+        settingStore.setRepositoryMode(repoMode);
+      }
       platform.markReady('degraded', '云存档同步失败，已使用本地数据');
+      await activateOnlineRuntime();
       await finalizeBootCatalog();
       return;
     }
   }
 
   platform.markReady('online', '已连接服务器');
+  await activateOnlineRuntime();
   await finalizeBootCatalog();
 }
 
@@ -141,6 +158,23 @@ export async function continueAfterLogin() {
  */
 async function finalizeBootCatalog() {
   await gameCatalogService.loadGameCatalog();
+}
+
+/**
+ * 启动平台在线状态与实时通道。
+ * @returns {Promise<void>}
+ */
+export async function activateOnlineRuntime() {
+  if (!userRepository.resolveServerUserId()) {
+    return;
+  }
+  try {
+    await onlineService.markOnline();
+    realtimeService.connect({ resetAuthFailed: true });
+    onlineService.startOnlineRefresh();
+  } catch (e) {
+    toastService.push(e.message || '在线状态刷新失败', 'warning');
+  }
 }
 
 /**

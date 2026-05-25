@@ -19,7 +19,8 @@
 11. [JSON 字段规范](#11-json-字段规范)
 12. [模块依赖规范](#12-模块依赖规范)
 13. [接口文档规范](#13-接口文档规范)
-14. [代码生成与提交要求](#14-代码生成与提交要求)
+14. [Redis 与 WebSocket 规范](#14-redis-与-websocket-规范)
+15. [代码生成与提交要求](#15-代码生成与提交要求)
 
 ---
 
@@ -347,7 +348,29 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 
 ---
 
-## 14. 代码生成与提交要求
+## 14. Redis 与 WebSocket 规范
+
+### 14.1 Redis
+
+- Redis key 必须通过 `app.core.redis.redis_keys.RedisKeys` 集中生成，禁止业务代码散落魔法字符串 key。
+- 业务代码必须通过 `app.core.redis.redis_client.RedisClient` 操作 Redis，禁止直接使用底层 redis client。
+- 写入类方法的 `expire` 必须显式传入，不设置默认值；`unit` 默认 `TimeUnit.SECONDS`。
+- 查询 key 必须使用 `scan_keys(pattern)`，禁止使用 `keys`。
+- Redis 工具层只封装缓存数据结构操作，不写业务规则。
+- Redis 连接检查日志只允许打印 host、port、db 等非敏感连接信息，不得打印密码。
+
+### 14.2 WebSocket
+
+- 平台只保留 `/ws/game-hub/realtime` 一条实时通道。
+- 消息类型必须集中定义在 `app.core.websocket.message_types.MessageType`。
+- WebSocket 工具层只负责连接管理、发送、广播、分发、ping/pong，不写在线业务逻辑。
+- WebSocket 建连不得直接信任前端传入的 `serviceId`，必须先校验用户存在且可用，再登记连接。
+- WebSocket 断开或异常退出时必须在 `finally` 或等价逻辑中清理连接管理器。
+- 在线用户列表以 Redis TTL 为准，WebSocket 断开不直接等同于离线。
+
+---
+
+## 15. 代码生成与提交要求
 
 1. **阅读规范**：后续所有后端代码生成前，必须先阅读本文档（`docs/code-style/backend-code-style.md`）。
 2. **符合规范**：不符合本规范的代码不得提交。

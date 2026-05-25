@@ -7,6 +7,7 @@
         </template>
         <template #menu>
           <UserMenu :user="user" :disable-switch="sessionLocked" @open-modal="openModal" />
+          <OnlineUsersDropdown />
         </template>
       </AppTopbar>
     </template>
@@ -150,6 +151,7 @@ import AppLayout from '../components/AppLayout.vue';
 import AppTopbar from '../components/AppTopbar.vue';
 import AppModal from '../components/AppModal.vue';
 import UserMenu from '../components/UserMenu.vue';
+import OnlineUsersDropdown from '../components/game-hub/OnlineUsersDropdown.vue';
 import GameSelector from '../components/GameSelector.vue';
 import UserLoginModal from '../components/UserLoginModal.vue';
 import { GH_OPEN_HUB_MODAL } from '../constants/injectionKeys.js';

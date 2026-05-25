@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./game_hub.db"
     API_PREFIX: str = "/api/game-hub"
     DEBUG: bool = False
+    REDIS_HOST: str = "127.0.0.1"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str = "123456"
+    REDIS_DECODE_RESPONSES: bool = True
+    REDIS_ONLINE_USER_EXPIRE_SECONDS: int = 360
 
 
 settings = Settings()

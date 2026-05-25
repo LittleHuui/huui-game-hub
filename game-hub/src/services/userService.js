@@ -12,6 +12,8 @@ import * as toastService from './toastService.js';
 import * as bootService from './bootService.js';
 import * as syncService from './syncService.js';
 import * as dataModeService from './dataModeService.js';
+import * as onlineService from './onlineService.js';
+import * as realtimeService from './realtimeService.js';
 import { resolvePlatformGameCode } from '../utils/requireGameCode.js';
 
 /**
@@ -100,6 +102,16 @@ export async function createAndLogin(username, nickname) {
 }
 
 /**
+ * 退出当前用户。
+ * @returns {Promise<void>}
+ */
+export async function logout() {
+  await onlineService.markOffline();
+  realtimeService.disconnect({ manual: true });
+  userRepository.clearAuth();
+}
+
+/**
  * 创建用户（自动 online/offline 分支）。
  * @param {{ username: string; nickname: string }} form
  * @returns {Promise<boolean>}
@@ -151,8 +163,16 @@ export function switchUser(userId, sessionLocked) {
     toastService.push('对局进行中，无法切换用户', 'warning');
     return false;
   }
+  onlineService.markOffline().catch(() => {});
+  realtimeService.disconnect({ manual: true });
   useUserStore().setCurrentUserId(userId);
   persistAllLocal();
+  if (canUpdateRemoteUser()) {
+    onlineService.markOnline().then(() => {
+      realtimeService.connect({ resetAuthFailed: true });
+      onlineService.startOnlineRefresh();
+    }).catch(() => {});
+  }
   return true;
 }
 

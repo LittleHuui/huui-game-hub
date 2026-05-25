@@ -1,18 +1,19 @@
 # Docker 部署教程
 
-将 **huui-game-hub**（Vue 前端 + FastAPI 后端 + SQLite）打成单容器，经 **nginx:80** 对外提供页面，并将 `/api/` 反代到容器内 uvicorn。
+将 **huui-game-hub**（Vue 前端 + FastAPI 后端 + SQLite + Redis）打成应用容器，经 **nginx:80** 对外提供页面，并将 `/api/` 与 `/ws/` 反代到容器内 uvicorn。
 
 ```
 浏览器
    │
    ▼
 nginx :80  ── /        → 前端静态（/usr/share/nginx/html）
-         └── /api/     → uvicorn :8000（FastAPI）
+         ├── /api/     → uvicorn :8000（FastAPI）
+         └── /ws/      → uvicorn :8000（WebSocket）
+                              │
+                  SQLite /app/data/game_hub.db
                               │
                               ▼
-                         SQLite /app/data/game_hub.db
-                              ▲
-                         宿主机 ./data 卷
+                         Redis redis:6379
 ```
 
 | 组件 | 说明 |
@@ -21,6 +22,7 @@ nginx :80  ── /        → 前端静态（/usr/share/nginx/html）
 | Python 3.8 | 运行阶段 |
 | nginx + supervisord | 同容器内管理两进程 |
 | SQLite | 无需独立数据库容器 |
+| Redis 7 alpine | 在线状态、临时态缓存 |
 
 ---
 
@@ -182,8 +184,14 @@ curl -sS http://127.0.0.1/game-seed.json \
 |------|--------|------|
 | `DATABASE_URL` | `sqlite:////app/data/game_hub.db` | 容器内 SQLite 路径（四个 `/`） |
 | `VITE_API_BASE` | （构建时为空） | 生产前端使用同源 `/api`，由 nginx 反代 |
+| `REDIS_HOST` | `redis` | 后端访问 Redis 的容器服务名 |
+| `REDIS_PORT` | `6379` | Redis 端口 |
+| `REDIS_DB` | `0` | Redis DB 编号 |
+| `REDIS_PASSWORD` | 空 | Redis 密码，可选 |
+| `REDIS_DECODE_RESPONSES` | `true` | Redis 响应按字符串解码 |
+| `REDIS_ONLINE_USER_EXPIRE_SECONDS` | `360` | 在线用户状态 TTL（秒） |
 
-在 `compose.yaml` 的 `environment` 中可覆盖 `DATABASE_URL`。
+在 `compose.yaml` 的 `environment` 中可覆盖 `DATABASE_URL` 与 Redis 配置。`huui-game-hub` 服务依赖 `redis` 服务，容器内部使用 `REDIS_HOST=redis` 访问 Redis。
 
 首次启动时后端 `init_db()` **仅创建数据库表**，不会写入任何游戏 / 道具 / 难度等业务数据；**必须**通过 `POST /api/game-hub/admin/config/import-game-seed` 导入种子（见下文「导入游戏种子」）。无需预置 `.db` 文件。
 
@@ -195,6 +203,7 @@ curl -sS http://127.0.0.1/game-seed.json \
 |------|------|
 | 容器内 | `/app/data/game_hub.db` |
 | 宿主机 | `./data/game_hub.db`（相对 compose 所在目录） |
+| Redis 卷 | `redis_data:/data` |
 
 **备份（Linux）：**
 
@@ -303,6 +312,16 @@ huui-game-hub/
 └── data/                # 运行时生成，挂载卷
 ```
 
+`compose.yaml` 包含 `redis` 服务：
+
+```yaml
+redis:
+  image: redis:7-alpine
+  command: redis-server --appendonly yes
+  volumes:
+    - redis_data:/data
+```
+
 ---
 
 ## 8. 常见问题
@@ -351,6 +370,7 @@ curl http://127.0.0.1/api/game-hub/health
 | 前端 | `npm run dev` :5173 | 构建后静态文件 |
 | API 地址 | `VITE_API_BASE=http://127.0.0.1:8000` | 空，走同源 `/api` |
 | 后端 | 单独 `uvicorn` :8000 | 容器内 127.0.0.1:8000 |
+| Redis | 本地 Redis 或环境变量指定地址 | compose 内 `redis` 服务与 `redis_data` 卷 |
 | CORS | 允许 5173 | 同源无需 CORS |
 | 业务种子 | `npm run export:seed` 后 curl 导入后端 | 启动后从 `/game-seed.json` 导入（见 §1.4.1） |
 

@@ -35,13 +35,13 @@
 | `src/games/{gameCode}/` | 单游戏：Page、Engine、Config、游戏专用组件 |
 | `src/game-templates/` | **可选**页面模板（如 `light-single`）：仅排版与容器，不含规则/API/store |
 | `src/components/game/` | 跨游戏底层 UI（分包见 §2.7）：`layout/`、`panels/`、`stats/`、`controls/` |
-| `src/services/` | 业务编排：开局、结算、同步、商城 |
+| `src/services/` | 业务编排：开局、结算、同步、商城、在线状态、实时通道 |
 | `src/repositories/` | 数据访问：local / remote / sync 屏蔽 |
 | `src/stores/` | Pinia 响应式状态快照 |
 | `src/composables/` | 跨组件 UI 逻辑（动画队列、主题、`usePageVisibilityPause` 等） |
 | `src/constants/` | `GAME_REGISTRY`、`GAME_SEED_CONFIG` |
 | `src/mappers/` | API DTO → 领域对象 |
-| `src/api/` | HTTP 封装（`request.js`、`gameHubApi.js`） |
+| `src/api/` | HTTP 封装（`request.js`、`gameHubApi.js`、`onlineApi.js`） |
 
 ### 2.2 依赖方向
 
@@ -51,6 +51,7 @@ Page / games/*Page.vue
         → repositories → api / localRepository
 stores ← 仅由 services 写入，供 UI 读取
 games/*Engine.js ← 纯算法，无 Vue / DOM / 网络
+realtimeService → websocketClient → /ws/game-hub/realtime
 ```
 
 ### 2.3 注册表与配置
@@ -77,11 +78,11 @@ games/*Engine.js ← 纯算法，无 Vue / DOM / 网络
 
 | `repositoryMode` | 行为 |
 |------------------|------|
-| `local` | 纯本地，不主动拉远端榜、不 flush 同步 |
-| `auto` | 探测后端可用性；在线则 remote + 同步 |
-| `remote` | 强制走远端（需 health 通过） |
+| `local` | 纯本地，不启用在线状态刷新、不连接 WebSocket、不刷新在线用户人数；除健康检查外，不发送远端业务请求 |
+| `auto` | 探测后端可用性；在线则获取当前用户并启动在线运行时，否则使用本地数据 |
+| `remote` | 强制走远端（需 health 通过），获取当前用户后启动在线运行时 |
 
-实现：`dataModeService`、`remoteGate.canFetchRemote()`。
+实现：`dataModeService`、`remoteGate.canFetchRemote()`、`api/request.js`。模式切换到本地时会停止在线状态刷新、尝试标记离线、断开实时通道并清理重连与心跳；切换到在线可用状态时会健康检查、刷新当前用户上下文、执行 `markOnline()`、启动在线状态刷新并建立实时通道。
 
 ### 2.6 游戏页布局（平台布局 vs 可选模板）
 
@@ -212,16 +213,31 @@ deps.py：FastAPI Depends
 | `score` | 成绩实体、排行榜规则计算 |
 | `ranking` | 排行榜 HTTP 查询 |
 | `sync` | 同步编排（逻辑在 `module_service`，路由挂在 boot） |
+| `online` | 在线用户、在线房间、临时缓存、对局暂存等运行期临时态业务；当前提供在线用户状态与在线用户列表 |
 | `admin_config` | 种子导入（运维）；**唯一业务种子源码**在前端 `GAME_SEED_CONFIG`，可用 `npm run export:seed` 生成 JSON |
 | `system` | 系统 KV 配置 |
 
-### 3.3 数据库初始化与业务种子
+### 3.3 平台运行期基础能力
+
+| 层 | 位置 | 职责边界 |
+|------|------|------|
+| Redis 工具层 | `app/core/redis/` | 封装字符串、JSON、Hash、Set、Sorted Set、scan、expire 等缓存数据结构操作；业务代码通过 `RedisClient` 与 `RedisKeys` 使用 Redis |
+| WebSocket 实时通道层 | `app/core/websocket/` | 维护 `/ws/game-hub/realtime` 单一平台通道，负责连接管理、按 `serviceId` 发送、广播、消息分发、`online.ping` / `online.pong` |
+| Online 业务模块 | `app/modules/online/` | 管理运行期在线用户状态与列表，在线状态只写 Redis，不写数据库 |
+
+Redis 不承载业务规则，WebSocket 不承载在线用户判定；在线用户列表以 Redis TTL 为准，WebSocket 断开不直接等同于离线。
+
+`/ws/game-hub/realtime` 建连时校验 `serviceId` 对应的用户存在且可用，`serviceId` 缺失、无效或用户不可用时以 close code `1008` 拒绝；前端将 `1008` 视为身份/权限失败，不自动重连。普通网络异常使用指数退避重连，手动关闭与本地模式切换不重连。连接管理器只保存已校验用户连接。应用启动时会执行 Redis ping 检查并记录 host、port、db；Redis 不可用只记录错误，不阻断服务启动。
+
+顶部栏在线用户入口属于平台在线能力展示，不放入具体游戏页或对局信息面板。在线模式下，在线人数 badge 由顶部栏组件通过 `onlineService` 主动加载并定时刷新，不依赖弹窗打开；本地模式下停止刷新并不请求在线用户接口。前端仅展示昵称与基于 `onlineAt` 计算的在线时长，不展示 `username`、`serviceId` 或其它账号类字段。
+
+### 3.4 数据库初始化与业务种子
 
 - 应用启动时 `init_db()` 仅负责注册 ORM 元数据并 `create_all` **建表**，**不**写入游戏定义、难度、道具、排行榜规则等业务行。
 - 业务数据须通过 `POST /admin/config/import-game-seed` 导入；请求体须与前端 `game-hub/src/constants/gameSeedConfig.js` 中 `GAME_SEED_CONFIG` 导出的 JSON **字段级一致**（含 `games[].propRules[].sortNo` 等必填项；后端 schema `extra=forbid`，缺字段或多余字段均会校验失败），开发/CI 可在 `game-hub` 目录执行 `npm run export:seed` 生成 `dist/game-seed.json` 再导入。
 - Docker 镜像构建阶段已执行 `export:seed`，运行时可通过静态路径 **`/game-seed.json`** 拉取同源 JSON 并 POST 至上述接口（详见 [docker-guide.md](docker-guide.md)）。
 
-### 3.4 API 前缀
+### 3.5 API 前缀
 
 - 默认：`/api/game-hub`（`settings.API_PREFIX`）
 - Docker 内：nginx `location /api/` → uvicorn `127.0.0.1:8000`

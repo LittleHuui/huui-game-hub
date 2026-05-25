@@ -172,6 +172,7 @@
 **注意事项：**
 
 - 可用于探活与校时。
+- 前端本地模式仍允许健康检查，用于检测服务器可用性；除健康检查外，本地模式不发送远端业务请求。
 
 ---
 
@@ -1579,6 +1580,110 @@
 
 ---
 
+## 13. Online 在线/临时态
+
+### 13.1 查询在线用户
+
+`GET /online/users`
+
+只读取 Redis 在线状态，不查询数据库。
+
+#### 响应 data
+
+```json
+{
+  "users": [
+    {
+      "serviceId": "user_xxx",
+      "nickname": "玩家",
+      "avatar": null,
+      "status": "online",
+      "onlineAt": 1710000000000,
+      "lastActiveAt": 1710000000000
+    }
+  ]
+}
+```
+
+字段说明：
+
+- `onlineAt`：最初上线时间（毫秒），用于前端计算在线时长。
+- `lastActiveAt`：最后活跃 / 在线状态刷新时间（毫秒），不用于计算在线时长。
+- 展示在线用户时不得展示 `serviceId`、`username`、登录账号、手机号、邮箱、token 等账号或敏感字段。
+
+### 13.2 修改当前用户在线状态
+
+`POST /online/status`
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`，请求体不接收 `serviceId`。`online`、`away`、`busy` 写入 Redis 并使用 `REDIS_ONLINE_USER_EXPIRE_SECONDS` 作为 TTL；`offline` 删除 Redis key。
+
+写入在线状态时，Redis 在线用户 value 必须同时包含 `onlineAt` 与 `lastActiveAt`。已有在线记录刷新 TTL 时保留原 `onlineAt`，仅更新 `lastActiveAt`；不存在记录时两者均设置为当前时间。
+
+前端在线模式在健康检查成功并获取当前用户后调用 `online`，启动在线状态定时刷新、WebSocket 与在线用户人数刷新。本地模式不调用在线状态刷新、不查询在线用户列表，切换到本地时会尝试调用 `offline` 并清理在线运行时。
+
+#### 请求 body
+
+```json
+{
+  "status": "online"
+}
+```
+
+`status` 取值：`online`、`away`、`busy`、`offline`。
+
+#### 响应 data
+
+```json
+{
+  "serviceId": "user_xxx",
+  "nickname": "玩家",
+  "avatar": null,
+  "status": "online",
+  "onlineAt": 1710000000000,
+  "lastActiveAt": 1710000000000
+}
+```
+
+---
+
+## 14. WebSocket 实时通道
+
+平台只开放一条实时通道：
+
+`/ws/game-hub/realtime?serviceId={serviceId}`
+
+`serviceId` 为必填查询参数，必须对应存在且状态可用的用户；缺失、无效或用户不可用时连接会被拒绝（close code 1008）。已建立连接在断开或异常退出时会清理服务端连接记录。
+
+前端将 close code `1008` 视为身份/权限失败，不自动重连；重新获取当前用户或切换到在线模式后才允许再次主动连接。普通网络断开使用指数退避重连，间隔从 1s 递增到最大 30s；手动关闭、本地模式和身份/权限失败状态均不重连。模式切换会清理 WebSocket 连接、重连定时器与心跳定时器。
+
+统一消息结构：
+
+```json
+{
+  "type": "online.ping",
+  "requestId": "uuid",
+  "payload": {},
+  "timestamp": 1710000000000
+}
+```
+
+消息类型集中定义：`online.ping`、`online.pong`、`system.notice`、`room.invite`、`room.inviteAccepted`、`room.inviteRejected`、`error`。
+
+`online.ping` 会返回：
+
+```json
+{
+  "type": "online.pong",
+  "requestId": "uuid",
+  "payload": {
+    "serviceId": "user_xxx"
+  },
+  "timestamp": 1710000000000
+}
+```
+
+---
+
 ## 附录 B：暂未开放接口
 
 以下能力在代码中有模型/服务层实现，但**未注册 HTTP 路由**或**同步未启用**，请勿按正式接口对接。
@@ -1621,5 +1726,7 @@
 | 23 | GET | `/users/{userId}/matches` |
 | 24 | GET | `/matches/{matchId}` |
 | 25 | GET | `/rankings` |
+| 26 | GET | `/online/users` |
+| 27 | POST | `/online/status` |
 
-**正式开放接口数量：25**（不含附录 A 系统模块 2 个）。
+**正式开放接口数量：27**（不含附录 A 系统模块 2 个，不含 WebSocket 通道）。
