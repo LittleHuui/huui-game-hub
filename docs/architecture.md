@@ -12,10 +12,10 @@
 │  用户 · 钱包 · 背包 · 商城 · 同步 · 排行榜 · 游戏配置      │
 └───────────────────────────┬─────────────────────────────┘
                             │ gameCode + config + capabilities
-        ┌───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼
-   minesweeper           match3            (your-game)
-   games/minesweeper/    games/match3/
+        ┌───────────────────┼───────────────────┬───────────────┐
+        ▼                   ▼                   ▼               ▼
+   minesweeper           match3              2048           sudoku
+   games/minesweeper/    games/match3/    games/game2048/  games/sudoku/
 ```
 
 **原则**
@@ -98,7 +98,7 @@ games/*Engine.js ← 纯算法，无 Vue / DOM / 网络
 - 左侧信息/配置/操作由 `LightSingleGameSidePanel` → `GameControlPanel`（`controls/`）展示；业务页计算 `infoStats` / `fields` / `actions`，模板只转发事件。
 - 商城 / 排行榜 / 背包仍由页面通过 slot 注入 `panels/` 下 `GameShopPanel`、`GameRankingPanel`、`GameInventoryPanel`。
 - `viewTemplate: 'light-single'` 仅写在 `GAME_REGISTRY`，**不**写入 `GAME_SEED_CONFIG` / `game-seed.json`。
-- 已接入 `light-single` 的示例：`minesweeper`、`match3`、`2048`（左侧 `GameControlPanel`，右侧 `GameMatchStatsPanel` + `LightSingleGameBoardFrame`）。
+- 已接入 `light-single` 的示例：`minesweeper`、`match3`、`2048`、`sudoku`（左侧 `GameControlPanel`，右侧 `GameMatchStatsPanel` + `LightSingleGameBoardFrame`）。
 - 五子棋、飞行棋、Canvas 重游戏等可继续自定义页面或沿用 `GamePlayLayout`，**不强制**使用 `light-single`。
 
 页面模板 ≠ 平台通用组件：`components/game/` 是**底层组件层**（展示 + emit）；`game-templates/` 是**模板层**（排版与 slot 容器）。
@@ -134,6 +134,55 @@ src/components/game/
 **`GameControlPanel`**：`props` — `title`、`subtitle`、`description`、`statusText`、`infoStats`、`fields`、`actions`；`emit` — `field-change`、`action`。不判断 `gameCode`，不调 API/store。
 
 **`GameMatchStatsPanel`**：`props` — `stats`、`quotas`、`message`、`themeSeed`、`columns`、`compact`；内部复用 `GameHudStats` / `GameStatGrid` / `GameStatCard` / `GameStatQuotaBar`，禁止写具体游戏分支。
+
+### 2.8 统一游戏设置（Game Settings）
+
+平台通过 **`constants/gameSettingDefinitions.js`**（`GAME_SETTING_DEFINITIONS`）注册各游戏可配置项；**顶部栏设置面板**（`GameHubPage` → `gameSettingService`）是平台级统一入口，展示**全部**已注册游戏设置，**不**依赖当前选中的 `gameCode`。
+
+| 原则 | 说明 |
+|------|------|
+| 配置驱动 | 新增开关/选项须先在 `GAME_SETTING_DEFINITIONS` 登记 `gameCode`、`gameName`、`settings[]`（`key`、`label`、`type`、`defaultValue` 等） |
+| 隔离维度 | 持久化与内存态按 **`gameCode` + `settingKey`** 隔离：每个 `gameCode` 对应一行 `setting` 对象，键为 `settingKey`，值为 `settingValue` |
+| 页面只读 | 游戏页通过 **`userService.readGameSettingBoolean`**（或游戏内 `*Service` 薄封装）读取；**不**在 Page 维护独立 localStorage 或并行配置结构 |
+| 写入链路 | 变更经 **Service → Repository → 本地缓存 → 同步队列 → 后端**，见下文数据流 |
+| 公共组件 | `components/game/`、`game-templates/` **禁止** `if (gameCode === 'xxx')` 等游戏特判 |
+
+**顶栏展示**
+
+- `gameSettingService.buildHubGameSettingGroups()` 遍历 `GAME_SETTING_DEFINITIONS`，从 `userStore` 的 `gameSettings[gameCode][settingKey]` 取已保存值，无则 `defaultValue`。
+- `setHubGameSettingSwitch(gameCode, key, value)` → `userService.updateGameSetting(gameCode, { [key]: value })`。
+
+**游戏页读取**
+
+- 游戏内 `*PageSettings.js` 仅通过 `findGameSettingDefinition(gameCode, key)` 引用与顶栏同源的 label/description；读写走 `*Service` → `userService`（示例：扫雷 `highlightAroundCells`、数独 `filterUnavailableNumbers`）。
+- 游戏页**不**在左侧 `GameControlPanel` 重复展示已在顶栏注册的开关。
+
+**设置同步数据流**
+
+```
+Page / GameHubPage（用户改开关）
+  → gameSettingService / userService（或 games/*Service 薄封装）
+    → userRepository.patchGameSettingForCurrentUser → persistAllLocal
+    → userService.queueSettingsSync({ gameCode })
+      → userRepository.buildGameSettingPendingEvent
+      → syncRepository.appendPendingEvent（eventType: user_game_setting_update）
+      → syncService.flushPendingIfOnline
+        → POST /sync/cloud-save
+```
+
+云端快照 / 启动上下文中的 `userGameSettings[]` 经 `userRepository.applyGameSettingToLocal` 合并进 `userStore.gameSettings`。
+
+**禁止**
+
+| 禁止 | 原因 |
+|------|------|
+| 页面直接 `fetch` 游戏设置接口 | 走 `userService` + `userRepository` |
+| 页面直接 `localStorage` 写游戏偏好 | 与 `userStore` / `persistAllLocal` 双轨 |
+| Store 内调 API 或拼同步 payload | Store 只存快照 |
+| 公共组件按 `gameCode` 分支展示设置 | 顶栏统一展示，游戏页只消费 |
+| 各游戏自建独立设置存储结构 | 与 `gameCode` 下 `setting` 对象冲突 |
+
+接口与事件字段见 [api.md §4.5–4.6、§2.3](api.md#45-获取用户游戏设置)；接入步骤见 [new-game-guide.md §9](new-game-guide.md#9-新增游戏设置)。
 
 ---
 
@@ -241,6 +290,19 @@ gameSessionService 结算
   → flushPendingIfOnline → 云端持久化
   → GET /users/{userId}/matches 刷新列表（可选）
 ```
+
+### 4.6 统一游戏设置
+
+```
+顶栏 / 游戏页改设置
+  → userService.updateGameSetting(gameCode, patch)
+  → userRepository.patchGameSettingForCurrentUser + persistAllLocal
+  → queueSettingsSync → pendingEvents（user_game_setting_update）
+  → flushPendingIfOnline → POST /sync/cloud-save
+  ← userGameSettings[] 写入快照 → applyGameSettingToLocal
+```
+
+在线时也可经 `GET/PUT /users/{userId}/games/{gameCode}/setting` 读写整包 `setting` 对象；日常变更以云同步事件为主。逻辑键为 **`gameCode` + `settingKey`**，值类型支持布尔、数字、字符串及 JSON 对象（见 [api.md](api.md)）。
 
 ---
 

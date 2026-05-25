@@ -10,7 +10,8 @@ import { defineStore } from 'pinia';
  * @property {number} score
  * @property {number} totalScore
  * @property {boolean} autoRevive
- * @property {{ neighborHoverRing: boolean }} prefs
+ * @property {Record<string, unknown>} prefs
+ * @property {Record<string, Record<string, unknown>>} gameSettings
  * @property {number} createdAt
  * @property {number} updatedAt
  * @property {number|null} serverCreatedAt
@@ -38,7 +39,8 @@ export const useUserStore = defineStore('user', {
           score: 0,
           totalScore: 0,
           autoRevive: false,
-          prefs: { neighborHoverRing: true },
+          prefs: {},
+          gameSettings: {},
           createdAt: 0,
           updatedAt: 0,
           serverCreatedAt: null,
@@ -74,7 +76,11 @@ export const useUserStore = defineStore('user', {
         score: partial.score ?? 0,
         totalScore: partial.totalScore ?? 0,
         autoRevive: !!partial.autoRevive,
-        prefs: partial.prefs || { neighborHoverRing: true },
+        prefs: partial.prefs && typeof partial.prefs === 'object' ? { ...partial.prefs } : {},
+        gameSettings:
+          partial.gameSettings && typeof partial.gameSettings === 'object'
+            ? { ...partial.gameSettings }
+            : {},
         createdAt: partial.createdAt ?? now,
         updatedAt: partial.updatedAt ?? now,
         serverCreatedAt: partial.serverCreatedAt ?? null,
@@ -111,6 +117,38 @@ export const useUserStore = defineStore('user', {
         u.prefs = { ...u.prefs, ...prefs };
         u.updatedAt = Date.now();
       }
+    },
+    /**
+     * @param {string} userId
+     * @param {string} gameCode
+     * @returns {Record<string, unknown>}
+     */
+    getGameSetting(userId, gameCode) {
+      const u = this.users.find((x) => x.userId === userId);
+      if (!u || !gameCode) {
+        return {};
+      }
+      const byGame = u.gameSettings;
+      const row = byGame && typeof byGame === 'object' ? byGame[gameCode] : null;
+      return row && typeof row === 'object' ? { ...row } : {};
+    },
+    /**
+     * @param {string} userId
+     * @param {string} gameCode
+     * @param {Record<string, unknown>} patch
+     */
+    patchGameSetting(userId, gameCode, patch) {
+      const u = this.users.find((x) => x.userId === userId);
+      if (!u || !gameCode || !patch || typeof patch !== 'object') {
+        return;
+      }
+      if (!u.gameSettings || typeof u.gameSettings !== 'object') {
+        u.gameSettings = {};
+      }
+      const prev = u.gameSettings[gameCode];
+      const base = prev && typeof prev === 'object' ? prev : {};
+      u.gameSettings[gameCode] = { ...base, ...patch };
+      u.updatedAt = Date.now();
     }
   }
 });

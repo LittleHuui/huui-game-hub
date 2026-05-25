@@ -572,7 +572,24 @@
 | setting | object | 游戏个性化 JSON，无数据时可能为 `{}` |
 | createdAt / updatedAt / deletedAt | number \| null | 时间戳 |
 
-**注意事项：** 若不存在会自动创建默认设置后返回。
+**逻辑字段（`setting` 对象内，按 `gameCode` 隔离）**
+
+前端以 **`gameCode` + `settingKey` + `settingValue`** 使用配置，HTTP 与同步载荷按游戏整包读写 `setting` 对象：
+
+| 逻辑字段 | 对应位置 | 说明 |
+|---|---|---|
+| gameCode | Path `gameCode` / 同步 `payload.gameCode` | 隔离不同游戏的配置行 |
+| settingKey | `setting` 对象的 camelCase 键 | 具体配置项，须与 `GAME_SETTING_DEFINITIONS` 中 `key` 一致 |
+| settingValue | `setting[settingKey]` | 布尔、数字、字符串或嵌套 JSON 对象 |
+
+**当前已注册示例（`game-hub/src/constants/gameSettingDefinitions.js`）**
+
+| gameCode | settingKey | settingValue 类型 | 默认值 | 说明 |
+|---|---|---|---|---|
+| `minesweeper` | `highlightAroundCells` | boolean | `true` | 悬停已翻开数字格时高亮周围 8 格 |
+| `sudoku` | `filterUnavailableNumbers` | boolean | `false` | 数字弹窗禁用同行/列/宫已有正式数字 |
+
+**注意事项：** 若不存在会自动创建默认设置后返回。业务页与顶栏读取时，无键则使用定义中的 `defaultValue`。
 
 ---
 
@@ -594,7 +611,48 @@
 
 **返回 data：** 同 [4.5](#45-获取用户游戏设置)。
 
-**注意事项：** 全量覆盖 `setting`，非增量合并。
+**注意事项：** 全量覆盖 `setting`，非增量合并。客户端日常改单项时经 `userService.updateGameSetting` 合并 patch 后，以云同步事件上报（见下）。
+
+**云同步事件 `user_game_setting_update`**
+
+`POST /sync/cloud-save` 的 `pendingEvents[]` 中，`eventType` 为 `user_game_setting_update` 时，`payload` 结构：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|:---:|---|
+| gameCode | string | 是 | 游戏编码，与 Path 一致 |
+| setting | object | 是 | 该游戏下待合并的设置键值；服务端按 `updatedAt` 与库中记录做字段级合并（LWW） |
+
+示例（扫雷开启周围格高亮）：
+
+```json
+{
+  "clientId": "ugs_xxxxxxxx",
+  "eventType": "user_game_setting_update",
+  "createdAt": 1730000000000,
+  "updatedAt": 1730000000000,
+  "payload": {
+    "gameCode": "minesweeper",
+    "setting": {
+      "highlightAroundCells": true
+    }
+  }
+}
+```
+
+示例（数独开启过滤不可选数字）：
+
+```json
+{
+  "payload": {
+    "gameCode": "sudoku",
+    "setting": {
+      "filterUnavailableNumbers": true
+    }
+  }
+}
+```
+
+云存档响应 `data.userGameSettings[]` 每项结构与 [4.5](#45-获取用户游戏设置) 的 `data` 相同（`gameCode` + `setting` 对象）。启动上下文 `POST /boot/context` 在已登录且存在设置行时，由服务端汇总各游戏设置（实现与云快照合并路径一致）。
 
 ---
 
@@ -1154,6 +1212,8 @@
 | tieBreakers | array | 次级指标：`{ metric, orderDirection }` |
 
 扫雷 `minesweeper` + `single` 示例：`durationMs` asc → `score` desc → `createdAt` asc（与 easy/medium/hard 难度无关，难度仅作 Query 过滤）。
+
+数独 `sudoku` + `classic` 示例：`durationMs` asc → `score` asc → `createdAt` asc；`score` 记录完成用时（毫秒），用时越短排名越靠前。
 
 ---
 

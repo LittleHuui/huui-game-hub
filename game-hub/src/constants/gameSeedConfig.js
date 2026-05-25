@@ -40,6 +40,14 @@ export const GAME_SEED_CONFIG = {
       icon: '🔨',
       basePrice: 1000,
       enabled: true
+    },
+    {
+      propCode: 'sudoku_hint_card',
+      propName: '提示卡',
+      description: '在空格填入正确答案',
+      icon: '💡',
+      basePrice: 600,
+      enabled: true
     }
   ],
   games: [
@@ -340,6 +348,131 @@ export const GAME_SEED_CONFIG = {
             selectTarget: 'cell',
             consumeOnUse: true,
             noSpawnAfterUse: true
+          }
+        }
+      ]
+    },
+    {
+      gameCode: 'sudoku',
+      gameName: '数独',
+      gameSubName: 'Sudoku',
+      supportOnline: false,
+      enabled: true,
+      sortNo: 4,
+      config: {
+        featureFlags: {
+          leaderboard: true,
+          shop: true,
+          inventory: true,
+          offline: true,
+          onlineBattle: false
+        },
+        ranking: {
+          enabled: true,
+          candidateLimit: 1000,
+          modes: {
+            classic: {
+              primaryMetric: 'durationMs',
+              orderDirection: 'asc',
+              tieBreakers: [
+                { metric: 'score', orderDirection: 'asc' },
+                { metric: 'createdAt', orderDirection: 'asc' }
+              ]
+            }
+          }
+        }
+      },
+      difficulties: [
+        {
+          difficultyCode: 'easy',
+          difficultyName: '简单',
+          enabled: true,
+          sortNo: 1,
+          config: {
+            givensCount: 40,
+            modes: {
+              classic: {
+                propUseLimits: [{ propCode: 'sudoku_hint_card', maxUse: 5 }]
+              }
+            },
+            settlement: {
+              rewardBase: 300,
+              rewardPerSecond: 1,
+              minReward: 50
+            }
+          }
+        },
+        {
+          difficultyCode: 'normal',
+          difficultyName: '普通',
+          enabled: true,
+          sortNo: 2,
+          config: {
+            givensCount: 34,
+            modes: {
+              classic: {
+                propUseLimits: [{ propCode: 'sudoku_hint_card', maxUse: 4 }]
+              }
+            },
+            settlement: {
+              rewardBase: 320,
+              rewardPerSecond: 1,
+              minReward: 50
+            }
+          }
+        },
+        {
+          difficultyCode: 'hard',
+          difficultyName: '困难',
+          enabled: true,
+          sortNo: 3,
+          config: {
+            givensCount: 28,
+            modes: {
+              classic: {
+                propUseLimits: [{ propCode: 'sudoku_hint_card', maxUse: 3 }]
+              }
+            },
+            settlement: {
+              rewardBase: 350,
+              rewardPerSecond: 1,
+              minReward: 50
+            }
+          }
+        },
+        {
+          difficultyCode: 'expert',
+          difficultyName: '专家',
+          enabled: true,
+          sortNo: 4,
+          config: {
+            givensCount: 24,
+            modes: {
+              classic: {
+                propUseLimits: [{ propCode: 'sudoku_hint_card', maxUse: 2 }]
+              }
+            },
+            settlement: {
+              rewardBase: 400,
+              rewardPerSecond: 1,
+              minReward: 50
+            }
+          }
+        }
+      ],
+      clientConfigs: [],
+      propRules: [
+        {
+          propCode: 'sudoku_hint_card',
+          sortNo: 1,
+          price: 600,
+          maxUsePerMatch: 5,
+          triggerType: 'manual',
+          effectType: 'fill_correct_cell',
+          enabled: true,
+          rule: {
+            consumeOnUse: true,
+            preferSelectedCell: true
           }
         }
       ]

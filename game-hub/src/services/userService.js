@@ -228,14 +228,39 @@ export async function setRepositoryMode(mode) {
 }
 
 /**
- * 邻居高亮偏好。
- * @param {boolean} value
+ * 读取当前用户某游戏设置中的布尔项。
+ * @param {string} gameCode
+ * @param {string} key
+ * @param {boolean} [defaultValue=false]
+ * @returns {boolean}
+ */
+export function readGameSettingBoolean(gameCode, key, defaultValue = false) {
+  const userStore = useUserStore();
+  const uid = userStore.auth.currentUserId;
+  if (!uid || !gameCode || !key) {
+    return defaultValue;
+  }
+  const setting = userStore.getGameSetting(uid, gameCode);
+  const value = setting[key];
+  return typeof value === 'boolean' ? value : defaultValue;
+}
+
+/**
+ * 更新当前用户某游戏设置并写入本地缓存，在线时排队云同步。
+ * @param {string} gameCode
+ * @param {Record<string, unknown>} patch
  * @returns {Promise<void>}
  */
-export async function setNeighborHoverRing(value) {
-  const userStore = useUserStore();
-  userStore.setUserPrefs(userStore.auth.currentUserId, { neighborHoverRing: !!value });
-  persistAllLocal();
+export async function updateGameSetting(gameCode, patch) {
+  if (!gameCode || !patch || typeof patch !== 'object') {
+    return;
+  }
+  userRepository.patchGameSettingForCurrentUser(gameCode, patch);
+  try {
+    await queueSettingsSync({ gameCode });
+  } catch {
+    persistAllLocal();
+  }
 }
 
 /**

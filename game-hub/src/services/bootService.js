@@ -40,7 +40,7 @@ export function createLocalGuestUser() {
     score: 0,
     totalScore: 0,
     autoRevive: false,
-    prefs: { neighborHoverRing: true },
+    prefs: {},
     createdAt: t,
     updatedAt: t,
     serverCreatedAt: null,

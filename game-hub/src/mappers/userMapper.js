@@ -15,7 +15,7 @@ export function mapRemoteUserToLocal(remote) {
     score: 0,
     totalScore: 0,
     autoRevive: false,
-    prefs: { neighborHoverRing: true },
+    prefs: {},
     createdAt: remote.createdAt ?? nowMs(),
     updatedAt: remote.updatedAt ?? nowMs(),
     serverCreatedAt: remote.createdAt ?? null,
@@ -38,7 +38,10 @@ export function normalizeUsersList(users) {
       u.autoRevive = false;
     }
     if (!u.prefs) {
-      u.prefs = { neighborHoverRing: true };
+      u.prefs = {};
+    }
+    if (!u.gameSettings || typeof u.gameSettings !== 'object') {
+      u.gameSettings = {};
     }
     if (!u.clientId) {
       u.clientId = `u_${u.userId || now}`;

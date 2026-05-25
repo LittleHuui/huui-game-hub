@@ -211,6 +211,15 @@ export function applyBootContext(boot) {
   if (boot.systemSetting?.setting) {
     applySystemSettingToLocal(boot.systemSetting.setting);
   }
+  if (Array.isArray(boot.userGameSettings)) {
+    for (const row of boot.userGameSettings) {
+      const code = row.gameCode;
+      const st = row.setting;
+      if (code && st && typeof st === 'object') {
+        applyGameSettingToLocal(code, st);
+      }
+    }
+  }
   persistAllLocal();
 }
 
@@ -265,11 +274,10 @@ export function collectSystemSetting() {
  */
 export function collectGameSetting(userId, gameCode) {
   const userStore = useUserStore();
-  const u = userStore.users.find((x) => x.userId === userId);
-  if (!u || !gameCode) {
+  if (!userId || !gameCode) {
     return {};
   }
-  return {};
+  return userStore.getGameSetting(userId, gameCode);
 }
 
 /**
@@ -281,6 +289,28 @@ export function applyGameSettingToLocal(gameCode, setting) {
   if (!setting || typeof setting !== 'object' || !gameCode) {
     return;
   }
+  const userStore = useUserStore();
+  const uid = userStore.auth.currentUserId;
+  if (!uid) {
+    return;
+  }
+  userStore.patchGameSetting(uid, gameCode, setting);
+  persistAllLocal();
+}
+
+/**
+ * 合并写入当前用户指定游戏的设置字段。
+ * @param {string} gameCode
+ * @param {Record<string, unknown>} patch
+ */
+export function patchGameSettingForCurrentUser(gameCode, patch) {
+  const userStore = useUserStore();
+  const uid = userStore.auth.currentUserId;
+  if (!uid || !gameCode) {
+    return;
+  }
+  userStore.patchGameSetting(uid, gameCode, patch);
+  persistAllLocal();
 }
 
 /**
@@ -373,7 +403,7 @@ export function createLocalUser(form) {
     score: 0,
     totalScore: 0,
     autoRevive: false,
-    prefs: { neighborHoverRing: true },
+    prefs: {},
     createdAt: t,
     updatedAt: t,
     serverCreatedAt: null,

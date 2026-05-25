@@ -111,15 +111,26 @@
             </label>
           </div>
         </div>
-        <div class="settings-row">
-          <div class="settings-row-text">
-            <strong>数字格邻居高亮</strong>
-            <p>鼠标悬停在已翻开且带数字的格子上时，为周围 8 格叠加浅色描边。</p>
+        <section v-for="group in hubGameSettingGroups" :key="group.gameCode" class="settings-game-group">
+          <h3 class="settings-game-title">{{ group.gameName }}</h3>
+          <div
+            v-for="item in group.items"
+            :key="`${group.gameCode}.${item.key}`"
+            class="settings-row settings-row--nested"
+          >
+            <div class="settings-row-text">
+              <strong>{{ item.label }}</strong>
+              <p v-if="item.description">{{ item.description }}</p>
+            </div>
+            <label class="settings-toggle">
+              <input
+                type="checkbox"
+                :checked="Boolean(item.value)"
+                @change="onHubGameSettingChange(item.gameCode, item.key, $event.target.checked)"
+              />
+            </label>
           </div>
-          <label class="settings-toggle">
-            <input type="checkbox" :checked="neighborHoverRingEnabled" @change="setNeighborHoverRingPref($event.target.checked)" />
-          </label>
-        </div>
+        </section>
       </template>
     </AppModal>
 
@@ -158,6 +169,7 @@ import { recentHistoryRecords } from '../utils/historySort.js';
 import * as userService from '../services/userService.js';
 import * as walletService from '../services/walletService.js';
 import * as toastService from '../services/toastService.js';
+import { buildHubGameSettingGroups, setHubGameSettingSwitch } from '../services/gameSettingService.js';
 
 const platform = usePlatformStore();
 const session = createGameSession({ gameCode: () => platform.currentGameCode });
@@ -176,7 +188,14 @@ const activeModal = ref('');
 
 const repositoryModeModel = computed(() => settingStore.settings.repositoryMode || 'auto');
 const repositoryRemoteEnabled = computed(() => platform.remoteAvailable);
-const neighborHoverRingEnabled = computed(() => user.value.prefs?.neighborHoverRing !== false);
+/** 顶栏设置：统一定义列表，与当前路由游戏无关 */
+const hubGameSettingGroups = computed(() => {
+  const u = userStore.currentUser;
+  if (u?.gameSettings) {
+    void u.gameSettings;
+  }
+  return buildHubGameSettingGroups();
+});
 
 const currentHistory = computed(() => {
   const uid = userStore.auth.currentUserId;
@@ -295,11 +314,14 @@ async function setRepositoryMode(mode) {
   await userService.setRepositoryMode(mode);
 }
 
-async function setNeighborHoverRingPref(value) {
-  await userService.setNeighborHoverRing(value);
-  if (!value) {
-    gamePageRef.value?.clearNeighborRing?.();
-  }
+/**
+ * 顶栏游戏设置开关变更（按 gameCode + settingKey 持久化）。
+ * @param {string} gameCode
+ * @param {string} key
+ * @param {boolean} value
+ */
+async function onHubGameSettingChange(gameCode, key, value) {
+  await setHubGameSettingSwitch(gameCode, key, value);
 }
 
 async function createUser() {
@@ -348,5 +370,26 @@ watch(
   pointer-events: none;
   opacity: 0.55;
   filter: grayscale(0.08);
+}
+
+.settings-game-group {
+  margin-top: 8px;
+}
+
+.settings-game-group:first-of-type {
+  margin-top: 4px;
+}
+
+.settings-game-title {
+  margin: 0 0 4px;
+  padding: 8px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-row--nested {
+  padding-left: 8px;
 }
 </style>

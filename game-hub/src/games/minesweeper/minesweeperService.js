@@ -1,3 +1,7 @@
+import * as userService from '../../services/userService.js';
+import { MINESWEEPER_GAME_CODE } from './minesweeperConfig.js';
+import { MINESWEEPER_PAGE_SETTING_HIGHLIGHT_AROUND } from './minesweeperPageSettings.js';
+
 /**
  * @param {number} rows
  * @param {number} cols
@@ -238,4 +242,27 @@ export function countCorrectFlags(board, rows, cols) {
  */
 export function isWinState(board, rows, cols, mines) {
   return countOpened(board, rows, cols) === rows * cols - mines;
+}
+
+/**
+ * 是否开启「周围格高亮」。
+ * @returns {boolean}
+ */
+export function isHighlightAroundCellsEnabled() {
+  return userService.readGameSettingBoolean(
+    MINESWEEPER_GAME_CODE,
+    MINESWEEPER_PAGE_SETTING_HIGHLIGHT_AROUND.key,
+    true
+  );
+}
+
+/**
+ * 保存「周围格高亮」偏好（本地缓存 + 在线同步）。
+ * @param {boolean} value
+ * @returns {Promise<void>}
+ */
+export async function setHighlightAroundCells(value) {
+  await userService.updateGameSetting(MINESWEEPER_GAME_CODE, {
+    [MINESWEEPER_PAGE_SETTING_HIGHLIGHT_AROUND.key]: !!value
+  });
 }

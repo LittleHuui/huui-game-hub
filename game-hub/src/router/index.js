@@ -4,6 +4,7 @@ import GameUnavailablePage from '../pages/GameUnavailablePage.vue';
 import MinesweeperPage from '../games/minesweeper/MinesweeperPage.vue';
 import Match3Page from '../games/match3/Match3Page.vue';
 import Game2048Page from '../games/game2048/Game2048Page.vue';
+import SudokuPage from '../games/sudoku/SudokuPage.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +31,12 @@ const router = createRouter({
           name: '2048',
           component: Game2048Page,
           meta: { title: '数字方舟' }
+        },
+        {
+          path: 'sudoku',
+          name: 'sudoku',
+          component: SudokuPage,
+          meta: { title: '数独' }
         },
         {
           path: ':gameCode',

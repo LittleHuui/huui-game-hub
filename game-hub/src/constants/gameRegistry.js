@@ -49,6 +49,22 @@ export const GAME_REGISTRY = {
       offline: true,
       onlineBattle: false
     }
+  },
+  sudoku: {
+    code: 'sudoku',
+    logo: '🧩',
+    name: '数独',
+    subName: 'Sudoku',
+    viewTemplate: 'light-single',
+    supportOnline: false,
+    modes: ['classic'],
+    capabilities: {
+      leaderboard: true,
+      inventory: true,
+      shop: true,
+      offline: true,
+      onlineBattle: false
+    }
   }
 };
 

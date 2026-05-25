@@ -138,6 +138,7 @@ import {
 } from '../../components/game/index.js';
 import { getGameConfig } from '../../constants/gameRegistry.js';
 import * as Svc from './minesweeperService.js';
+import { isHighlightAroundCellsEnabled } from './minesweeperService.js';
 import {
   MINESWEEPER_GAME_CODE,
   MINESWEEPER_MODE,
@@ -197,7 +198,6 @@ const gameMessage = ref('开始你的扫雷挑战吧');
 const activeTool = ref('');
 const isPaused = ref(false);
 const safeHintUsed = ref(false);
-const usedHintCount = ref(0);
 const revived = ref(false);
 const matchSessionId = ref(null);
 const currentMatchPropUses = ref([]);
@@ -224,7 +224,8 @@ const isGameInProgress = computed(() => gameStarted.value && !gameOver.value);
 
 useGameSwitchLock(isGameInProgress);
 const flatBoard = computed(() => Svc.flattenBoard(board.value, rows.value, cols.value));
-const neighborHoverRingEnabled = computed(() => user.value.prefs?.neighborHoverRing !== false);
+const highlightAroundCells = computed(() => isHighlightAroundCellsEnabled());
+
 const remainMines = computed(() => {
   let flagCount = 0;
   for (const v of flatBoard.value) {
@@ -246,19 +247,11 @@ const flaggedCount = computed(() => {
 });
 const canUseBattleProps = computed(() => isGameInProgress.value && !isPaused.value && !reviveOffer.visible);
 const hintMatchLimit = computed(() => HINT_LIMIT_BY_DIFFICULTY[difficulty.value] ?? 2);
-const hintMatchRemaining = computed(() => {
-  const matchQuota = Math.max(0, hintMatchLimit.value - usedHintCount.value);
-  return Math.min(hintQty.value, matchQuota);
-});
 const reviveMatchLimit = 1;
-const reviveMatchRemaining = computed(() => {
-  if (revived.value) {
-    return 0;
-  }
-  return Math.min(reviveQty.value, reviveMatchLimit);
-});
+const hintMatchUsed = computed(() => matchPropUseCount(MINESWEEPER_PROP.HINT));
+const reviveMatchUsed = computed(() => matchPropUseCount(MINESWEEPER_PROP.REVIVE));
 const hintBackpackExhausted = computed(
-  () => hintQty.value <= 0 || usedHintCount.value >= hintMatchLimit.value
+  () => hintQty.value <= 0 || hintMatchUsed.value >= hintMatchLimit.value
 );
 const canUseSafeStartHint = computed(() => !isGameInProgress.value);
 const difficultyLabel = computed(() => getDifficultyName(MINESWEEPER_GAME_CODE, difficulty.value));
@@ -376,14 +369,14 @@ const actionItems = computed(() => {
 
 const matchQuotas = computed(() => [
   {
-    label: '提示可用',
-    used: hintMatchRemaining.value,
+    label: '提示卡',
+    used: matchPropRemaining(MINESWEEPER_PROP.HINT, hintMatchLimit.value),
     max: hintMatchLimit.value,
     themeSeed: 'amber'
   },
   {
-    label: '复活可用',
-    used: reviveMatchRemaining.value,
+    label: '复活卡',
+    used: matchPropRemaining(MINESWEEPER_PROP.REVIVE, reviveMatchLimit),
     max: reviveMatchLimit,
     themeSeed: 'cyan'
   }
@@ -491,14 +484,32 @@ function showToast(message, level = 'info', duration = 3200, toastKind = null) {
   toastService.push(message, level, duration, toastKind);
 }
 
-watch(
-  () => user.value.prefs?.neighborHoverRing,
-  (enabled) => {
-    if (enabled === false) {
-      clearNeighborRing();
-    }
+/**
+ * 统计当前对局内指定道具的实际使用次数。
+ * @param {string} propCode
+ * @returns {number}
+ */
+function matchPropUseCount(propCode) {
+  return currentMatchPropUses.value.filter(
+    (row) => row?.propCode === propCode || row?.type === propCode
+  ).length;
+}
+
+/**
+ * 本局道具剩余可用次数（非背包库存）。
+ * @param {string} propCode
+ * @param {number} limit
+ * @returns {number}
+ */
+function matchPropRemaining(propCode, limit) {
+  return Math.max(0, limit - matchPropUseCount(propCode));
+}
+
+watch(highlightAroundCells, (enabled) => {
+  if (!enabled) {
+    clearNeighborRing();
   }
-);
+});
 
 function ensureSession() {
   if (!matchSessionId.value) {
@@ -546,7 +557,7 @@ function applyNeighborRingKeysFromCenter(center) {
 }
 
 function onNeighborRingCellEnter(cell) {
-  if (!neighborHoverRingEnabled.value) {
+  if (!highlightAroundCells.value) {
     neighborRingKeys.value = {};
     return;
   }
@@ -591,7 +602,6 @@ function resetMatchRuntimeState(message) {
   gameOver.value = false;
   gameWin.value = false;
   boardShake.value = false;
-  usedHintCount.value = 0;
   revived.value = false;
   activeTool.value = '';
   isPaused.value = false;
@@ -953,7 +963,7 @@ function useHintCard() {
     showToast('没有提示卡', 'warning');
     return;
   }
-  if (usedHintCount.value >= hintMatchLimit.value) {
+  if (hintMatchUsed.value >= hintMatchLimit.value) {
     showToast('本局提示次数已达上限', 'warning');
     return;
   }
@@ -965,7 +975,6 @@ async function handleHint(cell) {
   if (cell.opened) {
     return;
   }
-  usedHintCount.value++;
   activeTool.value = '';
   const isMine = cell.isMine;
   recordPropUsage(MINESWEEPER_PROP.HINT, isMine ? '提示卡：目标为雷' : '提示卡：目标安全');

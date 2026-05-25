@@ -2,7 +2,7 @@
 
 目标：**按模板在 `games/` 下新增模块，不修改平台公共组件的业务分支**。
 
-参考已接入游戏：`minesweeper`、`match3`、`2048`（均已接入 `light-single` 页面模板与底层 `controls` / `stats` 组件）。
+参考已接入游戏：`minesweeper`、`match3`、`2048`、`sudoku`（均已接入 `light-single` 页面模板与底层 `controls` / `stats` 组件）。
 
 ---
 
@@ -23,6 +23,7 @@
 | 9 | `gameLifecycleService.activateGame` | `onMounted` 与模式/难度变化后按需调用（`mode`、`difficultyCode`、`includeInventory`）；排行榜仅由布局中的 `GameRankingPanel` 负责展示与请求（见第 4 节） |
 | 10 | `createGameSession`（`gameSessionService.js`） | `sessionId`、结算、钱包/背包流水、对局与成绩入队、同步刷新 |
 | 11 | 可选 `useYourGameSession.js` | 仅封装本游戏 UI/动画状态；**不得**虚构 `startMatch`/`settleMatch` 等模块级 API |
+| 12 | `constants/gameSettingDefinitions.js` | 若有用户可切换偏好：注册 `gameCode` + `settings[]`；读写走 `userService` / 游戏 `*Service`（见第 9 节） |
 
 ### 1.2 后端
 
@@ -61,6 +62,8 @@ src/games/your-game/
 | `yourGameEngine.js` | 规则与 `animationSteps`；**不** Vue、DOM、网络 |
 | `yourGameConfig.js` | `resolveXxx(config)` 合并服务端与 `GAME_SEED_CONFIG` |
 | `useYourGameSession.js`（可选） | 棋盘/动画相关 `ref`/`computed`；结算仍由 Page 调用 `session.settleWin` 等 |
+
+数独 `games/sudoku/` 示例：`sudokuEngine.js`（终盘生成、挖空、冲突与完成判定）、`sudokuService.js`（开局棋盘）、`sudokuConfig.js`（种子合并）、`components/SudokuBoard.vue` + `SudokuNumberPopup.vue`（私有填数 UI，不进 `components/game/`）、`styles/sudoku.css`；固定 `mode: classic`，页面仅展示难度下拉。
 
 ---
 
@@ -129,7 +132,7 @@ yourGame: {
 
 **轻量单人推荐组合**：`LightSingleGameLayout` + 左侧 `GameControlPanel`（经模板 `controlFields` / `actionItems`）+ 右侧 `GameMatchStatsPanel`（`match-stats` slot）。业务页负责把本局状态适配为 `fields` / `actions` / `stats` / `quotas`，底层组件不写 `gameCode` 分支。
 
-**接入示例（扫雷 / 2048 / match3 参考 `MinesweeperPage.vue`、`Game2048Page.vue`、`Match3Page.vue`）**：
+**接入示例（扫雷 / 2048 / match3 / 数独 参考 `MinesweeperPage.vue`、`Game2048Page.vue`、`Match3Page.vue`、`SudokuPage.vue`）**：
 
 ```vue
 <template>
@@ -174,7 +177,7 @@ yourGame: {
 
 **`actionItems` 与 `@action`**：Page 用 computed 组装 `actionItems`（`GAME_ACTION_TYPE` / `GAME_ACTION_SIZE`），含 `key` / `label` / `type` / `size` / `visible` / `disabled`；模板只 `emit('action', key)`，业务在 Page 的 `handleControlAction` 内分支处理。
 
-**轻量单人操作按钮（2048 / match3 / 扫雷 已统一）**
+**轻量单人操作按钮（2048 / match3 / 扫雷 / 数独 已统一）**
 
 | 对局状态 | 展示按钮 |
 |----------|----------|
@@ -372,11 +375,67 @@ const session = createGameSession({ gameCode: 'your_game' });
 
 ---
 
-## 9. 禁止事项
+## 9. 新增游戏设置
+
+用户可切换的游戏偏好（开关、选项等）纳入**统一游戏设置体系**，由顶栏设置面板集中展示，游戏页只消费。
+
+### 9.1 接入步骤
+
+1. 在 `game-hub/src/constants/gameSettingDefinitions.js` 的 `GAME_SETTING_DEFINITIONS` 中增加一组：
+
+```js
+Object.freeze({
+  gameCode: 'your_game',
+  gameName: '你的游戏名',
+  settings: Object.freeze([
+    Object.freeze({
+      key: 'yourSettingKey',       // settingKey，camelCase
+      label: '设置项标题',
+      type: 'switch',              // 顶栏当前仅渲染 type === 'switch'
+      defaultValue: false,
+      description: '可选说明文案'
+    })
+  ])
+})
+```
+
+2. 在游戏目录增加 `yourGamePageSettings.js`（可选）：用 `findGameSettingDefinition('your_game', 'yourSettingKey')` 引用 label/description，**不**重复写死文案。
+3. 在 `yourGameService.js` 提供读写薄封装，内部调用：
+   - 读：`userService.readGameSettingBoolean(gameCode, key, defaultValue)`
+   - 写：`userService.updateGameSetting(gameCode, { [key]: value })`
+4. 游戏 `Page` / 组件只调用上述 Service 方法，**不**直接 `fetch`、`localStorage`，**不**在左侧 `GameControlPanel` 再挂同名开关。
+
+### 9.2 约束
+
+| 要求 | 说明 |
+|------|------|
+| 顶栏统一展示 | `GameHubPage` 经 `gameSettingService.buildHubGameSettingGroups()` 展示**所有**已注册游戏设置，与当前路由游戏无关 |
+| `gameCode` + `settingKey` 隔离 | 同一 `settingKey` 在不同 `gameCode` 下互不影响 |
+| 同步链路 | `updateGameSetting` → `userRepository` → 本地持久化 → `user_game_setting_update` 入队 → `POST /sync/cloud-save` |
+| 禁止公共组件特判 | 不在 `components/game/`、`game-templates/` 按游戏写设置 UI 或分支 |
+| 禁止双结构配置 | 不与 `gameSettingDefinitions` 并行维护第二套键名或存储 |
+
+### 9.3 示例：数独 `filterUnavailableNumbers`
+
+| 项 | 值 |
+|---|---|
+| gameCode | `sudoku` |
+| settingKey | `filterUnavailableNumbers` |
+| defaultValue | `false` |
+| 顶栏 | 「过滤不可选数字」开关，与其它游戏设置同列展示 |
+| 游戏页 | `sudokuService.isFilterUnavailableNumbersEnabled()` / `setFilterUnavailableNumbers()` → `userService` |
+
+扫雷 `minesweeper` + `highlightAroundCells`（`defaultValue: true`）结构相同，见 `minesweeperService.js` 与 `gameSettingDefinitions.js`。
+
+---
+
+## 10. 禁止事项
 
 | 禁止 | 原因 |
 |------|------|
 | 在 `GameShopPanel` / `GameRankingPanel` 等写 `if (gameCode === 'xxx')` | 平台组件保持通用 |
+| 仅在当前游戏页展示设置、不注册 `gameSettingDefinitions` | 破坏顶栏统一入口与 `gameCode` 隔离 |
+| 页面直接 `fetch` `/users/.../games/.../setting` 或写 `localStorage` 存游戏偏好 | 须走 `userService` → `userRepository` 链路 |
 | 在 `game-hub/src/services` 写死某游戏算法 | 算法归 Engine |
 | Page 内 `fetch` / `localStorage` | 走 repository + service |
 | Store 内调 API | Store 只存状态 |
@@ -387,12 +446,13 @@ const session = createGameSession({ gameCode: 'your_game' });
 
 ---
 
-## 10. 验收自检
+## 11. 验收自检
 
 - [ ] `npm run build` 通过  
 - [ ] 离线可玩（`repositoryMode: local`）  
 - [ ] 在线：购买、背包、排行榜、对局同步正常  
 - [ ] 对局 JSON 含 `durationMs`、`propUses[]`、`payload{}`，字段均为 camelCase（见 [api.md](api.md)）  
 - [ ] 未修改平台组件的游戏特判  
+- [ ] 用户偏好已注册 `gameSettingDefinitions`，顶栏可见，页面经 Service 读取  
 
 更多分层细节见 [code-style/frontend-code-style.md](code-style/frontend-code-style.md) 与 [architecture.md](architecture.md)。
