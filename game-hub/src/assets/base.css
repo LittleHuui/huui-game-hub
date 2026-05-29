@@ -196,7 +196,7 @@ button:hover {
     max-height: 86vh;
     overflow: auto;
     border-radius: 16px;
-    padding: 20px;
+    padding: 14px 18px 18px;
     background: #1e293b;
     border: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
@@ -207,7 +207,59 @@ button:hover {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
+}
+
+.modal-header__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.modal-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.55);
+    color: rgba(226, 232, 240, 0.92);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.modal-close-btn:hover {
+    transform: none;
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(148, 163, 184, 0.45);
+    color: #f8fafc;
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.modal .room-hub-form {
+    gap: 16px;
+}
+
+.modal .room-hub-form__actions {
+    margin-top: 8px;
+    padding-top: 4px;
+}
+
+.modal .room-hub-form__actions .game-action-btn--sm {
+    padding: 10px 16px;
+    font-size: 14px;
 }
 
 .modal-actions {

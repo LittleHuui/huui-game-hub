@@ -2,7 +2,36 @@
 
 目标：**按模板在 `games/` 下新增模块，不修改平台公共组件的业务分支**。
 
-参考已接入游戏：`minesweeper`、`match3`、`2048`、`sudoku`（均已接入 `light-single` 页面模板与底层 `controls` / `stats` 组件）。
+参考已接入游戏：
+
+- **轻量单人**（`runtimeType: light-single`）：`minesweeper`、`match3`、`2048`、`sudoku`
+- **策略回合制多人**（`runtimeType: strategy-turn-multiplayer`）：`uno`（平台壳与房间链路已接，玩法细节按分阶段目标后续实现）
+
+---
+
+## 0. 运行时类型与配置分轨
+
+接入前先确定 `GAME_REGISTRY.runtimeType`：
+
+| runtimeType | 适用 | 前端配置 | 后端规则种子 | 房间 |
+|-------------|------|----------|------------|------|
+| `light-single` | 单人轻量（扫雷、三消等） | `gameConfigService` 加载 `GAME_SEED_CONFIG` / `GET .../config` | 不需要 `rule-definition` | 不需要 |
+| `strategy-turn-multiplayer` | 策略回合制多人（UNO、斗地主等）；**非卡牌专用类型** | 同上，基础种子仍经 `gameConfigService` | `supportOnline: true` 时须在 `strategy_turn` 注册并暴露 `GET .../rule-definition` | `room` 模块 |
+
+**`supportOnline`**
+
+- `true`：**强制在线才能游玩**；`capabilities.offline` 为 `false`。
+- `false`：允许 `repositoryMode: local` 离线游玩。
+
+**配置职责**
+
+- **基础配置种子**（难度、道具、排行榜、`featureFlags` 等）：源码在 `GAME_SEED_CONFIG`，运行时由 **`gameConfigService` 统一加载并落地**到各游戏 `*Config.js`；禁止在 Page 内散落种子片段。
+- **规则种子**（`roomRule`、`runtimeRule`、`actionTypes` 等）：仅强制在线游戏；在后端 `strategy_turn.rule_definition_registry` 注册，经 **`GET /games/{gameCode}/rule-definition`** 对外提供；与 `config` 接口语义独立。
+
+**分阶段目标**
+
+1. **第一阶段**：先搭平台（在线、房间、`rule-definition`、`strategy-turn-multiplayer` 模板），再接 UNO 玩法；文档与实现均不提前展开 UNO 出牌等细节。
+2. **第二阶段**：用**斗地主**接入同一 `strategy-turn-multiplayer` 抽象，验证运行时与规则种子可复用于非卡牌游戏。
 
 ---
 
@@ -17,7 +46,7 @@
 | 3 | `constants/gameSeedConfig.js` | 种子：difficulties、propRules、items 等 |
 | 4 | `router/index.js` | 路由指向 `YourGamePage.vue` |
 | 5 | `YourGamePage.vue` | 轻量单人优先 `LightSingleGameLayout`；其它结构用 `GamePlayLayout` + 平台 `Game*Panel` |
-| 6 | `yourGameConfig.js` | 解析/合并配置 |
+| 6 | `yourGameConfig.js` | 解析/合并配置；在 `gameConfigService.js` 注册 handler，与其它游戏一样经 Service 落地基础种子 |
 | 7 | `yourGameEngine.js` | 纯算法 |
 | 8 | `components/YourGameHud.vue` 等 | HUD、棋盘、弹窗 |
 | 9 | `gameLifecycleService.activateGame` | `onMounted` 与模式/难度变化后按需调用（`mode`、`difficultyCode`、`includeInventory`）；排行榜仅由布局中的 `GameRankingPanel` 负责展示与请求（见第 4 节） |
@@ -29,14 +58,28 @@
 
 | 步骤 | 说明 |
 |------|------|
-| 1 | 在 `constants/gameSeedConfig.js` 的 `GAME_SEED_CONFIG` 中增加 `games[]` 项（`gameCode`、`config`、`difficulties`、`propRules`） |
+| 1 | 在 `constants/gameSeedConfig.js` 的 `GAME_SEED_CONFIG` 中增加 `games[]` 项（含 `supportOnline`、`config`、`difficulties`、`propRules`） |
 | 2 | `props[]` 中增加本游戏道具定义 |
 | 3 | `config.ranking.modes` 为每个上榜 `mode` 配置 `primaryMetric`、`orderDirection`、`tieBreakers`（服务端强校验） |
 | 4 | 在 `game-hub` 目录执行 `npm run export:seed`，生成与 `GAME_SEED_CONFIG` 一致的 `dist/game-seed.json`（可选，便于 curl 导入） |
 | 5 | `POST /admin/config/import-game-seed` 导入（运维/开发环境；新库必须执行） |
 | 6 | 同步 payload：`eventType: "match_record"` 的字段符合 [api.md §1.9](api.md#19-对局记录业务字段match_record) |
+| 7 | **`supportOnline: true` 时**：在 `app/modules/strategy_turn/rule_definition_registry.py` 注册 `StrategyTurnRuleDefinition`（及引擎占位）；房间接口将读取 `roomRule` |
 
-无需为单个游戏新增后端 module；配置驱动。
+无需为单个游戏新增独立后端 business module；平台配置与 `strategy_turn` 注册表驱动。
+
+### 1.3 策略回合制多人（`strategy-turn-multiplayer`）附加项
+
+| 步骤 | 位置 | 说明 |
+|------|------|------|
+| 1 | `gameRegistry.js` | `runtimeType` / `viewTemplate` 均为 `strategy-turn-multiplayer`；`supportOnline: true`；`capabilities.offline: false` |
+| 2 | `game-templates/strategy-turn-multiplayer/` | 页面壳：房间区 + 对局区 slot，不写 `gameCode` 特判 |
+| 3 | `gameConfigService.js` | 增加该 `gameCode` 的 handler，与其它游戏一样经 Service 落地基础种子 |
+| 4 | 后端 `strategy_turn` | 注册 `rule-definition` 种子（人数、`defaultExpireSeconds`、`actionSubmitMode` 等） |
+| 5 | 前端 `roomService` | 创建/加入/离开房间；须在线且已登录；**不**在 Page 内直接 `fetch` `/rooms` |
+| 6 | `onlineService` | 进入游戏前保持在线态；在线编排**可以**在 Service 层组合调用 `roomService` |
+
+`room` 为独立后端模块；`online` 与 `room` 平级，由业务 Service 按需串联。
 
 ---
 
@@ -68,6 +111,22 @@ src/games/your-game/
 ---
 
 ## 3. 游戏页布局
+
+### 3.0 策略回合制多人模板 `strategy-turn-multiplayer`
+
+**适用**：`runtimeType === 'strategy-turn-multiplayer'` 的强制在线多人游戏（UNO、后续斗地主等）。
+
+**目录**：`src/game-templates/strategy-turn-multiplayer/`（如 `StrategyTurnMultiplayerView.vue`）。
+
+| 允许 | 禁止 |
+|------|------|
+| 左右分栏、房间列表/对局区 slot、`emit` 事件 | 写死 UNO/斗地主等 `gameCode` 分支 |
+| Page 注入房间 ID、成员列表、对局棋盘组件 | 模板内 `fetch`、`roomRepository`、规则引擎 |
+| 调用 `roomService` / `onlineService`（在 Page 或游戏 Service） | 在模板内实现出牌、回合判定 |
+
+玩法逻辑放在 `games/{gameCode}/` 的 Engine 与 Service；房间元数据来自 `GET/POST /rooms`；规则参数来自 `GET .../rule-definition`。第一阶段只要求平台壳与房间链路可跑通，不实现具体牌型规则。
+
+---
 
 ### 3.1 轻量单人可选模板 `light-single`
 
@@ -414,6 +473,8 @@ Object.freeze({
 | 同步链路 | `updateGameSetting` → `userRepository` → 本地持久化 → `user_game_setting_update` 入队 → `POST /sync/cloud-save` |
 | 禁止公共组件特判 | 不在 `components/game/`、`game-templates/` 按游戏写设置 UI 或分支 |
 | 禁止双结构配置 | 不与 `gameSettingDefinitions` 并行维护第二套键名或存储 |
+| 禁止把 `roomRule` 写入 `GAME_SEED_CONFIG` | 房间与回合规则走 `rule-definition` |
+| 禁止在 Page 直调 `/rooms` 或 `/rule-definition` | 走 `roomService` 与专用 repository |
 
 ### 9.3 示例：数独 `filterUnavailableNumbers`
 

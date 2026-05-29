@@ -13,6 +13,7 @@ import * as syncService from './syncService.js';
 import * as gameCatalogService from './gameCatalogService.js';
 import * as onlineService from './onlineService.js';
 import * as realtimeService from './realtimeService.js';
+import { ensureGlobalRealtimeHandlers } from './gameHubRealtimeService.js';
 
 /**
  * 设置启动 loading 文案。
@@ -170,6 +171,7 @@ export async function activateOnlineRuntime() {
   }
   try {
     await onlineService.markOnline();
+    ensureGlobalRealtimeHandlers();
     realtimeService.connect({ resetAuthFailed: true });
     onlineService.startOnlineRefresh();
   } catch (e) {

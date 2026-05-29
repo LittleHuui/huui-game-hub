@@ -35,6 +35,7 @@ class ErrorCode(object):
     GAME_NOT_FOUND = ErrorCodeItem(30001, "游戏不存在")
     GAME_DISABLED = ErrorCodeItem(30002, "游戏已禁用")
     GAME_PROP_NOT_FOUND = ErrorCodeItem(30003, "游戏道具不存在")
+    GAME_RULE_DEFINITION_NOT_FOUND = ErrorCodeItem(30004, "游戏规则定义不存在")
 
     # 4000x 钱包
     WALLET_NOT_FOUND = ErrorCodeItem(40001, "钱包不存在")
@@ -52,6 +53,16 @@ class ErrorCode(object):
 
     # 8000x 排行榜
     RANKING_QUERY_ERROR = ErrorCodeItem(80001, "排行榜查询失败")
+
+    # 9000x 房间
+    ROOM_NOT_FOUND = ErrorCodeItem(90001, "房间不存在")
+    ROOM_FULL = ErrorCodeItem(90002, "房间已满")
+    ROOM_ALREADY_JOINED = ErrorCodeItem(90003, "已在房间中")
+    ROOM_NOT_MEMBER = ErrorCodeItem(90004, "不在房间中")
+    ROOM_ALREADY_STARTED = ErrorCodeItem(90005, "房间已开始")
+    PLAYER_ALREADY_IN_ROOM = ErrorCodeItem(90006, "玩家已在其他房间中")
+    PLAYER_MANAGED = ErrorCodeItem(90007, "玩家处于托管状态")
+    GAME_VIEW_VERSION_CONFLICT = ErrorCodeItem(90008, "房间版本已变更，请刷新后重试")
 
 
 def list_error_codes():

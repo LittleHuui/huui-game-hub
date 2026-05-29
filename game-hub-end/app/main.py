@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.core.redis.redis_client import redis_client
 from app.core.websocket.message_dispatcher import realtime_router
+from app.modules.room.background_coordinator import initialize_room_background, shutdown_room_background
 from app.common.exception_handlers import register_exception_handlers
 from app.core.logging import setup_logging
 
@@ -27,7 +28,9 @@ async def lifespan(_app: FastAPI):
     setup_logging()
     init_db()
     await _check_redis_connection()
+    await initialize_room_background()
     yield
+    await shutdown_room_background()
 
 
 async def _check_redis_connection() -> None:

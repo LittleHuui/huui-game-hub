@@ -14,6 +14,7 @@ from app.core.websocket.message_types import MessageType
 from app.core.websocket.schemas import RealtimeMessage
 from app.modules.user.entity_service import UserAccountEntityService
 from app.modules.user.repository import UserAccountRepository
+from app.modules.room.presence_service import room_presence_service
 
 realtime_router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -90,7 +91,39 @@ async def dispatch_message(service_id: str, websocket: WebSocket, data: Dict[str
             }
         )
         return
+    if message.type == MessageType.ROOM_INVITE.value:
+        await _forward_room_invite(service_id, message.payload)
+        return
+    if message.type == MessageType.ROOM_PRESENCE_PONG.value:
+        await room_presence_service.accept_pong(service_id, message.payload)
+        return
     await send_error(websocket, message.requestId, "不支持的消息类型")
+
+
+async def _forward_room_invite(sender_service_id: str, payload: Dict[str, Any]) -> None:
+    """
+    将房间邀请转发给目标用户。
+
+    :param sender_service_id: 邀请方用户 ID。
+    :param payload: 原始载荷。
+    :return: 无。
+    """
+    if not isinstance(payload, dict):
+        return
+    target_service_id = str(payload.get("targetServiceId", "")).strip()
+    if not target_service_id or target_service_id == sender_service_id:
+        return
+    room_id = str(payload.get("roomId", "")).strip()
+    if not room_id:
+        return
+    forward_payload = {
+        "roomId": room_id,
+        "roomName": str(payload.get("roomName", "")).strip(),
+        "gameCode": str(payload.get("gameCode", "")).strip(),
+        "inviterPlayerId": sender_service_id,
+        "inviterNickname": str(payload.get("inviterNickname", "")).strip() or sender_service_id,
+    }
+    await send_to_user(target_service_id, MessageType.ROOM_INVITE, forward_payload)
 
 
 async def send_to_user(service_id: str, message_type: MessageType, payload: Dict[str, Any]) -> bool:

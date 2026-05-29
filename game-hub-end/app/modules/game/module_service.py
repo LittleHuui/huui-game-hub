@@ -4,6 +4,8 @@ import json
 from typing import Any, Dict, List, Optional
 
 from app.common.exceptions import NotFoundException, ValidationException
+from app.modules.game_seed.online_game_seed_registry import get_online_game_seed
+from app.modules.game_seed.schemas import OnlineGameRuleSeed
 from app.modules.game.entity_service import (
     GameClientConfigEntityService,
     GameDefinitionEntityService,
@@ -163,6 +165,16 @@ class GameModuleService:
     def list_enabled_games(self) -> List[GameDefinition]:
         """列出全部已启用游戏。"""
         return self._definitions.list_enabled()
+
+    def get_game_rule_definition(self, game_code: str) -> OnlineGameRuleSeed:
+        """
+        返回已注册的在线游戏规则种子。
+
+        :param game_code: 游戏编码。
+        :return: 在线游戏规则种子。
+        :raises BizException: 未注册规则种子时抛出。
+        """
+        return get_online_game_seed(game_code)
 
     def get_game_config(self, game_code: str) -> GameConfigResponse:
         """

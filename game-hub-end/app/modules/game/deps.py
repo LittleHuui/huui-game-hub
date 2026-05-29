@@ -19,11 +19,11 @@ from app.modules.prop.entity_service import GamePropRuleEntityService
 from app.modules.prop.repository import GamePropRuleRepository
 
 
-def get_game_module_service(db: Session = Depends(get_db)) -> GameModuleService:
+def build_game_module_service(db: Session) -> GameModuleService:
     """
-    组装游戏模块服务依赖。
+    使用给定数据库会话构造游戏模块服务。
 
-    :param db: 请求级数据库会话。
+    :param db: 数据库会话。
     :return: ``GameModuleService`` 实例。
     """
     return GameModuleService(
@@ -32,3 +32,13 @@ def get_game_module_service(db: Session = Depends(get_db)) -> GameModuleService:
         GameClientConfigEntityService(GameClientConfigRepository(db)),
         GamePropRuleEntityService(GamePropRuleRepository(db)),
     )
+
+
+def get_game_module_service(db: Session = Depends(get_db)) -> GameModuleService:
+    """
+    组装游戏模块服务依赖。
+
+    :param db: 请求级数据库会话。
+    :return: ``GameModuleService`` 实例。
+    """
+    return build_game_module_service(db)

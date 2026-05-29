@@ -2,10 +2,19 @@
   <div v-if="visible" class="modal-mask" @click.self="$emit('close')">
     <div class="modal hub-scrollbar" @click.stop>
       <div class="modal-header">
-        <h2>{{ title }}</h2>
-        <button type="button" class="danger" @click="$emit('close')">关闭</button>
+        <h2 class="modal-header__title">{{ title }}</h2>
+        <button
+          type="button"
+          class="modal-close-btn"
+          aria-label="关闭"
+          @click="$emit('close')"
+        >
+          ×
+        </button>
       </div>
-      <slot />
+      <div class="modal-body">
+        <slot />
+      </div>
     </div>
   </div>
 </template>

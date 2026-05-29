@@ -476,6 +476,34 @@ export const GAME_SEED_CONFIG = {
           }
         }
       ]
+    },
+    {
+      gameCode: 'uno',
+      gameName: 'UNO',
+      gameSubName: 'UNO',
+      supportOnline: true,
+      enabled: true,
+      sortNo: 5,
+      config: {
+        featureFlags: {
+          leaderboard: false,
+          shop: false,
+          inventory: false,
+          offline: false,
+          onlineBattle: true
+        }
+      },
+      difficulties: [
+        {
+          difficultyCode: 'standard',
+          difficultyName: '标准',
+          enabled: true,
+          sortNo: 1,
+          config: {}
+        }
+      ],
+      clientConfigs: [],
+      propRules: []
     }
   ]
 };

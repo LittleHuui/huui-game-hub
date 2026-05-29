@@ -230,6 +230,11 @@ body,
   cursor: not-allowed;
 }
 
+.game-selector-pill.is-online-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .gh-layout-disabled {
   pointer-events: none;
   opacity: 0.55;

@@ -78,6 +78,18 @@ export function getGameProps(gameCode) {
 }
 
 /**
+ * 策略回合制在线游戏规则定义种子。
+ * @param {string} gameCode
+ * @returns {Promise<object>}
+ */
+export function getGameRuleDefinition(gameCode) {
+  return requestJson(
+    'GET',
+    apiUrl(`${HUB}/games/${encodeURIComponent(gameCode)}/rule-definition`)
+  );
+}
+
+/**
  * @param {{ enabled?: boolean }} [params]
  * @returns {Promise<object>}
  */

@@ -1,0 +1,404 @@
+.uno-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.uno-page__loading-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: 24px;
+}
+
+.uno-page__play-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.uno-page__play-room {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uno-page__head {
+  text-align: left;
+}
+
+.uno-page__title {
+  margin: 0 0 4px;
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.uno-page__subtitle {
+  margin: 0 0 12px;
+}
+
+.uno-page__status {
+  margin: 0;
+}
+
+.uno-page__meta {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.uno-page__meta-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.uno-page__meta-row dt {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.72;
+}
+
+.uno-page__meta-row dd {
+  margin: 0;
+  font-size: 14px;
+}
+
+.uno-page__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uno-page__cards-hint {
+  margin: 0;
+}
+
+.uno-page__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.uno-game-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.uno-game-view__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uno-game-view__hint {
+  margin: 0;
+  color: var(--accent, #6c8cff);
+}
+
+.uno-game-view__meta {
+  margin: 0;
+}
+
+.uno-game-view__zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.uno-game-view__zone {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.uno-game-view__zone-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.uno-game-view__discard {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.uno-game-view__players {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.uno-game-view__player {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.uno-game-view__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.uno-game-view__action-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.uno-page__bottom-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+}
+
+.uno-page__self-countdown {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 28px;
+  width: 100%;
+  visibility: visible;
+}
+
+.uno-page__self-countdown--hidden {
+  visibility: hidden;
+}
+
+.uno-page__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  min-height: 48px;
+}
+
+.uno-page__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 200px;
+}
+
+.uno-page__players {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.uno-page__players .turn-player-panel--edge-left {
+  margin-left: 0;
+  align-self: flex-start;
+}
+
+.uno-page__players .turn-player-panel--edge-right {
+  margin-left: auto;
+  margin-right: 0;
+  align-self: flex-end;
+}
+
+.uno-page__hand {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding-top: 8px;
+}
+
+.uno-page__hand-row {
+  display: flex;
+  justify-content: center;
+  min-height: 132px;
+  padding-top: 28px;
+  align-items: flex-end;
+}
+
+.uno-settlement {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.uno-settlement__winner {
+  margin: 0;
+  font-size: 15px;
+}
+
+.uno-settlement__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.uno-settlement__item {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.uno-settlement__rank {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fde68a;
+}
+
+.uno-settlement__name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uno-discard-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.uno-discard-area__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.uno-discard-area__pile {
+  position: relative;
+  min-width: 8.5rem;
+  min-height: 7.5rem;
+}
+
+.uno-discard-area__card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: transform 0.15s ease;
+}
+
+.uno-discard-area__empty {
+  margin: 0;
+  padding: 24px 0;
+}
+
+.uno-discard-area__color {
+  margin: 0;
+}
+
+.uno-color-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uno-color-picker__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.uno-color-picker__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 240px;
+  padding: 16px 18px;
+}
+
+.uno-color-picker__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.uno-color-picker__description {
+  margin: 0;
+}
+
+.uno-color-picker__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.uno-color-picker__option {
+  border: none;
+  border-radius: 8px;
+  padding: 12px 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+}
+
+.uno-color-picker__option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.uno-color-picker__option--red {
+  background: #e74c3c;
+}
+
+.uno-color-picker__option--yellow {
+  background: #f1c40f;
+  color: #1e293b;
+}
+
+.uno-color-picker__option--blue {
+  background: #3498db;
+}
+
+.uno-color-picker__option--green {
+  background: #27ae60;
+}
+
+.uno-color-picker__cancel {
+  align-self: flex-end;
+}
+
+.uno-page__room-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.uno-page__room-gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}

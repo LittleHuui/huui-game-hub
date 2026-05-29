@@ -137,6 +137,16 @@
 
     <UserLoginModal :visible="platform.bootStatus === 'waitingLogin'" @success="onLoginSuccess" />
 
+    <RoomInviteConfirmDialog
+      :visible="Boolean(pendingInvite)"
+      :room-name="pendingInvite?.roomName || '房间'"
+      :inviter-nickname="pendingInvite?.inviterNickname || '玩家'"
+      :submitting="inviteActionSubmitting"
+      :error-message="inviteActionError"
+      @accept="acceptInvite"
+      @reject="rejectInvite"
+    />
+
     <div class="gh-game-shell" :class="{ 'gh-game-shell--locked': !platform.isPlayable }">
       <router-view v-slot="{ Component }">
         <component :is="Component" ref="gamePageRef" />
@@ -154,6 +164,8 @@ import UserMenu from '../components/UserMenu.vue';
 import OnlineUsersDropdown from '../components/game-hub/OnlineUsersDropdown.vue';
 import GameSelector from '../components/GameSelector.vue';
 import UserLoginModal from '../components/UserLoginModal.vue';
+import RoomInviteConfirmDialog from '../components/game-hub/room/RoomInviteConfirmDialog.vue';
+import { useGlobalRoomInvite } from '../composables/useGlobalRoomInvite.js';
 import { GH_OPEN_HUB_MODAL } from '../constants/injectionKeys.js';
 import { createGameSession } from '../services/gameSessionService.js';
 import { usePlatformStore } from '../stores/platformStore.js';
@@ -174,6 +186,13 @@ import * as toastService from '../services/toastService.js';
 import { buildHubGameSettingGroups, setHubGameSettingSwitch } from '../services/gameSettingService.js';
 
 const platform = usePlatformStore();
+const {
+  pendingInvite,
+  inviteActionSubmitting,
+  inviteActionError,
+  rejectInvite,
+  acceptInvite
+} = useGlobalRoomInvite();
 const session = createGameSession({ gameCode: () => platform.currentGameCode });
 const userStore = useUserStore();
 const walletStore = useWalletStore();

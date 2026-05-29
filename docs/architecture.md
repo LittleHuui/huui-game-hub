@@ -22,6 +22,8 @@
 
 - 平台不知道具体游戏规则；游戏不直接访问 HTTP / localStorage。
 - 对外数据一律 **camelCase**；对局字段见 [api.md §1.9](api.md#19-对局记录业务字段match_record)。
+- `supportOnline === true` 表示**强制在线才能游玩**（`capabilities.offline` 为 `false`）；`false` 表示允许本地模式游玩。
+- 配置与规则种子分轨：前端 `gameConfigService` 统一落地各游戏**基础配置种子**；后端 `GET .../rule-definition` 仅服务 `supportOnline === true` 游戏的**规则种子**（策略回合制在线玩法）。
 
 ---
 
@@ -58,10 +60,25 @@ realtimeService → websocketClient → /ws/game-hub/realtime
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| 前端能力 | `constants/gameRegistry.js` | `modes`、`capabilities`（leaderboard/shop/inventory）；可选 `viewTemplate`（页面模板，**不**进 seed） |
-| 离线种子 | `constants/gameSeedConfig.js`（`GAME_SEED_CONFIG`，**唯一业务种子源码**） |
-| 种子 JSON | `npm run export:seed` → `dist/game-seed.json`（与上者一致，供导入 / curl） |
-| 在线配置 | `gameConfigService` → `GET /games/{gameCode}/config` | 覆盖种子；未加载成功时使用 `GAME_SEED_CONFIG` |
+| 前端能力 | `constants/gameRegistry.js` | `gameCategory`、`runtimeType`、`modes`、`capabilities`（leaderboard/shop/inventory/offline）；`supportOnline`（是否强制在线）；可选 `viewTemplate`（页面模板，**不**进 seed） |
+| 业务种子源码 | `constants/gameSeedConfig.js`（`GAME_SEED_CONFIG`） | 难度、道具、排行榜等平台配置；`npm run export:seed` → `dist/game-seed.json` 供运维导入 |
+| 基础配置落地 | `services/gameConfigService.js` | **所有已接入游戏**的基础配置种子统一经此 Service 加载并写入各游戏 `*Config` 模块；`local` 模式应用 `GAME_SEED_CONFIG`，`online` / `degraded` 模式经 `GET /games/{gameCode}/config` 应用服务端配置 |
+| 在线规则种子 | 后端 `strategy_turn` + `GET /games/{gameCode}/rule-definition` | 仅 `supportOnline === true` 的游戏注册；含 `roomRule`、`runtimeRule`、`actionTypes` 等，供房间与策略回合运行时消费 |
+
+**`runtimeType` 与页面模板**
+
+| runtimeType | 含义 | 典型游戏 |
+|-------------|------|----------|
+| `light-single` | 轻量单人运行时 | 扫雷、消消乐、2048、数独 |
+| `strategy-turn-multiplayer` | **策略回合制多人**运行时类型（按回合提交操作、房间聚合玩家）；**不是**卡牌专用类型，斗地主等同类游戏复用此类型 | UNO（平台壳已接入，玩法待实现） |
+
+`viewTemplate` 与 `runtimeType` 同名时指向 `src/game-templates/{runtimeType}/` 下的页面模板；模板只负责排版，不含玩法与 API。
+
+**`supportOnline`**
+
+- 注册表与种子中的 `supportOnline` 语义一致：**为 `true` 时，仅在线模式可进入并游玩该游戏**。
+- 与 `capabilities.offline` 配合：`supportOnline: true` 时 `offline` 须为 `false`。
+- 大厅与路由在 `repositoryMode === 'local'` 或网络不可用时，对 `supportOnline: true` 的游戏展示不可用或引导切换在线模式。
 
 ### 2.4 游戏生命周期
 
@@ -213,8 +230,10 @@ deps.py：FastAPI Depends
 | `score` | 成绩实体、排行榜规则计算 |
 | `ranking` | 排行榜 HTTP 查询 |
 | `sync` | 同步编排（逻辑在 `module_service`，路由挂在 boot） |
-| `online` | 在线用户、在线房间、临时缓存、对局暂存等运行期临时态业务；当前提供在线用户状态与在线用户列表 |
-| `admin_config` | 种子导入（运维）；**唯一业务种子源码**在前端 `GAME_SEED_CONFIG`，可用 `npm run export:seed` 生成 JSON |
+| `online` | 在线用户状态与在线用户列表（仅 Redis）；与 `room` **模块解耦**，编排层可按需调用房间接口 |
+| `room` | 独立运行期模块：房间元信息、成员、版本号（仅 Redis）；创建/加入/离开；依赖 `rule-definition` 中的 `roomRule` |
+| `strategy_turn` | 策略回合制规则定义注册表与规则引擎抽象；`GET .../rule-definition` 由 `game` 模块暴露 |
+| `admin_config` | 种子导入（运维）；导入体与前端 `GAME_SEED_CONFIG` 导出 JSON 字段一致，可用 `npm run export:seed` 生成 |
 | `system` | 系统 KV 配置 |
 
 ### 3.3 平台运行期基础能力
@@ -226,6 +245,12 @@ deps.py：FastAPI Depends
 | Online 业务模块 | `app/modules/online/` | 管理运行期在线用户状态与列表，在线状态只写 Redis，不写数据库 |
 
 Redis 不承载业务规则，WebSocket 不承载在线用户判定；在线用户列表以 Redis TTL 为准，WebSocket 断开不直接等同于离线。
+
+**`online` 与 `room` 边界**
+
+- `room` 为独立 HTTP 模块（`/rooms`），数据仅存 Redis，不写入 SQLite。
+- `online` 模块只维护用户在线态；房间生命周期由 `room` 模块负责。
+- 前端在线对局流程由 Service 编排：可先 `onlineService` 建立在线态，再 `roomService` 创建/加入房间；后端 `online` **可以**在后续编排中调用 `room` 的 `module_service`，但不得在 `online` 内复制房间存储逻辑。
 
 `/ws/game-hub/realtime` 建连时校验 `serviceId` 对应的用户存在且可用，`serviceId` 缺失、无效或用户不可用时以 close code `1008` 拒绝；前端将 `1008` 视为身份/权限失败，不自动重连。普通网络异常使用指数退避重连，手动关闭与本地模式切换不重连。连接管理器只保存已校验用户连接。应用启动时会执行 Redis ping 检查并记录 host、port、db；Redis 不可用只记录错误，不阻断服务启动。
 
@@ -320,6 +345,18 @@ gameSessionService 结算
 
 在线时也可经 `GET/PUT /users/{userId}/games/{gameCode}/setting` 读写整包 `setting` 对象；日常变更以云同步事件为主。逻辑键为 **`gameCode` + `settingKey`**，值类型支持布尔、数字、字符串及 JSON 对象（见 [api.md](api.md)）。
 
+### 4.7 强制在线游戏（配置 + 房间）
+
+```
+gameLifecycleService.activateGame
+  → gameConfigService.loadGameConfig          // 基础种子：GAME_SEED_CONFIG 或 GET .../config
+  → （游戏 Service）GET .../rule-definition  // 规则种子：roomRule、runtimeRule（经 repository）
+  → onlineService 保持在线态
+  → roomService.createRoom / joinRoom        // POST /rooms（仅 waiting 态写成员）
+```
+
+`strategy-turn-multiplayer` 页面模板只编排 UI；规则校验在 Engine，权威状态在服务端 Redis（房间元信息）与后续对局运行时扩展。
+
 ---
 
 ## 5. 前后端协作边界
@@ -330,10 +367,24 @@ gameSessionService 结算
 | 棋盘状态 | 前端内存 | 结算后写入对局记录 |
 | 道具价格 | 服务端 propRules | 前端只展示 |
 | 排行榜顺序 | 服务端 ranking 配置 | 前端只请求与展示 |
+| 基础配置种子 | `GAME_SEED_CONFIG` + 导入库；在线时 `GET .../config` | 前端 `gameConfigService` 统一落地 |
+| 在线规则种子 | `strategy_turn` 注册表 | `GET .../rule-definition`；`room` 读 `roomRule` |
+| 房间成员与版本 | 服务端 Redis（`room` 模块） | 前端 `roomService` 编排，Page 不直调 HTTP |
 
 ---
 
-## 6. 相关文档
+## 6. 分阶段目标
+
+| 阶段 | 目标 | 说明 |
+|------|------|------|
+| 第一阶段 | 搭建平台，再接 UNO | 完成在线态、WebSocket、`room`、`rule-definition`、`strategy-turn-multiplayer` 页面壳与配置分轨；**不**在本阶段实现 UNO 完整玩法细节 |
+| 第二阶段 | 斗地主验证抽象 | 在 `strategy-turn-multiplayer` + `rule-definition` 上接入斗地主，验证策略回合制多人运行时与规则种子可复用于非卡牌游戏 |
+
+新游戏接入时遵循当前架构事实：单人轻量游戏走 `light-single` + `gameConfigService`；强制在线的多人策略回合游戏走 `strategy-turn-multiplayer` + `rule-definition` + `room`。
+
+---
+
+## 7. 相关文档
 
 - 接口明细：[api.md](api.md)
 - 新游戏接入：[new-game-guide.md](new-game-guide.md)

@@ -5,8 +5,11 @@ export const GAME_REGISTRY = {
     logo: '💣',
     name: '雷区突围',
     subName: 'Mine Rush',
+    gameCategory: 'light-single',
+    runtimeType: 'light-single',
     /** 前端页面模板（不导出到 seed） */
     viewTemplate: 'light-single',
+    /** 强制在线才能游玩 */
     supportOnline: false,
     modes: ['single'],
     capabilities: {
@@ -21,8 +24,11 @@ export const GAME_REGISTRY = {
     logo: '🌈',
     name: '幻彩碰撞',
     subName: 'Color Crush',
+    gameCategory: 'light-single',
+    runtimeType: 'light-single',
     /** 前端页面模板（不导出到 seed） */
     viewTemplate: 'light-single',
+    /** 强制在线才能游玩 */
     supportOnline: false,
     modes: ['timed', 'endless'],
     capabilities: {
@@ -38,8 +44,11 @@ export const GAME_REGISTRY = {
     logo: '🔢',
     name: '数字方舟',
     subName: '2048 Ark',
+    gameCategory: 'light-single',
+    runtimeType: 'light-single',
     /** 前端页面模板（不导出到 seed） */
     viewTemplate: 'light-single',
+    /** 强制在线才能游玩 */
     supportOnline: false,
     modes: ['classic'],
     capabilities: {
@@ -55,7 +64,10 @@ export const GAME_REGISTRY = {
     logo: '🧩',
     name: '数独',
     subName: 'Sudoku',
+    gameCategory: 'light-single',
+    runtimeType: 'light-single',
     viewTemplate: 'light-single',
+    /** 强制在线才能游玩 */
     supportOnline: false,
     modes: ['classic'],
     capabilities: {
@@ -64,6 +76,27 @@ export const GAME_REGISTRY = {
       shop: true,
       offline: true,
       onlineBattle: false
+    }
+  },
+  uno: {
+    code: 'uno',
+    logo: '🃏',
+    name: 'UNO',
+    subName: 'UNO',
+    gameCategory: 'strategy-turn',
+    runtimeType: 'strategy-turn-multiplayer',
+    viewTemplate: 'strategy-turn-multiplayer',
+    /** 强制在线才能游玩 */
+    supportOnline: true,
+    onlineEnabled: true,
+    onlinePlayRouteName: 'uno-play',
+    onlinePlayRouteParamsBuilder: ({ roomId }) => ({ roomId }),
+    modes: ['classic'],
+    capabilities: {
+      leaderboard: false,
+      inventory: false,
+      shop: false,
+      offline: false
     }
   }
 };

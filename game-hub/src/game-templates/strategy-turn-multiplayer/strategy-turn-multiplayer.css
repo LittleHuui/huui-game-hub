@@ -1,0 +1,68 @@
+/* 策略回合制多人游戏页面模板：仅占位布局，不含业务样式 */
+.strategy-turn-multiplayer-layout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.strategy-turn-multiplayer-layout__top {
+  padding: 10px 4px 4px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.strategy-turn-multiplayer-layout__stage {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr) minmax(140px, 220px);
+  gap: 16px;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 280px;
+}
+
+.strategy-turn-multiplayer-layout__zone {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 120px;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.strategy-turn-multiplayer-layout__center {
+  min-height: 200px;
+}
+
+.strategy-turn-multiplayer-layout__bottom {
+  padding: 12px 8px 4px;
+  min-width: 0;
+  min-height: 72px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.strategy-turn-multiplayer-layout__animation {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.strategy-turn-multiplayer-layout__animation > * {
+  pointer-events: auto;
+}
+
+@media (max-width: 900px) {
+  .strategy-turn-multiplayer-layout__stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+}

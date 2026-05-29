@@ -136,6 +136,7 @@
 | 30001 | GAME_NOT_FOUND | 游戏不存在 |
 | 30002 | GAME_DISABLED | 游戏已禁用 |
 | 30003 | GAME_PROP_NOT_FOUND | 游戏道具不存在 |
+| 30004 | GAME_RULE_DEFINITION_NOT_FOUND | 游戏规则定义不存在 |
 | 40001 | WALLET_NOT_FOUND | 钱包不存在 |
 | 40002 | BALANCE_NOT_ENOUGH | 积分余额不足 |
 | 50001 | PURCHASE_ALREADY_EXISTS | 购买记录已存在 |
@@ -143,6 +144,21 @@
 | 60002 | SYNC_DATA_INVALID | 同步数据无效 |
 | 70001 | MATCH_NOT_FOUND | 对局不存在 |
 | 80001 | RANKING_QUERY_ERROR | 排行榜查询失败 |
+| 90001 | ROOM_NOT_FOUND | 房间不存在 |
+| 90002 | ROOM_FULL | 房间已满 |
+| 90004 | ROOM_PLAYER_NOT_IN_ROOM | 不在房间中 |
+| 90005 | ROOM_ALREADY_STARTED | 房间已开始 |
+
+### 1.11 supportOnline 字段说明
+
+`GameSummaryResponse` 及种子导入中的 `supportOnline` 表示：**该游戏是否强制在线才能游玩**。
+
+| 值 | 含义 |
+|---|---|
+| `true` | 仅在线模式可进入并游玩；须注册 `rule-definition`；典型为 `strategy-turn-multiplayer` 类游戏 |
+| `false` | 允许本地模式（`repositoryMode: local`）游玩；不暴露 `rule-definition` |
+
+与前端 `GAME_REGISTRY.capabilities.offline` 一致：`supportOnline: true` 时 `offline` 应为 `false`。
 
 ---
 
@@ -227,7 +243,7 @@
 | gameCode | string | 游戏编码 |
 | gameName | string | 游戏名称 |
 | gameSubName | string \| null | 副标题 |
-| supportOnline | boolean | 是否支持联机 |
+| supportOnline | boolean | 是否强制在线才能游玩（见 [§1.11](#111-supportonline-字段说明)） |
 | enabled | boolean | 是否启用 |
 | sortNo | number | 排序号 |
 
@@ -734,7 +750,7 @@
 | gameCode | string | 游戏编码 |
 | gameName | string | 名称 |
 | gameSubName | string \| null | 副标题 |
-| supportOnline | boolean | 是否支持联机 |
+| supportOnline | boolean | 是否强制在线才能游玩（见 [§1.11](#111-supportonline-字段说明)） |
 | enabled | boolean | 是否启用 |
 | sortNo | number | 排序 |
 
@@ -790,7 +806,7 @@
 | enabled | boolean | 是否启用 |
 | createdAt / updatedAt / deletedAt | number \| null | 时间戳 |
 
-`props[]`（GamePropRuleResponse）：结构同 [5.3](#53-查询游戏可用道具规则)，含 `sortNo`，按 `sortNo` 升序、`propCode` 升序返回。
+`props[]`（GamePropRuleResponse）：结构同 [5.4](#54-查询游戏可用道具规则)，含 `sortNo`，按 `sortNo` 升序、`propCode` 升序返回。
 
 **注意事项：**
 
@@ -799,7 +815,174 @@
 
 ---
 
-### 5.3 查询游戏可用道具规则
+### 5.3 策略回合制游戏规则定义种子
+
+面向 **`supportOnline === true`** 的策略回合制多人游戏，提供**规则种子**（非平台基础配置）。`strategy-turn-multiplayer` 为运行时类型名称，**不绑定卡牌**；斗地主等同类游戏复用同一接口形状。
+
+| 项 | 值 |
+|---|---|
+| 接口名称 | 策略回合制游戏规则定义种子 |
+| 请求方法 | `GET` |
+| 请求路径 | `/games/{gameCode}/rule-definition` |
+
+**Path 参数：**
+
+| 参数 | 说明 |
+|---|---|
+| gameCode | 游戏编码 |
+
+**Body 参数：** 无
+
+**返回 data（OnlineGameRuleSeed）：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| gameCode | string | 游戏编码 |
+| ruleVersion | string | 规则版本标识 |
+| runtimeType | string | 前端运行时类型（如 `strategy-turn-multiplayer`） |
+| gameRuleInfo | object | 游戏级规则元信息（牌背图、单套牌张数等） |
+| cardDefinitions | array | 牌型定义列表（`cardCode`、`color`、`cardType`、`numberValue`、`countPerDeckSet`） |
+| roomRule | object | 房间级规则种子（人数上下限、是否允许 AI、默认过期秒数等） |
+| roomConfigSchema | array | 建房表单字段定义列表（见下表） |
+| extensionConfig | object | 游戏扩展配置（如 UNO 的 `initialDeckSetRules`） |
+
+**`cardDefinitions[]` 字段：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| cardCode | string | 牌型编码，与资源文件名一致（如 `red_disable`、`wild_draw4`） |
+| color | string \| null | 花色：`RED` / `YELLOW` / `BLUE` / `GREEN`；万能牌为 `null` |
+| cardType | string | `NUMBER` / `DISABLE` / `REVERSE` / `DRAW_TWO` / `WILD` / `WILD_DRAW4` |
+| numberValue | int \| null | 数字牌点数 `0`–`9`；非数字牌为 `null` |
+| countPerDeckSet | int | 每套牌组中该牌型张数 |
+| image | string | 牌面图相对路径，如 `games/uno/cards/red_7.png` |
+| description | string | 牌型说明 |
+
+**`roomRule` 字段：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| minPlayers / maxPlayers | int | 最少 / 最多玩家人数 |
+| allowAi | boolean | 是否允许房主在等待中房间添加 AI 玩家 |
+| minAiCount / maxAiCount | int | AI 数量下限 / 上限 |
+| defaultExpireSeconds | int | 房间默认 Redis TTL（秒） |
+
+**`roomConfigSchema[]` 字段项：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| key | string | 配置键 |
+| type | string | `boolean` / `number` / `enum` |
+| label | string | 展示标签 |
+| defaultValue | any | 默认值 |
+| options | array | `enum` 类型选项（`value` / `label`） |
+| min / max | int | `number` 类型范围 |
+| description | string | 字段说明 |
+| visibleWhen | object | 可选；`{ "field": "其它键", "equals": 期望值 }`，不满足时不展示、不提交 |
+
+**UNO 默认建房配置（`roomConfigSchema` 默认值）：**
+
+| key | 默认值 |
+|---|---|
+| allowDrawStacking | `true` |
+| allowDrawAndPlay | `true` |
+| finishMode | `UNTIL_REAL_PLAYER_COUNT` |
+| remainingRealPlayerCountToEnd | `2` |
+| initialHandCount | `7` |
+| appendDeckSetWhenDrawPileEmpty | `true` |
+| appendDeckSetCount | `1` |
+
+**示例（UNO，字段节选）：**
+
+```json
+{
+  "gameCode": "uno",
+  "ruleVersion": "1.0.0",
+  "runtimeType": "strategy-turn-multiplayer",
+  "gameRuleInfo": {
+    "cardBackImage": "games/uno/cards/card_back.png",
+    "singleDeckCardCount": 108
+  },
+  "cardDefinitions": [
+    {
+      "cardCode": "red_7",
+      "color": "RED",
+      "cardType": "NUMBER",
+      "numberValue": 7,
+      "countPerDeckSet": 2,
+      "image": "games/uno/cards/red_7.png",
+      "description": "RED 7"
+    },
+    {
+      "cardCode": "red_disable",
+      "color": "RED",
+      "cardType": "DISABLE",
+      "numberValue": null,
+      "countPerDeckSet": 2,
+      "image": "games/uno/cards/red_disable.png",
+      "description": "RED DISABLE"
+    },
+    {
+      "cardCode": "wild_draw4",
+      "color": null,
+      "cardType": "WILD_DRAW4",
+      "numberValue": null,
+      "countPerDeckSet": 4,
+      "image": "games/uno/cards/wild_draw4.png",
+      "description": "万能 +4 牌"
+    }
+  ],
+  "roomRule": {
+    "minPlayers": 2,
+    "maxPlayers": 10,
+    "allowAi": true,
+    "minAiCount": 0,
+    "maxAiCount": 9,
+    "defaultExpireSeconds": 86400
+  },
+  "roomConfigSchema": [
+    {
+      "key": "allowDrawStacking",
+      "type": "boolean",
+      "label": "允许 +2/+4 叠加",
+      "defaultValue": true
+    },
+    {
+      "key": "finishMode",
+      "type": "enum",
+      "label": "结束模式",
+      "defaultValue": "UNTIL_REAL_PLAYER_COUNT",
+      "options": [
+        { "value": "FIRST_FINISH", "label": "首位完成结束" },
+        { "value": "UNTIL_REAL_PLAYER_COUNT", "label": "剩余真人玩家数达阈值时结束" }
+      ]
+    },
+    {
+      "key": "remainingRealPlayerCountToEnd",
+      "type": "number",
+      "label": "结束所需剩余玩家数",
+      "defaultValue": 2,
+      "visibleWhen": { "field": "finishMode", "equals": "UNTIL_REAL_PLAYER_COUNT" }
+    }
+  ],
+  "extensionConfig": {
+    "initialDeckSetRules": [
+      { "minPlayerCount": 2, "maxPlayerCount": 4, "deckSetCount": 1 }
+    ]
+  }
+}
+```
+
+**注意事项：**
+
+- 返回后端 `game_seed` 在线规则种子注册表中的**规则种子**，不含 `name`、`icon`、`route`、`sortOrder` 等前端展示字段。
+- 仅 `supportOnline === true` 且已在注册表登记的游戏可成功返回；未登记返回 `30004`（`游戏规则定义不存在`），不返回空对象。
+- 与 `GET /games/{gameCode}/config` 语义独立：后者为平台基础配置（难度、道具等），由前端 `gameConfigService` 加载；本接口供房间 TTL、`maxPlayers`、牌型与建房参数等在线规则使用。
+- 当前内置 `uno`（`ruleVersion: 1.0.0`）含完整牌型定义、房间参数与运行时规则引擎；对外枚举与资源路径以本文档为准。
+
+---
+
+### 5.4 查询游戏可用道具规则
 
 | 项 | 值 |
 |---|---|
@@ -809,7 +992,7 @@
 
 **Path 参数：** `gameCode`  
 
-**返回 data：** `GamePropRuleResponse[]`，见 [5.3](#53-查询游戏可用道具规则)。
+**返回 data：** `GamePropRuleResponse[]`，见 [5.4](#54-查询游戏可用道具规则)。
 
 **注意事项：** 仅返回该游戏下已启用的规则；列表按 `sortNo` 升序、`propCode` 升序排序。
 
@@ -855,7 +1038,7 @@
 | 请求方法 | `GET` |
 | 请求路径 | `/games/{gameCode}/props` |
 
-（与 [5.3](#53-查询游戏可用道具规则) 为同一接口，此处列出便于按模块查阅。）
+（与 [5.4](#54-查询游戏可用道具规则) 为同一接口，此处列出便于按模块查阅。）
 
 **返回 data（GamePropRuleResponse[]）：**
 
@@ -1294,7 +1477,7 @@
 | gameCode | string | 是 | 游戏唯一编码 |
 | gameName | string | 是 | 游戏名称 |
 | gameSubName | string | 否 | 副标题 |
-| supportOnline | boolean | 是 | 是否支持联机 |
+| supportOnline | boolean | 是 | 是否强制在线才能游玩（见 [§1.11](#111-supportonline-字段说明)） |
 | enabled | boolean | 是 | 是否启用 |
 | sortNo | number | 是 | 排序号 |
 | config | object | 是 | 扩展配置，写入 `game_definition.config_json`（如 display、featureFlags、ranking 等） |
@@ -1646,7 +1829,283 @@
 
 ---
 
-## 14. WebSocket 实时通道
+## 14. Room 房间
+
+`room` 为**独立**后端模块（与 `online` 平级），数据仅存 Redis。`RoomMeta` 仅保存房间元信息，不保存完整对局状态。创建房间时 TTL 取自请求 `expireSeconds`，未传时使用对应游戏 `rule-definition.roomRule.defaultExpireSeconds`。
+
+房间 `status` 取值：
+
+- `waiting`：等待玩家加入，或对局结束后回到等待
+- `playing`：对局进行中
+
+前端由 `roomService` 编排 HTTP；`onlineService` 负责在线态。在线对局流程中 Service 层**可以**先保证在线再调用 `roomService`，但 `online` 模块本身不内嵌房间存储逻辑。
+
+Redis key（节选）：
+
+| key | 说明 |
+|---|---|
+| `game-hub:room:{roomId}:meta` | 房间元信息（`status`：`waiting` / `playing`） |
+| `game-hub:room:{roomId}:players` | 成员 hash（field 为 `playerId`） |
+| `game-hub:room:{roomId}:version` | 房间版本号 |
+| `game-hub:room:{roomId}:runtime` | 运行时元数据与 `runtimeState` |
+| `game-hub:room:{roomId}:public-state` | 公开状态 |
+| `game-hub:room:{roomId}:private-state:{playerId}` | 玩家私有状态 |
+| `game-hub:room:{roomId}:legal-actions:{playerId}` | 玩家合法动作 |
+| `game-hub:room:{roomId}:events` | 对局事件日志 |
+| `game-hub:player:{playerId}:room` | 玩家当前所在房间索引 |
+
+### 14.1 创建房间
+
+`POST /rooms`
+
+创建成功后写入 `RoomMeta`、房主成员、版本号 `1` 与玩家房间索引；不生成牌堆、不写入 `legalActions`、不开始对局。
+
+#### 请求 body
+
+```json
+{
+  "gameCode": "uno",
+  "mode": "classic",
+  "roomName": "欢乐 UNO",
+  "roomConfig": {
+    "allowDrawStacking": true,
+    "finishMode": "UNTIL_REAL_PLAYER_COUNT"
+  },
+  "expireSeconds": 86400
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|:---:|---|
+| gameCode | string | 是 | 游戏编码；须已注册 `rule-definition` |
+| mode | string | 是 | 玩法模式 |
+| roomName | string | 否 | 房间展示名称 |
+| roomConfig | object | 否 | 覆盖 `roomConfigSchema` 默认值；仅提交可见字段 |
+| expireSeconds | int | 否 | 房间 Redis TTL（秒）；未传时使用 `rule-definition.roomRule.defaultExpireSeconds` |
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`（房主）。**不接受** `aiCount`；是否允许 AI 由 `rule-definition.roomRule.allowAi` 控制，AI 数量受 `maxAiCount` 与 `maxPlayers` 限制。
+
+#### 响应 data
+
+```json
+{
+  "roomId": "room_xxx",
+  "gameCode": "uno",
+  "mode": "multiplayer",
+  "ownerPlayerId": "user_xxx",
+  "maxPlayers": 10,
+  "version": 1,
+  "status": "waiting",
+  "memberCount": 1,
+  "members": [
+    {
+      "playerId": "user_xxx",
+      "nickname": "玩家",
+      "avatar": null,
+      "joinedAt": 1710000000000
+    }
+  ],
+  "createdAt": 1710000000000,
+  "updatedAt": 1710000000000
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| maxPlayers | int | 来自 `rule-definition.roomRule.maxPlayers` |
+| version | int | 房间版本，创建时为 `1` |
+
+### 14.2 查询当前用户活跃房间
+
+`GET /rooms/my-active?gameCode=uno`
+
+根据 `game-hub:player:{playerId}:room` 索引查询当前用户在指定游戏下的活跃房间。无索引、房间不存在、用户不在成员中时会清理脏索引并返回 `room: null`；`gameCode` 不一致时返回 `room: null`（不清理索引）。
+
+#### 响应 data
+
+```json
+{
+  "room": null
+}
+```
+
+或 `room` 为与 [14.1](#141-创建房间) 相同结构的房间详情（`status` 为 `waiting` 或 `playing`）。
+
+### 14.3 查询房间详情
+
+`GET /rooms/{roomId}`
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。房间不存在时 `code = 90001`。
+
+### 14.4 加入房间
+
+`POST /rooms/{roomId}/join`
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`。
+
+流程：读取房间元信息与对应 `rule-definition`；仅 ``waiting`` 状态可加入；人数不超过 ``maxPlayers``；若当前用户已在成员列表中则直接返回当前房间视图（不重复写入、不递增 ``version``）；否则写入成员与 ``player:{playerId}:room`` 索引、递增 ``version`` 并刷新房间 TTL。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
+
+业务错误码：
+
+| code | 说明 |
+|---:|---|
+| 90001 | 房间不存在 |
+| 90002 | 房间已满 |
+| 90005 | 房间已开始 |
+| 30004 | 游戏规则定义不存在 |
+
+### 14.5 添加 AI 玩家
+
+`POST /rooms/{roomId}/ai`
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`（须为房主）。仅 ``waiting`` 状态可添加；须满足 ``rule-definition.roomRule.allowAi`` 为 ``true``，且当前 AI 数量小于 ``maxAiCount``、活跃成员数小于 ``maxPlayers``。AI 成员 ``isAi=true``、``isManaged=true``、``managedMode=active``、``managedReason=ai``，不写入 ``player:{playerId}:room`` 索引；对局内由平台托管动作链路代管。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
+
+业务错误码：
+
+| code | 说明 |
+|---:|---|
+| 90001 | 房间不存在 |
+| 90002 | 房间已满 |
+| 90005 | 房间已开始 |
+| 10002 | 不允许 AI 或 AI 数量已达上限 |
+
+### 14.6 离开房间
+
+`POST /rooms/{roomId}/leave`
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`。``waiting`` / ``playing`` 状态允许离开；移除成员、删除 ``player:{playerId}:room``、递增 ``version`` 并刷新房间 TTL。房主离开时按 ``joinedAt`` 最早的剩余玩家转移房主；最后一人离开时删除房间及列表索引。``playing`` 状态离开不修改运行时快照。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
+
+业务错误码：
+
+| code | 说明 |
+|---:|---|
+| 90001 | 房间不存在 |
+| 90004 | 不在房间中 |
+| 90005 | 房间已开始 |
+
+### 14.7 开始房间对局
+
+`POST /rooms/{roomId}/start`
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`。仅 ``waiting`` 状态可开始；成员数须不少于 ``rule-definition.roomRule.minPlayers``。成功后写入运行时快照、公开/私有状态、合法动作与事件，房间 ``status`` 变为 ``playing``，并递增 ``version``。
+
+#### 响应 data
+
+与 [14.8](#148-查询房间对局视图) 相同（``GameView``）。
+
+业务错误码：
+
+| code | 说明 |
+|---:|---|
+| 90001 | 房间不存在 |
+| 90004 | 不在房间中 |
+| 90005 | 房间已开始 |
+| 10002 | 玩家人数不足等业务参数错误 |
+| 30004 | 游戏规则定义不存在 |
+
+### 14.8 查询房间对局视图
+
+`GET /rooms/{roomId}/view`
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`。仅 ``playing`` 状态可查询；不推进对局，按当前运行时快照为请求玩家构建视图。
+
+#### 响应 data
+
+```json
+{
+  "gameCode": "uno",
+  "viewerPlayerId": "user_xxx",
+  "phase": "playing",
+  "currentPlayerId": "user_xxx",
+  "legalActions": [
+    {
+      "actionType": "PLAY_CARD",
+      "actionKey": "play:red_5",
+      "playerId": "user_xxx",
+      "payload": {}
+    }
+  ],
+  "publicState": {},
+  "privateState": {},
+  "isGameOver": false
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| gameCode | string | 游戏编码 |
+| viewerPlayerId | string | 视角玩家 ID |
+| phase | string | 对局阶段，由规则引擎定义 |
+| currentPlayerId | string \| null | 当前回合玩家 ID |
+| legalActions | array | 当前玩家可提交的合法操作 |
+| publicState | object | 公开状态 |
+| privateState | object | 仅当前玩家可见的私有状态 |
+| isGameOver | boolean | 对局是否已结束 |
+
+业务错误码：
+
+| code | 说明 |
+|---:|---|
+| 90001 | 房间不存在 |
+| 90004 | 不在房间中 |
+| 10002 | 对局尚未开始 |
+
+### 14.9 提交房间对局操作
+
+`POST /rooms/{roomId}/actions`
+
+当前用户身份来自请求头 `X-Game-Hub-User-Id`。请求在 Redis 房间锁内执行：加载最新运行时快照、经 ``StrategyTurnRuntimeService`` 应用操作、写回 ``runtimeState`` / ``publicState`` / 各玩家 ``privateState`` / ``legalActions`` / ``events`` 并递增 ``version``，返回当前玩家 ``GameView``。
+
+#### 请求 body
+
+```json
+{
+  "actionType": "PLAY_CARD",
+  "payload": {
+    "cardCode": "red_5"
+  },
+  "clientId": "client_action_001"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|:---:|---|
+| actionType | string | 是 | 操作类型 |
+| payload | object | 否 | 操作载荷，默认 ``{}`` |
+| clientId | string | 否 | 客户端幂等 ID |
+
+``playerId`` 由服务端根据 ``X-Game-Hub-User-Id`` 注入，请求体不传。
+
+#### 响应 data
+
+与 [14.8](#148-查询房间对局视图) 相同（``GameView``）。
+
+业务错误码：
+
+| code | 说明 |
+|---:|---|
+| 90001 | 房间不存在 |
+| 90004 | 不在房间中 |
+| 10002 | 对局尚未开始、操作非法等 |
+| 10003 | 房间繁忙（锁占用） |
+
+---
+
+## 15. WebSocket 实时通道
 
 平台只开放一条实时通道：
 
@@ -1667,7 +2126,17 @@
 }
 ```
 
-消息类型集中定义：`online.ping`、`online.pong`、`system.notice`、`room.invite`、`room.inviteAccepted`、`room.inviteRejected`、`error`。
+消息类型集中定义：`online.ping`、`online.pong`、`system.notice`、`room.invite`、`room.inviteAccepted`、`room.inviteRejected`、`roomUpdated`、`room.list.updated`、`gameViewUpdated`、`error`。
+
+**服务端推送（节选）：**
+
+| type | payload | 说明 |
+|---|---|---|
+| `roomUpdated` | `{ roomId, room, version }` | 房间内成员元信息变更 |
+| `room.list.updated` | `{ gameCode }` | 指定游戏的房间列表需刷新（不含完整列表） |
+| `gameViewUpdated` | `{ roomId, gameView }` | 对局视图更新（含本帧 `events`） |
+
+`gameViewUpdated` 的 `events` **不包含** 房间级 `gameStarted`；开局后立即可依据 `legalActions` 操作。
 
 `online.ping` 会返回：
 
@@ -1715,18 +2184,23 @@
 | 12 | PUT | `/users/{userId}/system-setting` |
 | 13 | GET | `/games` |
 | 14 | GET | `/games/{gameCode}/config` |
-| 15 | GET | `/games/{gameCode}/props` |
-| 16 | GET | `/props` |
-| 17 | GET | `/users/{userId}/wallet` |
-| 18 | GET | `/users/{userId}/wallet/ledgers` |
-| 19 | GET | `/users/{userId}/inventory` |
-| 20 | GET | `/users/{userId}/inventory/usage-records` |
-| 21 | POST | `/purchases` |
-| 22 | GET | `/users/{userId}/purchases` |
-| 23 | GET | `/users/{userId}/matches` |
-| 24 | GET | `/matches/{matchId}` |
-| 25 | GET | `/rankings` |
-| 26 | GET | `/online/users` |
-| 27 | POST | `/online/status` |
+| 15 | GET | `/games/{gameCode}/rule-definition` |
+| 16 | GET | `/games/{gameCode}/props` |
+| 17 | GET | `/props` |
+| 18 | GET | `/users/{userId}/wallet` |
+| 19 | GET | `/users/{userId}/wallet/ledgers` |
+| 20 | GET | `/users/{userId}/inventory` |
+| 21 | GET | `/users/{userId}/inventory/usage-records` |
+| 22 | POST | `/purchases` |
+| 23 | GET | `/users/{userId}/purchases` |
+| 24 | GET | `/users/{userId}/matches` |
+| 25 | GET | `/matches/{matchId}` |
+| 26 | GET | `/rankings` |
+| 27 | GET | `/online/users` |
+| 28 | POST | `/online/status` |
+| 29 | POST | `/rooms` |
+| 30 | GET | `/rooms/{roomId}` |
+| 31 | POST | `/rooms/{roomId}/join` |
+| 32 | POST | `/rooms/{roomId}/leave` |
 
-**正式开放接口数量：27**（不含附录 A 系统模块 2 个，不含 WebSocket 通道）。
+**正式开放接口数量：32**（不含附录 A 系统模块 2 个，不含 WebSocket 通道）。

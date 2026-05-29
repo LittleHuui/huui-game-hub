@@ -7,7 +7,8 @@
       class="game-selector-pill"
       :class="{
         'is-active': g.code === platform.currentGameCode,
-        'is-placeholder': !g.implemented
+        'is-placeholder': !g.implemented,
+        'is-online-disabled': g.implemented && g.supportOnline && !g.playable
       }"
       :disabled="!g.playable"
       @click="select(g.code)"
@@ -15,6 +16,7 @@
       <span class="game-selector-logo" aria-hidden="true">{{ g.logo || '▪️' }}</span>
       <span class="game-selector-name">{{ g.name }}</span>
       <span v-if="!g.implemented" class="muted-small">（暂未实现）</span>
+      <span v-else-if="g.supportOnline && !g.playable" class="muted-small">（需在线）</span>
     </button>
   </div>
 </template>
@@ -60,6 +62,10 @@ async function select(code) {
     return;
   }
   platform.setCurrentGame(code);
+  if (entry.supportOnline && entry.implemented) {
+    await router.push({ name: 'online-room-list', params: { gameCode: code } });
+    return;
+  }
   await router.push({ name: entry.implemented ? code : 'game-unavailable', params: { gameCode: code } });
 }
 </script>

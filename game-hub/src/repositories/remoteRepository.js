@@ -11,6 +11,7 @@ export const remoteRepository = {
   getGames: () => gameHubApi.getGames(),
   getGameConfig: (gameCode) => gameHubApi.getGameConfig(gameCode),
   getGameProps: (gameCode) => gameHubApi.getGameProps(gameCode),
+  getGameRuleDefinition: (gameCode) => gameHubApi.getGameRuleDefinition(gameCode),
   getProps: (params) => gameHubApi.getProps(params),
   getLeaderboard: (params) => gameHubApi.getLeaderboard(params),
   login: (payload) => gameHubApi.login(payload),

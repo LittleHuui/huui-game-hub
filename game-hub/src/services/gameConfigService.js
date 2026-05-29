@@ -8,6 +8,7 @@ import {
 import { applyMatch3Config } from '../games/match3/match3Config.js';
 import { applyGame2048Config } from '../games/game2048/game2048Config.js';
 import { applySudokuConfig } from '../games/sudoku/sudokuConfig.js';
+import { applyUnoConfig } from '../games/uno/unoConfig.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { canFetchRemote } from './remoteGate.js';
 
@@ -15,6 +16,7 @@ const MINESWEEPER = 'minesweeper';
 const MATCH3 = 'match3';
 const GAME2048 = '2048';
 const SUDOKU = 'sudoku';
+const UNO = 'uno';
 
 /**
  * @typedef {object} GameConfigHandler
@@ -72,6 +74,15 @@ const GAME_CONFIG_HANDLERS = {
     },
     applySeed() {
       applySudokuConfig(getSeedGameConfig(SUDOKU, GAME_SEED_CONFIG));
+    }
+  },
+  [UNO]: {
+    async loadRemote() {
+      const data = await gameConfigRepository.fetchGameConfig(UNO);
+      applyUnoConfig(data);
+    },
+    applySeed() {
+      applyUnoConfig(getSeedGameConfig(UNO, GAME_SEED_CONFIG));
     }
   }
 };

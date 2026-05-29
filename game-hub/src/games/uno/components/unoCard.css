@@ -1,0 +1,32 @@
+.uno-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 5.5rem;
+}
+
+.uno-card__face {
+  width: 4.375rem;
+  height: 6.25rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+  object-fit: cover;
+  background: var(--game-card-bg, #f8fafc);
+}
+
+.uno-card__face--back {
+  filter: saturate(1.05);
+}
+
+.uno-card__face--empty {
+  border: 1px dashed rgba(148, 163, 184, 0.8);
+}
+
+.uno-card__code {
+  font-size: 0.7rem;
+  color: var(--muted, #64748b);
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.2;
+}

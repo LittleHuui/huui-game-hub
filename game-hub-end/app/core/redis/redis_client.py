@@ -46,6 +46,35 @@ class RedisClient(object):
             logger.exception("Redis set_string failed, key=%s", key)
             return False
 
+    async def set_string_if_absent(
+        self,
+        key: str,
+        value: str,
+        expire: int,
+        unit: TimeUnit = TimeUnit.SECONDS,
+    ) -> bool:
+        """
+        仅在 key 不存在时写入字符串并设置过期时间。
+
+        :param key: Redis key。
+        :param value: 字符串值。
+        :param expire: 过期时间，必须显式传入。
+        :param unit: 过期时间单位，默认秒。
+        :return: 是否写入成功。
+        """
+        try:
+            return bool(
+                await self._client.set(
+                    key,
+                    value,
+                    nx=True,
+                    ex=self._to_seconds(expire, unit),
+                )
+            )
+        except (RedisError, ValueError):
+            logger.exception("Redis set_string_if_absent failed, key=%s", key)
+            return False
+
     async def get_string(self, key: str) -> Optional[str]:
         """
         读取字符串。
@@ -154,6 +183,20 @@ class RedisClient(object):
             return None
         return self._decode_json(value, "{0}.{1}".format(key, field))
 
+    async def hdel(self, key: str, field: str) -> bool:
+        """
+        删除 hash 字段。
+
+        :param key: Redis key。
+        :param field: hash 字段。
+        :return: 是否删除了至少一个字段。
+        """
+        try:
+            return bool(await self._client.hdel(key, field))
+        except RedisError:
+            logger.exception("Redis hdel failed, key=%s field=%s", key, field)
+            return False
+
     async def hgetall_json(self, key: str) -> Dict[str, Any]:
         """
         读取 hash 全部字段并反序列化 JSON。
@@ -203,6 +246,21 @@ class RedisClient(object):
             logger.exception("Redis smembers failed, key=%s", key)
             return set()
 
+    async def srem(self, key: str, value: str) -> bool:
+        """
+        从 set 中移除成员。
+
+        :param key: Redis key。
+        :param value: set 成员。
+        :return: 是否移除成功。
+        """
+        try:
+            await self._client.srem(key, value)
+            return True
+        except RedisError:
+            logger.exception("Redis srem failed, key=%s", key)
+            return False
+
     async def zadd(
         self,
         key: str,
@@ -242,6 +300,52 @@ class RedisClient(object):
         except RedisError:
             logger.exception("Redis zrange failed, key=%s", key)
             return []
+
+    async def zrangebyscore(
+        self,
+        key: str,
+        min_score: float,
+        max_score: float,
+        start: int = 0,
+        num: int = 1,
+    ) -> List[str]:
+        """
+        按分数范围读取 sorted set 成员。
+
+        :param key: Redis key。
+        :param min_score: 最小分数。
+        :param max_score: 最大分数。
+        :param start: 偏移量。
+        :param num: 返回数量。
+        :return: 成员列表。
+        """
+        try:
+            return list(
+                await self._client.zrangebyscore(
+                    key,
+                    min_score,
+                    max_score,
+                    start=start,
+                    num=num,
+                )
+            )
+        except RedisError:
+            logger.exception("Redis zrangebyscore failed, key=%s", key)
+            return []
+
+    async def zrem(self, key: str, value: str) -> bool:
+        """
+        从 sorted set 移除成员。
+
+        :param key: Redis key。
+        :param value: 成员值。
+        :return: 是否移除成功。
+        """
+        try:
+            return bool(await self._client.zrem(key, value))
+        except RedisError:
+            logger.exception("Redis zrem failed, key=%s", key)
+            return False
 
     async def delete(self, key: str) -> bool:
         """
@@ -307,6 +411,57 @@ class RedisClient(object):
         :return: Redis ping 是否成功。
         """
         return bool(await self._client.ping())
+
+    async def eval(
+        self,
+        script: str,
+        num_keys: int,
+        keys: Sequence[str],
+        args: Sequence[str],
+    ) -> Optional[int]:
+        """
+        执行 Lua 脚本并返回整型结果。
+
+        :param script: Lua 脚本。
+        :param num_keys: key 数量。
+        :param keys: key 列表。
+        :param args: 参数列表。
+        :return: 执行结果；异常时返回 ``None``。
+        """
+        result = await self.eval_raw(script, num_keys, keys, args)
+        if result is None:
+            return None
+        if isinstance(result, bool):
+            return 1 if result else 0
+        if isinstance(result, int):
+            return result
+        try:
+            return int(result)
+        except (TypeError, ValueError):
+            return None
+
+    async def eval_raw(
+        self,
+        script: str,
+        num_keys: int,
+        keys: Sequence[str],
+        args: Sequence[str],
+    ) -> Any:
+        """
+        执行 Lua 脚本并返回原始结果。
+
+        :param script: Lua 脚本。
+        :param num_keys: key 数量。
+        :param keys: key 列表。
+        :param args: 参数列表。
+        :return: 执行结果；异常时返回 ``None``。
+        """
+        payload = list(keys) + list(args)
+        try:
+            return await self._client.eval(script, num_keys, *payload)
+        except RedisError:
+            logger.exception("Redis eval failed")
+            return None
 
     def get_connection_info_for_log(self) -> Dict[str, Any]:
         """

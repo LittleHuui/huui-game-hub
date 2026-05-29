@@ -1,11 +1,14 @@
 """WebSocket 连接管理。"""
 
+import logging
 from typing import Any, Dict
 
 from fastapi import WebSocket
 
 from app.core.time_utils import now_ms
 from app.core.websocket.message_types import MessageType
+
+logger = logging.getLogger(__name__)
 
 
 class ConnectionManager(object):
@@ -26,16 +29,18 @@ class ConnectionManager(object):
         await websocket.accept()
         self._connections[service_id] = websocket
 
-    def disconnect(self, service_id: str, websocket: WebSocket) -> None:
+    def disconnect(self, service_id: str, websocket: WebSocket) -> bool:
         """
         清理断开的用户连接。
 
         :param service_id: 用户服务端 ID。
         :param websocket: WebSocket 连接。
-        :return: 无。
+        :return: 是否移除了当前活跃连接。
         """
         if self._connections.get(service_id) is websocket:
             self._connections.pop(service_id, None)
+            return True
+        return False
 
     async def send_to_user(self, service_id: str, message_type: MessageType, payload: Dict[str, Any]) -> bool:
         """
@@ -49,7 +54,18 @@ class ConnectionManager(object):
         websocket = self._connections.get(service_id)
         if websocket is None:
             return False
-        await websocket.send_json(self._build_message(message_type, payload))
+        try:
+            await websocket.send_json(self._build_message(message_type, payload))
+        except Exception as exc:
+            logger.warning(
+                "websocket send failed, serviceId=%s messageType=%s error=%s",
+                service_id,
+                message_type.value,
+                exc,
+            )
+            if self._connections.get(service_id) is websocket:
+                self._connections.pop(service_id, None)
+            return False
         return True
 
     async def broadcast(self, message_type: MessageType, payload: Dict[str, Any]) -> None:
@@ -60,14 +76,18 @@ class ConnectionManager(object):
         :param payload: 消息载荷。
         :return: 无。
         """
-        dead_service_ids = []
-        for service_id, websocket in self._connections.items():
+        for service_id, websocket in list(self._connections.items()):
             try:
                 await websocket.send_json(self._build_message(message_type, payload))
-            except RuntimeError:
-                dead_service_ids.append(service_id)
-        for service_id in dead_service_ids:
-            self._connections.pop(service_id, None)
+            except Exception as exc:
+                logger.warning(
+                    "websocket broadcast failed, serviceId=%s messageType=%s error=%s",
+                    service_id,
+                    message_type.value,
+                    exc,
+                )
+                if self._connections.get(service_id) is websocket:
+                    self._connections.pop(service_id, None)
 
     def _build_message(self, message_type: MessageType, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
