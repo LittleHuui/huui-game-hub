@@ -1,6 +1,22 @@
 # 架构说明
 
-本文描述 **huui-game-hub** 当前稳定架构：平台层提供账号、资产、同步、排行榜；游戏层只实现玩法与 UI，通过配置与注册表接入。
+本文描述 **huui-game-hub** 当前架构：多游戏在线平台，提供账号、资产、同步、排行榜与策略回合制多人对局能力；各游戏在 `games/` 下实现玩法与 UI，经注册表与种子接入。
+
+**项目定位**
+
+- 多游戏平台（大厅聚合多款游戏）
+- 在线多人游戏平台（在线态、WebSocket、房间）
+- 通用策略回合制运行时（`strategy_turn` + `room` + `GameView` / `legalActions`）
+
+**已接入游戏（`GAME_REGISTRY` / 种子）**
+
+| gameCode | runtimeType | supportOnline |
+|----------|-------------|---------------|
+| `minesweeper` | `light-single` | `false` |
+| `match3` | `light-single` | `false` |
+| `2048` | `light-single` | `false` |
+| `sudoku` | `light-single` | `false` |
+| `uno` | `strategy-turn-multiplayer` | `true` |
 
 ---
 
@@ -13,9 +29,10 @@
 └───────────────────────────┬─────────────────────────────┘
                             │ gameCode + config + capabilities
         ┌───────────────────┼───────────────────┬───────────────┐
-        ▼                   ▼                   ▼               ▼
-   minesweeper           match3              2048           sudoku
-   games/minesweeper/    games/match3/    games/game2048/  games/sudoku/
+        ├───────────┬───────────┬───────────┬───────────┐
+        ▼           ▼           ▼           ▼           ▼
+   minesweeper   match3      2048       sudoku        uno
+   games/...     games/...   games/...  games/...    games/uno/
 ```
 
 **原则**
@@ -34,8 +51,9 @@
 | 目录 | 职责 |
 |------|------|
 | `src/pages/` | 平台页：大厅、不可用页 |
-| `src/games/{gameCode}/` | 单游戏：Page、Engine、Config、游戏专用组件 |
-| `src/game-templates/` | **可选**页面模板（如 `light-single`）：仅排版与容器，不含规则/API/store |
+| `src/games/{gameCode}/` | 单游戏：Page、Engine、Config、游戏专用组件（如 `games/uno/`） |
+| `src/game-templates/` | 页面模板（`light-single`、`strategy-turn-multiplayer`）：排版与 slot，不含规则/API/store |
+| `src/composables/` | 跨游戏逻辑；策略回合含 `useStrategyTurnGameView.js` 等 |
 | `src/components/game/` | 跨游戏底层 UI（分包见 §2.7）：`layout/`、`panels/`、`stats/`、`controls/` |
 | `src/services/` | 业务编排：开局、结算、同步、商城、在线状态、实时通道 |
 | `src/repositories/` | 数据访问：local / remote / sync 屏蔽 |
@@ -70,7 +88,7 @@ realtimeService → websocketClient → /ws/game-hub/realtime
 | runtimeType | 含义 | 典型游戏 |
 |-------------|------|----------|
 | `light-single` | 轻量单人运行时 | 扫雷、消消乐、2048、数独 |
-| `strategy-turn-multiplayer` | **策略回合制多人**运行时类型（按回合提交操作、房间聚合玩家）；**不是**卡牌专用类型，斗地主等同类游戏复用此类型 | UNO（平台壳已接入，玩法待实现） |
+| `strategy-turn-multiplayer` | **策略回合制多人**运行时（按回合提交 `actionId`、房间聚合玩家）；**不是**卡牌专用类型，斗地主、德州扑克、飞行棋、五子棋等可基于同一类型接入 | `uno` |
 
 `viewTemplate` 与 `runtimeType` 同名时指向 `src/game-templates/{runtimeType}/` 下的页面模板；模板只负责排版，不含玩法与 API。
 
@@ -232,7 +250,8 @@ deps.py：FastAPI Depends
 | `sync` | 同步编排（逻辑在 `module_service`，路由挂在 boot） |
 | `online` | 在线用户状态与在线用户列表（仅 Redis）；与 `room` **模块解耦**，编排层可按需调用房间接口 |
 | `room` | 独立运行期模块：房间元信息、成员、版本号（仅 Redis）；创建/加入/离开；依赖 `rule-definition` 中的 `roomRule` |
-| `strategy_turn` | 策略回合制规则定义注册表与规则引擎抽象；`GET .../rule-definition` 由 `game` 模块暴露 |
+| `strategy_turn` | 策略回合制规则引擎、`StrategyTurnRuntimeService`（开局/提交操作/构建 `GameView`）、规则定义注册表；`GET .../rule-definition` 由 `game` 模块经 `game_seed` 暴露 |
+| `games/{gameCode}` | 各游戏规则实现（如 `games/uno/` 的 `UnoRuleEngine`、牌堆与终局规则） |
 | `admin_config` | 种子导入（运维）；导入体与前端 `GAME_SEED_CONFIG` 导出 JSON 字段一致，可用 `npm run export:seed` 生成 |
 | `system` | 系统 KV 配置 |
 
@@ -250,7 +269,7 @@ Redis 不承载业务规则，WebSocket 不承载在线用户判定；在线用�
 
 - `room` 为独立 HTTP 模块（`/rooms`），数据仅存 Redis，不写入 SQLite。
 - `online` 模块只维护用户在线态；房间生命周期由 `room` 模块负责。
-- 前端在线对局流程由 Service 编排：可先 `onlineService` 建立在线态，再 `roomService` 创建/加入房间；后端 `online` **可以**在后续编排中调用 `room` 的 `module_service`，但不得在 `online` 内复制房间存储逻辑。
+- 前端在线对局流程由 Service 编排：可先 `onlineService` 建立在线态，再 `roomService` 创建/加入房间；编排层可组合调用 `online` 与 `room`，但不得在 `online` 内复制房间存储逻辑。
 
 `/ws/game-hub/realtime` 建连时校验 `serviceId` 对应的用户存在且可用，`serviceId` 缺失、无效或用户不可用时以 close code `1008` 拒绝；前端将 `1008` 视为身份/权限失败，不自动重连。普通网络异常使用指数退避重连，手动关闭与本地模式切换不重连。连接管理器只保存已校验用户连接。应用启动时会执行 Redis ping 检查并记录 host、port、db；Redis 不可用只记录错误，不阻断服务启动。
 
@@ -355,7 +374,24 @@ gameLifecycleService.activateGame
   → roomService.createRoom / joinRoom        // POST /rooms（仅 waiting 态写成员）
 ```
 
-`strategy-turn-multiplayer` 页面模板只编排 UI；规则校验在 Engine，权威状态在服务端 Redis（房间元信息）与后续对局运行时扩展。
+`strategy-turn-multiplayer` 页面模板只编排 UI；规则校验在游戏 Engine 与后端 `UnoRuleEngine` 等实现；权威对局状态在 Redis（`runtime`、`public-state`、`private-state`、`legal-actions`、事件日志），由 `room` + `strategy_turn` 读写。
+
+### 4.8 UNO（`strategy-turn-multiplayer`）
+
+UNO 为当前唯一已接入的策略回合制多人游戏，端到端能力包括：
+
+| 能力 | 说明 |
+|------|------|
+| 房间 | 创建/列表/加入/离开/开局/配置；`waiting` / `playing` |
+| 规则种子 | `GET /games/uno/rule-definition`（牌型、`roomRule`、`roomConfigSchema`） |
+| 对局 | `GameView`（`publicState` / `privateState` / `legalActions` / `events`） |
+| 操作 | `POST /rooms/{roomId}/actions` 提交 `actionId` + `baseVersion` |
+| AI | `waiting` 态 `POST /rooms/{roomId}/ai`；对局内平台托管链路代管 |
+| 托管 | `active`（手动/回合超时）、`shell`（离开/在线超时）；`rejoin` 恢复席位 |
+| 前端 | `games/uno/`、`strategyTurnGameViewService`、`strategyTurnActionMatcher` |
+| 排行榜 | 注册表 `capabilities.leaderboard: false`（当前未接榜） |
+
+斗地主、德州扑克、飞行棋、五子棋等可复用 `strategy-turn-multiplayer` 模板与 `strategy_turn` 运行时，在 `games/{gameCode}/` 与 `rule_definition_registry` 中注册各自规则引擎。
 
 ---
 
@@ -370,21 +406,11 @@ gameLifecycleService.activateGame
 | 基础配置种子 | `GAME_SEED_CONFIG` + 导入库；在线时 `GET .../config` | 前端 `gameConfigService` 统一落地 |
 | 在线规则种子 | `strategy_turn` 注册表 | `GET .../rule-definition`；`room` 读 `roomRule` |
 | 房间成员与版本 | 服务端 Redis（`room` 模块） | 前端 `roomService` 编排，Page 不直调 HTTP |
+| 策略回合对局状态 | 服务端 Redis + `strategy_turn` | 前端 `strategyTurnGameViewService` / Store；提交 `actionId` |
 
 ---
 
-## 6. 分阶段目标
-
-| 阶段 | 目标 | 说明 |
-|------|------|------|
-| 第一阶段 | 搭建平台，再接 UNO | 完成在线态、WebSocket、`room`、`rule-definition`、`strategy-turn-multiplayer` 页面壳与配置分轨；**不**在本阶段实现 UNO 完整玩法细节 |
-| 第二阶段 | 斗地主验证抽象 | 在 `strategy-turn-multiplayer` + `rule-definition` 上接入斗地主，验证策略回合制多人运行时与规则种子可复用于非卡牌游戏 |
-
-新游戏接入时遵循当前架构事实：单人轻量游戏走 `light-single` + `gameConfigService`；强制在线的多人策略回合游戏走 `strategy-turn-multiplayer` + `rule-definition` + `room`。
-
----
-
-## 7. 相关文档
+## 6. 相关文档
 
 - 接口明细：[api.md](api.md)
 - 新游戏接入：[new-game-guide.md](new-game-guide.md)

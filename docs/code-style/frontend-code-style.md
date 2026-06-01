@@ -588,7 +588,7 @@ await refreshRemoteAfterSettle({ includeRanking: true, gameCode, difficultyCode,
 
 ### 12.3 存储版本
 
-- `settingStore.storageVersion` 升级时在 **boot** 或专用 service 中集中处理，不散落在各页面。
+- `settingStore.storageVersion` 变更时在 **boot** 或专用 service 中集中处理，不散落在各页面。
 
 ---
 

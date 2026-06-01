@@ -299,7 +299,7 @@
 | match_record | 对局记录 |
 | score_record | 成绩记录 |
 
-> `match_action` 在类型定义中存在，但**当前同步处理器未实现**，提交会失败（见文末「暂未开放接口」）。
+> `match_action` 在类型定义中存在；云同步 **未注册** 该 `eventType` 的处理器，提交会失败（见 [附录 B](#附录-b未开放接口)）。
 
 **返回 data：**
 
@@ -313,7 +313,7 @@
 | wallet | object | 钱包快照 |
 | inventory | array | 背包列表 |
 | userGameSettings | array | 各游戏设置 |
-| walletLedgers | array | 钱包流水（本次同步相关） |
+| walletLedgers | array | 钱包流水（当次同步涉及） |
 | purchaseRecords | array | 购买记录 |
 | propUsageRecords | array | 道具使用记录 |
 | matchRecords | array | 对局记录 |
@@ -416,7 +416,7 @@
 
 **注意事项：**
 
-- 当前版本不做密码校验与 Token 签发，仅按 `username` 识别用户。
+- 不做密码校验与 Token 签发，仅按 `username` 识别用户。
 - 登录成功后会按 `userId + deviceId` 绑定或更新设备，并刷新 `lastLoginAt`。
 - 用户不存在返回 `20001`（USER_NOT_FOUND）。
 - 用户状态非 `normal` 返回 `20003`（USER_DISABLED）。
@@ -811,7 +811,7 @@
 **注意事项：**
 
 - 游戏不存在或已禁用可能返回 `30001` / `30002`。
-- 原 `GET /games/{gameCode}/client-config` 已下线，客户端配置统一由此接口返回。
+- 不存在独立的 `GET /games/{gameCode}/client-config`；客户端配置统一由此接口的 `clientConfigs` 返回。
 
 ---
 
@@ -1508,7 +1508,7 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|:---:|---|
-| propCode | string | 是 | 须存在于本次 `props` 或库内已有 `prop_definition` |
+| propCode | string | 是 | 须存在于请求体 `props` 或库内已有 `prop_definition` |
 | sortNo | number | 是 | 排序号，写入 `game_prop_rule.sort_no`；须显式提供，不得省略 |
 | price | number | 是 | 该游戏内售价，`>= 0` |
 | maxUsePerMatch | number | 否 | 单局最大使用次数，`>= 0` |
@@ -1532,11 +1532,11 @@
   - `logical`：设置 `deletedAt`（毫秒时间戳）且 `enabled=false`（表均有 `TimestampMixin.deleted_at` 与 `enabled` 字段）。
   - `physical`：物理删除；顺序为 `game_prop_rule` → `game_client_config` → `game_difficulty` → `game_definition`（按游戏）；清理道具时为 `game_prop_rule`（按 `propCode`）→ `prop_definition`。**仅建议开发/测试环境使用。**
 
-- 新增记录 `createdAt` / `updatedAt` 均为当前毫秒时间戳；更新记录保留原 `createdAt`。
+- 新增记录 `createdAt` / `updatedAt` 均为当前毫秒时间戳；更新记录保留既有 `createdAt`。
 - 请求内不允许重复：`propCode`、`gameCode`、同游戏下 `difficultyCode`、同游戏下 `difficultyCode+clientType`、同游戏下 `propCode`。
 - 关键编码字段不得为空白：`gameCode`、`propCode`、`difficultyCode`、`clientType`。
 - `price`、`basePrice` 必须 `>= 0`；`maxUsePerMatch` 如传入也必须 `>= 0`。
-- `propRules[].propCode` 必须存在于本次 `props[]` 或库内已有 `prop_definition`。
+- `propRules[].propCode` 必须存在于请求体 `props[]` 或库内已有 `prop_definition`。
 - `propRules[].sortNo` 必填，导入时原样写入 `game_prop_rule.sort_no`；`GET .../props` 与 `GET .../config` 的 `props` 列表按 `sortNo` 升序、`propCode` 升序稳定排序。
 
 #### match3 / Color Crush 示例
@@ -1725,8 +1725,8 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| importMode | string | 本次实际使用的导入模式（`merge` / `full`） |
-| deleteMode | string | 本次实际使用的删除模式（`logical` / `physical`；merge 时仅回显，不执行清理） |
+| importMode | string | 响应中的导入模式（`merge` / `full`） |
+| deleteMode | string | 响应中的删除模式（`logical` / `physical`；`merge` 时仅回显，不执行清理） |
 | importedGames | number | 新增游戏数 |
 | importedDifficulties | number | 新增难度数 |
 | importedClientConfigs | number | 新增客户端配置数 |
@@ -1800,7 +1800,7 @@
 
 当前用户身份来自请求头 `X-Game-Hub-User-Id`，请求体不接收 `serviceId`。`online`、`away`、`busy` 写入 Redis 并使用 `REDIS_ONLINE_USER_EXPIRE_SECONDS` 作为 TTL；`offline` 删除 Redis key。
 
-写入在线状态时，Redis 在线用户 value 必须同时包含 `onlineAt` 与 `lastActiveAt`。已有在线记录刷新 TTL 时保留原 `onlineAt`，仅更新 `lastActiveAt`；不存在记录时两者均设置为当前时间。
+写入在线状态时，Redis 在线用户 value 必须同时包含 `onlineAt` 与 `lastActiveAt`。已有在线记录刷新 TTL 时保留既有 `onlineAt`，仅更新 `lastActiveAt`；不存在记录时两者均设置为当前时间。
 
 前端在线模式在健康检查成功并获取当前用户后调用 `online`，启动在线状态定时刷新、WebSocket 与在线用户人数刷新。本地模式不调用在线状态刷新、不查询在线用户列表，切换到本地时会尝试调用 `offline` 并清理在线运行时。
 
@@ -1838,7 +1838,9 @@
 - `waiting`：等待玩家加入，或对局结束后回到等待
 - `playing`：对局进行中
 
-前端由 `roomService` 编排 HTTP；`onlineService` 负责在线态。在线对局流程中 Service 层**可以**先保证在线再调用 `roomService`，但 `online` 模块本身不内嵌房间存储逻辑。
+前端由 `roomService` 编排 HTTP；`onlineService` 负责在线态。Service 层可组合调用二者；`online` 模块不内嵌房间存储逻辑。
+
+请求头 **`X-Game-Hub-User-Id`**：除 [14.3](#143-查询房间详情) 外，写操作与对局读接口均须携带当前用户 `serverId`。
 
 Redis key（节选）：
 
@@ -1852,7 +1854,29 @@ Redis key（节选）：
 | `game-hub:room:{roomId}:private-state:{playerId}` | 玩家私有状态 |
 | `game-hub:room:{roomId}:legal-actions:{playerId}` | 玩家合法动作 |
 | `game-hub:room:{roomId}:events` | 对局事件日志 |
-| `game-hub:player:{playerId}:room` | 玩家当前所在房间索引 |
+| `game-hub:player:{playerId}:room` | 玩家当前所在房间索引（`shell` 托管席位不写入） |
+| `game-hub:player:{playerId}:managed-shell:{gameCode}` | 玩家在某游戏下可恢复的 `shell` 房间索引 |
+
+### 14.0 查询房间列表
+
+`GET /rooms?gameCode={gameCode}`
+
+按游戏编码返回 `waiting` / `playing` 房间列表项（`memberCount` 不含 `shell` 托管席位）。
+
+#### 响应 data
+
+`RoomListItemResponse[]`：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| roomId | string | 房间 ID |
+| roomName | string | 展示名称 |
+| ownerPlayerId / ownerNickname | string | 房主 |
+| memberCount | int | 活跃成员数（不含 shell） |
+| maxPlayers | int | 人数上限 |
+| aiCount | int | AI 成员数 |
+| status | string | `waiting` / `playing` |
+| gameCode / mode | string | 游戏与玩法 |
 
 ### 14.1 创建房间
 
@@ -1914,6 +1938,9 @@ Redis key（节选）：
 |---|---|---|
 | maxPlayers | int | 来自 `rule-definition.roomRule.maxPlayers` |
 | version | int | 房间版本，创建时为 `1` |
+| members[] | array | 成员列表；每项含 `playerId`、`nickname`、`avatar`、`joinedAt`、`isAi`、`isManaged`、`managedMode`（`active`/`shell`）、`managedReason`、`managedAt` |
+| roomConfig | object | 房间玩法配置 |
+| allowAi / maxAiCount | boolean / int | 是否允许 AI 及上限 |
 
 ### 14.2 查询当前用户活跃房间
 
@@ -1930,6 +1957,16 @@ Redis key（节选）：
 ```
 
 或 `room` 为与 [14.1](#141-创建房间) 相同结构的房间详情（`status` 为 `waiting` 或 `playing`）。
+
+### 14.2.1 查询托管空壳房间
+
+`GET /rooms/my-managed-shell?gameCode={gameCode}`
+
+查询当前用户在指定游戏下、对局进行中因离开或在线超时进入 `shell` 托管、可经 [14.4.1](#1441-恢复托管席位) 恢复的房间。无则 `room: null`。
+
+#### 响应 data
+
+与 [14.2](#142-查询当前用户活跃房间) 相同（`{ room: RoomResponse | null }`）。
 
 ### 14.3 查询房间详情
 
@@ -1957,8 +1994,75 @@ Redis key（节选）：
 |---:|---|
 | 90001 | 房间不存在 |
 | 90002 | 房间已满 |
-| 90005 | 房间已开始 |
+| 90005 | 房间非 `waiting`（不可加入） |
 | 30004 | 游戏规则定义不存在 |
+
+### 14.4.1 恢复托管席位
+
+`POST /rooms/{roomId}/rejoin`
+
+当前用户须为该房间内 `managedMode=shell` 的成员。恢复后清除 `shell` 托管标记，写入 `player:{playerId}:room` 索引，删除 `managed-shell` 索引，递增 `version` 并推送 `roomUpdated`。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
+
+业务错误码：房间不存在 `90001`；不在房间或非正常 `shell` 席位 `90004`。
+
+### 14.4.2 开启在线托管
+
+`POST /rooms/{roomId}/managed/start`
+
+对局 `playing` 状态下，当前真人玩家开启 `managedMode=active`（`managedReason=manual`），由平台在回合到时代提交合法操作。`shell` 席位不可调用。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
+
+### 14.4.3 取消在线托管
+
+`POST /rooms/{roomId}/managed/stop`
+
+取消当前玩家的 `active` 托管，恢复手动操作。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
+
+### 14.4.4 房主移除成员
+
+`POST /rooms/{roomId}/members/remove`
+
+**Body：**
+
+```json
+{ "targetPlayerId": "user_xxx" }
+```
+
+仅 **`waiting`** 态；须为房主；可移除普通玩家或 AI。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
+
+### 14.4.5 房主更新房间配置
+
+`PATCH /rooms/{roomId}/config`
+
+**Body（均可选）：**
+
+```json
+{
+  "maxPlayers": 6,
+  "roomConfig": { "finishMode": "FIRST_FINISH" }
+}
+```
+
+仅 **`waiting`** 态；须为房主；字段须符合 `rule-definition.roomConfigSchema`。
+
+#### 响应 data
+
+与 [14.1](#141-创建房间) 相同结构。
 
 ### 14.5 添加 AI 玩家
 
@@ -1983,11 +2087,23 @@ Redis key（节选）：
 
 `POST /rooms/{roomId}/leave`
 
-当前用户身份来自请求头 `X-Game-Hub-User-Id`。``waiting`` / ``playing`` 状态允许离开；移除成员、删除 ``player:{playerId}:room``、递增 ``version`` 并刷新房间 TTL。房主离开时按 ``joinedAt`` 最早的剩余玩家转移房主；最后一人离开时删除房间及列表索引。``playing`` 状态离开不修改运行时快照。
+当前用户身份来自请求头 `X-Game-Hub-User-Id`。``waiting`` / ``playing`` 允许离开。
 
-#### 响应 data
+| 房间状态 | 行为 |
+|---|---|
+| `waiting` | 从成员列表移除；删除 ``player:{playerId}:room`` |
+| `playing` | 成员转为 ``shell`` 托管（``managedReason=leave``）；删除 ``player:{playerId}:room``；写入 ``managed-shell`` 索引；**保留**房间内席位与运行时快照 |
 
-与 [14.1](#141-创建房间) 相同结构。
+房主离开时，``joinedAt`` 最早的剩余**真人**成为新房主；无真人剩余时解散房间。``playing`` 离开后推送 ``roomUpdated`` / ``gameViewUpdated``，并可为新当前回合玩家创建托管任务。
+
+#### 响应 data（`RoomLeaveResponse`）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| roomId | string | 房间 ID |
+| gameCode | string | 游戏编码 |
+| dissolved | boolean | 房间是否已解散 |
+| room | object \| null | 未解散时的房间详情，结构同 [14.1](#141-创建房间)；解散时为 `null` |
 
 业务错误码：
 
@@ -1995,7 +2111,7 @@ Redis key（节选）：
 |---:|---|
 | 90001 | 房间不存在 |
 | 90004 | 不在房间中 |
-| 90005 | 房间已开始 |
+| 90005 | 房间状态非 `waiting` / `playing` |
 
 ### 14.7 开始房间对局
 
@@ -2027,34 +2143,43 @@ Redis key（节选）：
 
 ```json
 {
+  "roomId": "room_xxx",
   "gameCode": "uno",
   "viewerPlayerId": "user_xxx",
   "phase": "playing",
   "currentPlayerId": "user_xxx",
+  "version": 3,
   "legalActions": [
     {
       "actionType": "PLAY_CARD",
-      "actionKey": "play:red_5",
+      "actionId": "play:red_5:inst_001",
       "playerId": "user_xxx",
-      "payload": {}
+      "payload": {},
+      "selection": {}
     }
   ],
   "publicState": {},
   "privateState": {},
+  "events": [],
   "isGameOver": false
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
+| roomId | string | 房间 ID |
 | gameCode | string | 游戏编码 |
 | viewerPlayerId | string | 视角玩家 ID |
 | phase | string | 对局阶段，由规则引擎定义 |
 | currentPlayerId | string \| null | 当前回合玩家 ID |
-| legalActions | array | 当前玩家可提交的合法操作 |
+| version | int | 房间对局版本号 |
+| legalActions | array | 当前玩家可提交的合法操作（含 `actionId`） |
 | publicState | object | 公开状态 |
 | privateState | object | 仅当前玩家可见的私有状态 |
+| events | array | 本帧事件；查询接口为 `[]`，开局/提交操作后含增量 |
 | isGameOver | boolean | 对局是否已结束 |
+
+`legalActions[]` 元素：`actionType`、`actionId`、`playerId`、`payload`、`selection`（选牌/UI 匹配元数据，供前端 Action Matcher 使用）。
 
 业务错误码：
 
@@ -2074,21 +2199,19 @@ Redis key（节选）：
 
 ```json
 {
-  "actionType": "PLAY_CARD",
-  "payload": {
-    "cardCode": "red_5"
-  },
-  "clientId": "client_action_001"
+  "actionId": "play:red_5:inst_001",
+  "baseVersion": 3,
+  "clientSeq": 1
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|:---:|---|
-| actionType | string | 是 | 操作类型 |
-| payload | object | 否 | 操作载荷，默认 ``{}`` |
-| clientId | string | 否 | 客户端幂等 ID |
+| actionId | string | 是 | 须为当前 `legalActions[].actionId` |
+| baseVersion | int | 是 | 客户端已知房间版本号，须与 `GameView.version` 一致 |
+| clientSeq | int | 否 | 客户端操作序号，用于事件追踪 |
 
-``playerId`` 由服务端根据 ``X-Game-Hub-User-Id`` 注入，请求体不传。
+`playerId` 由服务端根据 `X-Game-Hub-User-Id` 注入。服务端据 `actionId` 解析 `actionType` 与 `payload`，请求体不传 `actionType`。
 
 #### 响应 data
 
@@ -2153,14 +2276,14 @@ Redis key（节选）：
 
 ---
 
-## 附录 B：暂未开放接口
+## 附录 B：未开放接口
 
-以下能力在代码中有模型/服务层实现，但**未注册 HTTP 路由**或**同步未启用**，请勿按正式接口对接。
+以下能力在代码中有模型/服务层实现，但**未注册 HTTP 路由**或**云同步未启用**，请勿按正式接口对接。
 
 | 说明 | 备注 |
 |---|---|
 | 对局操作回放 `match_action` | `match/api.py` 注释：回放接口暂不开放；云同步 `eventType=match_action` 当前无处理器，会校验失败 |
-| `GET /games/{gameCode}/client-config` | 已下线，请使用 `GET /games/{gameCode}/config` |
+| `GET /games/{gameCode}/client-config` | 无此路由，请使用 `GET /games/{gameCode}/config` |
 | `POST /sync/cloud-save`（sync 子路由） | 云存档仅由启动模块 `POST /sync/cloud-save` 暴露；`sync/api.py` 无 HTTP 注册 |
 | 对局操作批量上报 / 按对局查询操作序列 | `MatchModuleService` 有 `batch_create_match_actions`、`list_match_actions`，无对应 REST |
 
@@ -2198,9 +2321,21 @@ Redis key（节选）：
 | 26 | GET | `/rankings` |
 | 27 | GET | `/online/users` |
 | 28 | POST | `/online/status` |
-| 29 | POST | `/rooms` |
-| 30 | GET | `/rooms/{roomId}` |
-| 31 | POST | `/rooms/{roomId}/join` |
-| 32 | POST | `/rooms/{roomId}/leave` |
+| 29 | GET | `/rooms` |
+| 30 | POST | `/rooms` |
+| 31 | GET | `/rooms/my-active` |
+| 32 | GET | `/rooms/my-managed-shell` |
+| 33 | GET | `/rooms/{roomId}` |
+| 34 | POST | `/rooms/{roomId}/join` |
+| 35 | POST | `/rooms/{roomId}/rejoin` |
+| 36 | POST | `/rooms/{roomId}/managed/start` |
+| 37 | POST | `/rooms/{roomId}/managed/stop` |
+| 38 | POST | `/rooms/{roomId}/members/remove` |
+| 39 | PATCH | `/rooms/{roomId}/config` |
+| 40 | POST | `/rooms/{roomId}/ai` |
+| 41 | POST | `/rooms/{roomId}/leave` |
+| 42 | POST | `/rooms/{roomId}/start` |
+| 43 | GET | `/rooms/{roomId}/view` |
+| 44 | POST | `/rooms/{roomId}/actions` |
 
-**正式开放接口数量：32**（不含附录 A 系统模块 2 个，不含 WebSocket 通道）。
+**正式开放接口数量：44**（不含附录 A 系统模块 2 个，不含 WebSocket 通道）。

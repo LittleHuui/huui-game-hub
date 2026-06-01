@@ -1,6 +1,6 @@
 # 后端代码规范
 
-本文档为 Game Hub 后端项目的统一开发规范。后续所有后端代码生成、评审与提交前，**必须先阅读并遵守本文档**。
+本文档为 Game Hub 后端项目的统一开发规范。所有后端代码生成、评审与提交前，**必须先阅读并遵守本文档**。
 
 ---
 
@@ -372,7 +372,7 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 
 ## 15. 代码生成与提交要求
 
-1. **阅读规范**：后续所有后端代码生成前，必须先阅读本文档（`docs/code-style/backend-code-style.md`）。
+1. **阅读规范**：所有后端代码生成前，必须先阅读本文档（`docs/code-style/backend-code-style.md`）。
 2. **符合规范**：不符合本规范的代码不得提交。
 3. **编译检查**：修改 Python 业务代码后，必须执行：
 

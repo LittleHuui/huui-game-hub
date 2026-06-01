@@ -57,7 +57,7 @@ docker compose version
 
 在**项目根目录** `huui-game-hub/` 执行。
 
-### 1.1 准备数据目录
+### 1.1 创建数据目录
 
 ```powershell
 cd F:\job\private_job\huui-game-hub

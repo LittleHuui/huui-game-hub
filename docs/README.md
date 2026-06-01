@@ -10,6 +10,7 @@
 | [api.md](api.md) | 开发者、Cursor | REST API：请求/响应、字段、错误码 |
 | [new-game-guide.md](new-game-guide.md) | 游戏接入开发者 | 前后端接入步骤、模板、允许/禁止项 |
 | [docker-guide.md](docker-guide.md) | 运维、开发者 | Windows/Linux 构建与部署 |
+| [dev-test/uno-api-test.md](dev-test/uno-api-test.md) | 开发者 | UNO 房间与对局链路 curl 自检 |
 | [code-style/frontend-code-style.md](code-style/frontend-code-style.md) | 前端、Cursor | 分层职责与禁止项 |
 | [code-style/backend-code-style.md](code-style/backend-code-style.md) | 后端、Cursor | modules 分层与 API 规范 |
 

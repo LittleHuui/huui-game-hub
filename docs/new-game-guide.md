@@ -5,7 +5,7 @@
 参考已接入游戏：
 
 - **轻量单人**（`runtimeType: light-single`）：`minesweeper`、`match3`、`2048`、`sudoku`
-- **策略回合制多人**（`runtimeType: strategy-turn-multiplayer`）：`uno`（平台壳与房间链路已接，玩法细节按分阶段目标后续实现）
+- **策略回合制多人**（`runtimeType: strategy-turn-multiplayer`）：`uno`（房间、AI、托管、`GameView`、`legalActions`、Action Matcher、完整 UNO 规则）
 
 ---
 
@@ -26,12 +26,9 @@
 **配置职责**
 
 - **基础配置种子**（难度、道具、排行榜、`featureFlags` 等）：源码在 `GAME_SEED_CONFIG`，运行时由 **`gameConfigService` 统一加载并落地**到各游戏 `*Config.js`；禁止在 Page 内散落种子片段。
-- **规则种子**（`roomRule`、`runtimeRule`、`actionTypes` 等）：仅强制在线游戏；在后端 `strategy_turn.rule_definition_registry` 注册，经 **`GET /games/{gameCode}/rule-definition`** 对外提供；与 `config` 接口语义独立。
+- **规则种子**（`roomRule`、`roomConfigSchema`、`cardDefinitions` 等）：仅强制在线游戏；在 `app/modules/game_seed/` 注册并经 **`GET /games/{gameCode}/rule-definition`** 对外提供；规则引擎在 `strategy_turn.rule_definition_registry` 注册；与 `config` 接口语义独立。
 
-**分阶段目标**
-
-1. **第一阶段**：先搭平台（在线、房间、`rule-definition`、`strategy-turn-multiplayer` 模板），再接 UNO 玩法；文档与实现均不提前展开 UNO 出牌等细节。
-2. **第二阶段**：用**斗地主**接入同一 `strategy-turn-multiplayer` 抽象，验证运行时与规则种子可复用于非卡牌游戏。
+`strategy_turn` 为通用多人回合制运行时；斗地主、德州扑克、飞行棋、五子棋等可基于 `strategy-turn-multiplayer` 模板与同一套 `room` / `GameView` 协议接入。
 
 ---
 
@@ -64,22 +61,67 @@
 | 4 | 在 `game-hub` 目录执行 `npm run export:seed`，生成与 `GAME_SEED_CONFIG` 一致的 `dist/game-seed.json`（可选，便于 curl 导入） |
 | 5 | `POST /admin/config/import-game-seed` 导入（运维/开发环境；新库必须执行） |
 | 6 | 同步 payload：`eventType: "match_record"` 的字段符合 [api.md §1.9](api.md#19-对局记录业务字段match_record) |
-| 7 | **`supportOnline: true` 时**：在 `app/modules/strategy_turn/rule_definition_registry.py` 注册 `StrategyTurnRuleDefinition`（及引擎占位）；房间接口将读取 `roomRule` |
+| 7 | **`supportOnline: true` 时**：在 `game_seed` 注册在线规则种子；在 `strategy_turn.rule_definition_registry` 注册 `StrategyTurnRuleDefinition` 与 `StrategyTurnRuleEngine` 实现类 |
+| 8 | 在 `app/modules/games/{gameCode}/` 实现规则引擎（参考 `games/uno/uno_rule_engine.py`） |
 
-无需为单个游戏新增独立后端 business module；平台配置与 `strategy_turn` 注册表驱动。
+无需为单个游戏新增独立 HTTP 模块；平台 `room` + `strategy_turn` + 种子注册表驱动对局。
 
 ### 1.3 策略回合制多人（`strategy-turn-multiplayer`）附加项
 
 | 步骤 | 位置 | 说明 |
 |------|------|------|
 | 1 | `gameRegistry.js` | `runtimeType` / `viewTemplate` 均为 `strategy-turn-multiplayer`；`supportOnline: true`；`capabilities.offline: false` |
-| 2 | `game-templates/strategy-turn-multiplayer/` | 页面壳：房间区 + 对局区 slot，不写 `gameCode` 特判 |
+| 2 | `game-templates/strategy-turn-multiplayer/` | 页面模板：房间区 + 对局区 slot，不写 `gameCode` 特判 |
 | 3 | `gameConfigService.js` | 增加该 `gameCode` 的 handler，与其它游戏一样经 Service 落地基础种子 |
 | 4 | 后端 `strategy_turn` | 注册 `rule-definition` 种子（人数、`defaultExpireSeconds`、`actionSubmitMode` 等） |
 | 5 | 前端 `roomService` | 创建/加入/离开房间；须在线且已登录；**不**在 Page 内直接 `fetch` `/rooms` |
-| 6 | `onlineService` | 进入游戏前保持在线态；在线编排**可以**在 Service 层组合调用 `roomService` |
+| 6 | `onlineService` | 进入游戏前保持在线态；Service 层组合调用 `roomService` |
+| 7 | `strategyTurnGameViewService` / `strategyTurnGameViewStore` | 订阅 `gameViewUpdated`、缓存 `GameView`、版本去重 |
+| 8 | `strategyTurnActionMatcher.js` | 根据 `legalActions[].selection` 匹配手牌选牌与 `actionId`（游戏可封装薄包装，如 `games/uno/`） |
+| 9 | `games/{gameCode}/*Page.vue` | 对局页：拉取/展示 `GameView`、提交 `actionId`、播放 `events` |
 
 `room` 为独立后端模块；`online` 与 `room` 平级，由业务 Service 按需串联。
+
+### 1.4 策略回合制：GameView 与 Action Matcher
+
+**GameView（服务端 `strategy_turn.schemas.GameView`）**
+
+| 字段 | 用途 |
+|------|------|
+| `roomId` / `version` | 房间与对局版本；提交操作时传 `baseVersion` |
+| `viewerPlayerId` / `currentPlayerId` | 视角玩家与当前回合玩家 |
+| `publicState` / `privateState` | 公开/私有状态（如 UNO 手牌仅在 `privateState`） |
+| `legalActions` | 可提交的合法操作（含 `actionId`、`actionType`、`selection`） |
+| `events` | 本帧动画事件；`GET .../view` 查询时为 `[]`，开局/提交操作后携带增量 |
+| `isGameOver` | 对局是否结束 |
+
+前端经 `strategyTurnGameViewService` 拉取 `GET /rooms/{roomId}/view` 或消费 WebSocket `gameViewUpdated`；禁止 Page 直接拼 HTTP。
+
+**提交操作**
+
+```json
+{
+  "actionId": "从 legalActions 选取",
+  "baseVersion": 12,
+  "clientSeq": 1
+}
+```
+
+`POST /rooms/{roomId}/actions`；服务端根据 `actionId` 解析 `actionType` 与 `payload`，请求体不传 `actionType`。
+
+**Action Matcher（`strategyTurnActionMatcher.js`）**
+
+- 输入：手牌列表、`legalActions`（含 `selection.candidates`）、当前选中牌 ID。
+- 输出：`determinedAction`（唯一 `actionId`）、可选/禁选牌 ID、提示选牌等。
+- UNO 示例：`games/uno/` 内封装选牌与万能牌选色，再调用 `roomService.submitRoomAction`。
+
+**后端规则引擎**
+
+1. `game_seed`：暴露 `rule-definition`（房间参数、牌型定义等）。
+2. `register_rule_engine(StrategyTurnRuleDefinition, YourRuleEngine)`：实现 `build_initial_state`、`apply_action`、`build_legal_actions`、`build_view` 等。
+3. `room.module_service` 在 `start` / `actions` 时调用 `StrategyTurnRuntimeService`。
+
+手动联调见 [dev-test/uno-api-test.md](dev-test/uno-api-test.md)。
 
 ---
 
@@ -114,7 +156,7 @@ src/games/your-game/
 
 ### 3.0 策略回合制多人模板 `strategy-turn-multiplayer`
 
-**适用**：`runtimeType === 'strategy-turn-multiplayer'` 的强制在线多人游戏（UNO、后续斗地主等）。
+**适用**：`runtimeType === 'strategy-turn-multiplayer'` 的强制在线多人游戏（当前为 `uno`；斗地主等同类游戏复用本模板）。
 
 **目录**：`src/game-templates/strategy-turn-multiplayer/`（如 `StrategyTurnMultiplayerView.vue`）。
 
@@ -124,7 +166,7 @@ src/games/your-game/
 | Page 注入房间 ID、成员列表、对局棋盘组件 | 模板内 `fetch`、`roomRepository`、规则引擎 |
 | 调用 `roomService` / `onlineService`（在 Page 或游戏 Service） | 在模板内实现出牌、回合判定 |
 
-玩法逻辑放在 `games/{gameCode}/` 的 Engine 与 Service；房间元数据来自 `GET/POST /rooms`；规则参数来自 `GET .../rule-definition`。第一阶段只要求平台壳与房间链路可跑通，不实现具体牌型规则。
+玩法逻辑放在 `games/{gameCode}/` 的 Engine、Service 与对局 Page；房间元数据来自 `GET/POST /rooms`；规则参数来自 `GET .../rule-definition`；对局状态与合法操作来自 `GameView` / `legalActions`。
 
 ---
 
@@ -509,11 +551,22 @@ Object.freeze({
 
 ## 11. 验收自检
 
+**通用**
+
 - [ ] `npm run build` 通过  
-- [ ] 离线可玩（`repositoryMode: local`）  
-- [ ] 在线：购买、背包、排行榜、对局同步正常  
-- [ ] 对局 JSON 含 `durationMs`、`propUses[]`、`payload{}`，字段均为 camelCase（见 [api.md](api.md)）  
 - [ ] 未修改平台组件的游戏特判  
-- [ ] 用户偏好已注册 `gameSettingDefinitions`，顶栏可见，页面经 Service 读取  
+- [ ] 用户偏好（若有）已注册 `gameSettingDefinitions`，顶栏可见，页面经 Service 读取  
+
+**`light-single` 且 `supportOnline: false`**
+
+- [ ] `repositoryMode: local` 可完整游玩  
+- [ ] 在线：购买、背包、排行榜、对局同步正常（按 `capabilities`）  
+- [ ] 对局 JSON 含 `durationMs`、`propUses[]`、`payload{}`，字段均为 camelCase（见 [api.md](api.md)）  
+
+**`strategy-turn-multiplayer` 且 `supportOnline: true`**
+
+- [ ] 仅在线模式可进入；`roomService` / `strategyTurnGameViewService` 链路正常  
+- [ ] `rule-definition`、建房、`start`、`view`、`actions` 与 WebSocket `gameViewUpdated` 一致  
+- [ ] AI、托管（`active` / `shell`）、`rejoin` 行为与 [api.md §14](api.md#14-room-房间) 一致  
 
 更多分层细节见 [code-style/frontend-code-style.md](code-style/frontend-code-style.md) 与 [architecture.md](architecture.md)。
