@@ -311,6 +311,22 @@
   margin: 0;
 }
 
+.uno-discard-area__color-value--red {
+  color: #e74c3c;
+}
+
+.uno-discard-area__color-value--yellow {
+  color: #f1c40f;
+}
+
+.uno-discard-area__color-value--blue {
+  color: #3498db;
+}
+
+.uno-discard-area__color-value--green {
+  color: #27ae60;
+}
+
 .uno-color-picker {
   position: fixed;
   inset: 0;

@@ -14,7 +14,8 @@
         </li>
       </ol>
       <p v-else class="muted-small">暂无完整排名信息</p>
-
+    </div>
+    <template #footer>
       <div class="room-hub-form__actions">
         <button
           type="button"
@@ -24,7 +25,7 @@
           返回房间
         </button>
       </div>
-    </div>
+    </template>
   </AppModal>
 </template>
 

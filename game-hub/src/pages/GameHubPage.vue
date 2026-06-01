@@ -75,7 +75,7 @@
         <div v-else class="log-list hub-scrollbar">
           <div v-for="(row, i) in ledgerRows" :key="row.clientId || i" class="log-item">
             <span class="muted-small">{{ formatDisplayTime(row.createdAt) }}</span>
-            · {{ row.reason }}
+            · {{ walletLedgerDisplayLabel(row) }}
             <strong :style="{ color: row.type === 'gain' ? '#6ee7b7' : '#fca5a5' }">
               {{ row.type === 'gain' ? '+' : '-' }}{{ row.amount }}
             </strong>
@@ -315,6 +315,49 @@ function purchaseRecordLabel(row) {
   const gameCode = row?.gameCode || '';
   const name = resolvePropDisplayName(propCode, gameCode);
   return name || '购买';
+}
+
+/**
+ * 积分流水业务说明展示名。
+ * @param {object} row
+ * @returns {string}
+ */
+function walletLedgerDisplayLabel(row) {
+  if (!row) {
+    return '积分变动';
+  }
+
+  const reason = String(row.reason || '').toLowerCase();
+  const propCode = row.propCode || row.payload?.propCode || '';
+  const gameCode = row.gameCode || row.payload?.gameCode || '';
+  const purchaseReasons = new Set(['purchase', 'buy', 'buy_prop', 'prop_purchase']);
+  const usePropReasons = new Set(['use_prop', 'prop_use', 'use']);
+
+  if (purchaseReasons.has(reason)) {
+    return resolvePropDisplayName(propCode, gameCode) || '购买道具';
+  }
+
+  if (usePropReasons.has(reason)) {
+    return resolvePropDisplayName(propCode, gameCode) || '使用道具';
+  }
+
+  if (gameCode) {
+    return resolveGameDisplayName(gameCode) || gameCode;
+  }
+
+  if (row.type === 'refund') {
+    return '积分退回';
+  }
+
+  if (row.type === 'gain') {
+    return '手动充值';
+  }
+
+  if (row.type === 'cost') {
+    return '手动扣除';
+  }
+
+  return row.reason || '积分变动';
 }
 
 function formatHistoryDuration(durationMs) {

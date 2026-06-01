@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 from typing import Any, Dict, List, Optional, Sequence
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -30,6 +31,8 @@ from app.modules.room.managed_task_service import (
 from app.modules.room.module_service import RoomModuleService
 from app.modules.room.presence_service import RoomPresenceService, room_presence_service
 from app.modules.room.schemas import RoomActionRequest
+from app.modules.room.turn_timeout_service import TurnTimeoutService, turn_timeout_service
+from app.modules.room.turn_timeout_service import TurnTimeoutService, turn_timeout_service
 
 
 class _FakeRedisClient(object):
@@ -338,18 +341,146 @@ def test_presence_service_only_notifies_shell_handler() -> None:
     assert "_notify_shell_managed" in source
 
 
+def test_turn_timeout_service_only_notifies_shell_handler() -> None:
+    """TurnTimeoutService 不直接修改成员、runtime 或创建托管任务。"""
+    source = inspect.getsource(TurnTimeoutService)
+    assert "save_player" not in source
+    assert "save_runtime" not in source
+    assert "create_managed_turn_task" not in source
+    assert "connection_manager" not in source
+    assert "StrategyTurnRuntimeService" not in source
+    assert "_notify_active_managed" in source
+    assert "currentTurnDeadlineAt" in source
+    assert "currentPlayerId" in source
+
+
+@pytest.mark.asyncio
+async def test_turn_timeout_marks_shell_when_deadline_passed(monkeypatch) -> None:
+    """回合截止时间已过后触发 active 托管。"""
+    notified = []
+
+    async def _handler(room_id, player_id, reason):
+        notified.append((room_id, player_id, reason))
+        return True
+
+    service = TurnTimeoutService()
+    service.bind_mark_member_active_managed_handler(_handler)
+    service._repository = MagicMock()
+    service._repository.get_meta = AsyncMock(return_value={"status": "playing"})
+    service._repository.get_runtime = AsyncMock(
+        return_value={
+            "isGameOver": False,
+            "runtimeState": {
+                "currentPlayerId": "u1",
+                "currentTurnDeadlineAt": 1000,
+            },
+        },
+    )
+    service._repository.list_players = AsyncMock(
+        return_value=[{"playerId": "u1", "isAi": False, "isManaged": False}],
+    )
+    monkeypatch.setattr("app.modules.room.turn_timeout_service.now_ms", lambda: 2000)
+    await service._tick_room("room-1")
+    assert notified == [("room-1", "u1", "turnTimeout")]
+
+
+@pytest.mark.asyncio
+async def test_turn_timeout_skips_when_deadline_not_reached(monkeypatch) -> None:
+    """回合截止时间未到时不会触发 active 托管。"""
+    notified = []
+
+    async def _handler(room_id, player_id, reason):
+        notified.append((room_id, player_id, reason))
+        return True
+
+    service = TurnTimeoutService()
+    service.bind_mark_member_active_managed_handler(_handler)
+    service._repository = MagicMock()
+    service._repository.get_meta = AsyncMock(return_value={"status": "playing"})
+    service._repository.get_runtime = AsyncMock(
+        return_value={
+            "isGameOver": False,
+            "runtimeState": {
+                "currentPlayerId": "u1",
+                "currentTurnDeadlineAt": 5000,
+            },
+        },
+    )
+    service._repository.list_players = AsyncMock(
+        return_value=[{"playerId": "u1", "isAi": False, "isManaged": False}],
+    )
+    monkeypatch.setattr("app.modules.room.turn_timeout_service.now_ms", lambda: 2000)
+    await service._tick_room("room-1")
+    assert notified == []
+
+
+@pytest.mark.asyncio
+async def test_turn_timeout_skips_ai_and_managed(monkeypatch) -> None:
+    """AI 与已托管玩家不因回合超时重复触发 active 托管。"""
+    notified = []
+
+    async def _handler(room_id, player_id, reason):
+        notified.append((room_id, player_id, reason))
+        return True
+
+    service = TurnTimeoutService()
+    service.bind_mark_member_active_managed_handler(_handler)
+    service._repository = MagicMock()
+    service._repository.get_meta = AsyncMock(return_value={"status": "playing"})
+    service._repository.get_runtime = AsyncMock(
+        return_value={
+            "isGameOver": False,
+            "runtimeState": {
+                "currentPlayerId": "ai-1",
+                "currentTurnDeadlineAt": 1000,
+            },
+        },
+    )
+    service._repository.list_players = AsyncMock(
+        return_value=[{"playerId": "ai-1", "isAi": True, "isManaged": True}],
+    )
+    monkeypatch.setattr("app.modules.room.turn_timeout_service.now_ms", lambda: 2000)
+    await service._tick_room("room-ai")
+    assert notified == []
+
+    service._repository.get_runtime = AsyncMock(
+        return_value={
+            "isGameOver": False,
+            "runtimeState": {
+                "currentPlayerId": "u1",
+                "currentTurnDeadlineAt": 1000,
+            },
+        },
+    )
+    service._repository.list_players = AsyncMock(
+        return_value=[
+            {
+                "playerId": "u1",
+                "isAi": False,
+                "isManaged": True,
+                "managedMode": "active",
+            },
+        ],
+    )
+    await service._tick_room("room-managed")
+    assert notified == []
+
+
 @pytest.mark.asyncio
 async def test_background_handlers_bound_on_initialize(monkeypatch) -> None:
     """应用启动阶段绑定后台 handler，不依赖 room API 请求。"""
     background_coordinator._initialized = False
     background_coordinator._background_module_service = None
-    started = {"managed": False, "presence": False}
+    started = {"managed": False, "presence": False, "turnTimeout": False}
 
     async def _fake_managed_start():
         started["managed"] = True
 
     async def _fake_presence_start():
         started["presence"] = True
+
+    async def _fake_turn_timeout_start():
+        started["turnTimeout"] = True
 
     monkeypatch.setattr(
         background_coordinator.managed_turn_task_service,
@@ -361,11 +492,18 @@ async def test_background_handlers_bound_on_initialize(monkeypatch) -> None:
         "start",
         _fake_presence_start,
     )
+    monkeypatch.setattr(
+        background_coordinator.turn_timeout_service,
+        "start",
+        _fake_turn_timeout_start,
+    )
     await initialize_room_background()
     assert started["managed"] is True
     assert started["presence"] is True
+    assert started["turnTimeout"] is True
     assert background_coordinator.managed_turn_task_service._submit_handler is not None
     assert room_presence_service._mark_member_shell_managed_handler is not None
+    assert turn_timeout_service._mark_member_active_managed_handler is not None
     service = get_background_room_module_service()
     assert service is not None
     assert service._game_service is None

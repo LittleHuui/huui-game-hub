@@ -103,7 +103,115 @@ class RoomModuleService(object):
         with session_scope() as db:
             yield build_game_module_service(db)
 
-    SHELL_MANAGED_REASONS = frozenset({"timeout", "leave"})
+    SHELL_MANAGED_REASONS = frozenset({"presenceTimeout", "leave"})
+    ACTIVE_MANAGED_REASONS = frozenset({"manual", "turnTimeout"})
+
+    async def _mark_member_active_managed_locked(
+        self,
+        room_id: str,
+        meta: Dict[str, Any],
+        members: List[Dict[str, Any]],
+        player_id: str,
+        reason: str,
+    ) -> RoomResponse:
+        """
+        在已持有房间锁的上下文中将成员标记为 active 托管并推送房间更新。
+
+        :param room_id: 房间 ID。
+        :param meta: 房间元信息。
+        :param members: 房间成员列表。
+        :param player_id: 玩家 ID。
+        :param reason: 托管原因（manual / turnTimeout）。
+        :return: 更新后的房间详情。
+        """
+        current_time = now_ms()
+        target = self._find_member(members, player_id)
+        if target is not None:
+            target["isManaged"] = True
+            target["managedMode"] = "active"
+            target["managedReason"] = reason
+            target["managedAt"] = current_time
+            target["updatedAt"] = current_time
+            if not await self._repository.save_player(room_id, player_id, target):
+                raise BizException(ErrorCode.SYSTEM_ERROR, message="房间成员写入失败")
+        meta["updatedAt"] = current_time
+        if not await self._repository.save_meta(room_id, meta):
+            raise BizException(ErrorCode.SYSTEM_ERROR, message="房间元信息更新失败")
+        version = await self._bump_version(room_id)
+        await self._repository.refresh_room_ttl(room_id)
+        refreshed_members = await self._repository.list_players(room_id)
+        room_response = self._build_room_response(meta, refreshed_members, version)
+        await push_room_updated(room_response)
+        await self.push_current_game_view_if_playing(
+            room_id,
+            meta,
+            refreshed_members,
+            version,
+        )
+        return room_response
+
+    async def mark_member_active_managed(self, room_id: str, player_id: str, reason: str) -> bool:
+        """
+        将成员标记为 active 托管并同步房间状态。
+
+        :param room_id: 房间 ID。
+        :param player_id: 玩家 ID。
+        :param reason: 托管原因（manual / turnTimeout）。
+        :return: 是否成功标记或房间已无需处理；锁冲突等临时失败返回 ``False``。
+        """
+        normalized_room_id = str(room_id or "").strip()
+        normalized_player_id = str(player_id or "").strip()
+        normalized_reason = str(reason or "").strip()
+        if not normalized_room_id or not normalized_player_id:
+            return False
+        if normalized_reason not in self.ACTIVE_MANAGED_REASONS:
+            return False
+        lock_key = RedisKeys.room_lock(normalized_room_id)
+        try:
+            lock_handle = await self._lock_service.acquire(
+                lock_key,
+                ttl_seconds=self.ROOM_ACTION_LOCK_TTL_SECONDS,
+                wait_timeout_ms=self.USER_ACTION_LOCK_WAIT_TIMEOUT_MS,
+                owner_hint="active:{0}".format(normalized_player_id),
+            )
+        except LockAcquireError:
+            logger.warning(
+                "mark_member_active_managed lock conflict, roomId=%s playerId=%s reason=%s",
+                normalized_room_id,
+                normalized_player_id,
+                normalized_reason,
+            )
+            return False
+        async with lock_handle:
+            meta = await self._repository.get_meta(normalized_room_id)
+            if meta is None or str(meta.get("status", "")).strip() != "playing":
+                return True
+            members = await self._repository.list_players(normalized_room_id)
+            target = self._find_member(members, normalized_player_id)
+            if target is None:
+                return True
+            if bool(target.get("isAi")):
+                return True
+            if self._is_shell_managed(target):
+                return True
+            if str(target.get("managedMode", "")).strip() == "active":
+                await self.create_current_player_managed_task_if_needed(
+                    normalized_room_id,
+                    "turnTimeoutManaged" if normalized_reason == "turnTimeout" else normalized_reason,
+                )
+                return True
+            await self._mark_member_active_managed_locked(
+                normalized_room_id,
+                meta,
+                members,
+                normalized_player_id,
+                normalized_reason,
+            )
+            await self.create_current_player_managed_task_if_needed(
+                normalized_room_id,
+                "turnTimeoutManaged" if normalized_reason == "turnTimeout" else normalized_reason,
+            )
+            return True
 
     async def mark_member_shell_managed(self, room_id: str, player_id: str, reason: str) -> bool:
         """
@@ -111,7 +219,7 @@ class RoomModuleService(object):
 
         :param room_id: 房间 ID。
         :param player_id: 玩家 ID。
-        :param reason: 托管原因（timeout / leave）。
+        :param reason: 托管原因（presenceTimeout / leave）。
         :return: 是否成功标记或房间已无需处理；锁冲突等临时失败返回 ``False``。
         """
         normalized_room_id = str(room_id or "").strip()
@@ -520,27 +628,12 @@ class RoomModuleService(object):
                 raise BizException(ErrorCode.ROOM_NOT_MEMBER)
             if self._is_shell_managed(target):
                 raise BizException(ErrorCode.ROOM_NOT_MEMBER, message="请先恢复席位")
-            current_time = now_ms()
-            target["isManaged"] = True
-            target["managedMode"] = "active"
-            target["managedReason"] = "manual"
-            target["managedAt"] = current_time
-            target["updatedAt"] = current_time
-            if not await self._repository.save_player(normalized_room_id, player_id, target):
-                raise BizException(ErrorCode.SYSTEM_ERROR, message="房间成员写入失败")
-            meta["updatedAt"] = current_time
-            if not await self._repository.save_meta(normalized_room_id, meta):
-                raise BizException(ErrorCode.SYSTEM_ERROR, message="房间元信息更新失败")
-            version = await self._bump_version(normalized_room_id)
-            await self._repository.refresh_room_ttl(normalized_room_id)
-            refreshed_members = await self._repository.list_players(normalized_room_id)
-            room_response = self._build_room_response(meta, refreshed_members, version)
-            await push_room_updated(room_response)
-            await self.push_current_game_view_if_playing(
+            room_response = await self._mark_member_active_managed_locked(
                 normalized_room_id,
                 meta,
-                refreshed_members,
-                version,
+                members,
+                player_id,
+                "manual",
             )
             await self.create_current_player_managed_task_if_needed(
                 normalized_room_id,

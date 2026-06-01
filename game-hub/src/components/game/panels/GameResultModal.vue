@@ -20,42 +20,51 @@
         </div>
       </header>
 
-      <section v-if="stats.length" class="game-result-section">
-        <h3 class="game-result-section__label">数据统计</h3>
-        <dl class="game-result-kv">
-          <div v-for="(item, index) in stats" :key="`stat-${index}`" class="game-result-kv__row">
-            <dt>{{ item.label }}</dt>
-            <dd>{{ item.value }}</dd>
-          </div>
-        </dl>
-      </section>
+      <section class="game-result-body hub-scrollbar">
+        <section v-if="stats.length" class="game-result-section">
+          <h3 class="game-result-section__label">数据统计</h3>
+          <dl class="game-result-kv">
+            <div
+              v-for="(item, index) in stats"
+              :key="`stat-${index}`"
+              class="game-result-kv__row"
+            >
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          </dl>
+        </section>
 
-      <section v-if="rewards.length" class="game-result-section game-result-section--rewards">
-        <h3 class="game-result-section__label">奖励</h3>
-        <dl class="game-result-kv">
-          <div
-            v-for="(item, index) in rewards"
-            :key="`reward-${index}`"
-            class="game-result-kv__row game-result-kv__row--accent"
-          >
-            <dt>{{ item.label }}</dt>
-            <dd>{{ item.value }}</dd>
-          </div>
-        </dl>
-      </section>
+        <section v-if="rewards.length" class="game-result-section game-result-section--rewards">
+          <h3 class="game-result-section__label">奖励</h3>
+          <dl class="game-result-kv">
+            <div
+              v-for="(item, index) in rewards"
+              :key="`reward-${index}`"
+              class="game-result-kv__row game-result-kv__row--accent"
+            >
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          </dl>
+        </section>
 
-      <section v-if="highlights.length" class="game-result-section game-result-section--highlights">
-        <h3 class="game-result-section__label">亮点</h3>
-        <dl class="game-result-kv">
-          <div
-            v-for="(item, index) in highlights"
-            :key="`highlight-${index}`"
-            class="game-result-kv__row"
-          >
-            <dt>{{ item.label }}</dt>
-            <dd>{{ item.value }}</dd>
-          </div>
-        </dl>
+        <section
+          v-if="highlights.length"
+          class="game-result-section game-result-section--highlights"
+        >
+          <h3 class="game-result-section__label">亮点</h3>
+          <dl class="game-result-kv">
+            <div
+              v-for="(item, index) in highlights"
+              :key="`highlight-${index}`"
+              class="game-result-kv__row"
+            >
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          </dl>
+        </section>
       </section>
 
       <footer v-if="actions.length" class="game-result-actions">
@@ -146,13 +155,21 @@ function handleMaskClick() {
 
 .game-result-card {
   width: min(440px, 100%);
-  max-height: min(90vh, 720px);
-  overflow: auto;
-  padding: 24px;
+  max-height: min(calc(100vh - 32px), 720px);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 24px 20px;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: linear-gradient(165deg, rgba(17, 24, 39, 0.98), rgba(15, 23, 42, 0.96));
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  .game-result-card {
+    max-height: min(calc(100dvh - 32px), 720px);
+  }
 }
 
 .game-result-card--success {
@@ -185,6 +202,14 @@ function handleMaskClick() {
   gap: 14px;
   align-items: flex-start;
   margin-bottom: 18px;
+}
+
+.game-result-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 4px;
+  margin-right: -4px;
+  overflow-y: auto;
 }
 
 .game-result-header__badge {

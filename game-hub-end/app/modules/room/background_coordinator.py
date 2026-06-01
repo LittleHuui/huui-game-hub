@@ -8,6 +8,7 @@ from app.modules.room.managed_task_service import managed_turn_task_service
 from app.modules.room.module_service import RoomModuleService
 from app.modules.room.presence_service import room_presence_service
 from app.modules.room.repository import RoomRepository
+from app.modules.room.turn_timeout_service import turn_timeout_service
 from app.modules.strategy_turn.runtime_service import StrategyTurnRuntimeService
 
 logger = logging.getLogger(__name__)
@@ -57,8 +58,12 @@ async def initialize_room_background() -> None:
     room_presence_service.bind_mark_member_shell_managed_handler(
         module_service.mark_member_shell_managed,
     )
+    turn_timeout_service.bind_mark_member_active_managed_handler(
+        module_service.mark_member_active_managed,
+    )
     await managed_turn_task_service.start()
     await room_presence_service.start()
+    await turn_timeout_service.start()
     _initialized = True
     logger.info("room background components initialized")
 
@@ -72,5 +77,6 @@ async def shutdown_room_background() -> None:
     global _initialized, _background_module_service
     await managed_turn_task_service.stop()
     await room_presence_service.stop()
+    await turn_timeout_service.stop()
     _initialized = False
     _background_module_service = None

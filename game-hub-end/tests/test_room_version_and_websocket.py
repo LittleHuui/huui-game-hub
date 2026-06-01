@@ -181,7 +181,7 @@ async def test_presence_timeout_marks_shell(monkeypatch) -> None:
         AsyncMock(return_value=True),
     )
     await service._tick_room("room-1")
-    assert notified == [("room-1", "u1", "timeout")]
+    assert notified == [("room-1", "u1", "presenceTimeout")]
 
 
 @pytest.mark.asyncio

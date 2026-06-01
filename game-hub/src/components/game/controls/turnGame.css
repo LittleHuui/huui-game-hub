@@ -46,18 +46,65 @@
 }
 
 .turn-player-panel {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.turn-player-panel__card {
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 200px;
   padding: 4px 6px;
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.32);
-  box-shadow: none;
-  backdrop-filter: none;
   transition: background 0.15s ease;
 }
 
-.turn-player-panel--active {
+.turn-player-panel--active .turn-player-panel__card {
   background: rgba(14, 116, 144, 0.18);
+}
+
+.turn-player-panel__outer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.turn-player-panel--edge-left .turn-player-panel__outer {
+  flex-direction: row;
+}
+
+.turn-player-panel--edge-right .turn-player-panel__outer {
+  flex-direction: row-reverse;
+}
+
+.turn-player-panel__action-slot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  height: calc(40px * 2 / 3);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.turn-player-panel__action-slot:not(:has(*)) {
+  display: none;
+  width: 0;
+  min-width: 0;
+  height: 0;
+}
+
+.turn-player-panel--active {
+  background: transparent;
 }
 
 .turn-player-panel--spectator {
@@ -142,7 +189,8 @@
 .turn-player-panel__rank-badge {
   position: absolute;
   left: -4px;
-  bottom: -4px;
+  top: -4px;
+  bottom: auto;
   z-index: 2;
   padding: 1px 5px;
   border-radius: 999px;
@@ -179,6 +227,20 @@
   color: #cbd5e1;
   background: rgba(71, 85, 105, 0.55);
   border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.turn-player-panel--edge-right .turn-player-panel__badge {
+  left: auto;
+  right: -2px;
+  bottom: -6px;
+  top: auto;
+}
+
+.turn-player-panel--edge-right .turn-player-panel__rank-badge {
+  left: auto;
+  right: -4px;
+  top: -4px;
+  bottom: auto;
 }
 
 .turn-player-panel__countdown-slot {

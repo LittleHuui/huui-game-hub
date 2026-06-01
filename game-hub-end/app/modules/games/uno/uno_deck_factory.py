@@ -167,11 +167,14 @@ def _card_from_definition(
 
 def pop_starting_discard_card(draw_pile: List[UnoCard]) -> Optional[UnoCard]:
     """
-    从抽牌堆取出首张作为开局顶牌（跳过万能牌骨架逻辑）。
+    从抽牌堆取出首张数字牌作为开局顶牌。
 
     :param draw_pile: 抽牌堆。
-    :return: 顶牌；堆为空时为 ``None``。
+    :return: 首张数字牌；堆为空或堆中无数字牌时为 ``None``。
     """
     if not draw_pile:
         return None
-    return draw_pile.pop(0)
+    for index, card in enumerate(draw_pile):
+        if card.cardType == "NUMBER":
+            return draw_pile.pop(index)
+    return None

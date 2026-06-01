@@ -30,6 +30,7 @@
         提示
       </button>
       <button
+        v-if="canEndTurn"
         type="button"
         class="game-action-btn turn-action-bar__btn--end game-action-btn--md"
         :disabled="isEndTurnDisabled"

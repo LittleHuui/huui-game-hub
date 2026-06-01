@@ -1,6 +1,6 @@
 <template>
   <AppModal :visible="visible" title="创建房间" @close="$emit('close')">
-    <form class="room-hub-form" @submit.prevent="onSubmit">
+    <form id="create-room-form" class="room-hub-form" @submit.prevent="onSubmit">
       <div class="room-hub-form__field">
         <label for="room-hub-name">房间名称</label>
         <input
@@ -22,35 +22,44 @@
 
       <div v-for="field in visibleNumberFields" :key="field.key" class="room-hub-form__field">
         <label :for="`room-hub-${field.key}`">{{ field.label }}</label>
-        <input
-          :id="`room-hub-${field.key}`"
-          v-model.number="fieldValues[field.key]"
-          type="number"
+        <GameNumberInput
+          :input-id="`room-hub-${field.key}`"
+          v-model="fieldValues[field.key]"
           :min="field.min"
           :max="field.max"
           :disabled="submitting"
         />
         <p v-if="field.description" class="muted-small">{{ field.description }}</p>
       </div>
-
       <p v-if="errorMessage" class="empty-text">{{ errorMessage }}</p>
-
+    </form>
+    <template #footer>
       <div class="room-hub-form__actions">
-        <button type="button" class="game-action-btn game-action-btn--secondary game-action-btn--sm" :disabled="submitting" @click="$emit('close')">
+        <button
+          type="button"
+          class="game-action-btn game-action-btn--secondary game-action-btn--sm"
+          :disabled="submitting"
+          @click="$emit('close')"
+        >
           取消
         </button>
-        <button type="submit" class="game-action-btn game-action-btn--primary game-action-btn--sm" :disabled="submitting">
+        <button
+          form="create-room-form"
+          type="submit"
+          class="game-action-btn game-action-btn--primary game-action-btn--sm"
+          :disabled="submitting"
+        >
           {{ submitting ? '创建中…' : '创建' }}
         </button>
       </div>
-    </form>
+    </template>
   </AppModal>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import AppModal from '../../AppModal.vue';
-import { GameControlField, GAME_CONTROL_TYPE } from '../../game/index.js';
+import { GameControlField, GameNumberInput, GAME_CONTROL_TYPE } from '../../game/index.js';
 import {
   buildRoomConfigFormFields,
   buildRoomConfigPayload,

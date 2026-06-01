@@ -3,6 +3,8 @@
     <div class="room-hub-form">
       <p class="muted-small">{{ message }}</p>
       <p v-if="errorMessage" class="empty-text">{{ errorMessage }}</p>
+    </div>
+    <template #footer>
       <div class="room-hub-form__actions">
         <button
           type="button"
@@ -21,7 +23,7 @@
           {{ submitting ? confirmLoadingText : confirmText }}
         </button>
       </div>
-    </div>
+    </template>
   </AppModal>
 </template>
 

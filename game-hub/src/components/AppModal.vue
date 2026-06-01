@@ -1,8 +1,12 @@
 <template>
   <div v-if="visible" class="modal-mask" @click.self="$emit('close')">
-    <div class="modal hub-scrollbar" @click.stop>
-      <div class="modal-header">
-        <h2 class="modal-header__title">{{ title }}</h2>
+    <div class="modal" role="dialog" aria-modal="true" @click.stop>
+      <header class="modal-header">
+        <h2 class="modal-header__title">
+          <slot name="title">
+            {{ title }}
+          </slot>
+        </h2>
         <button
           type="button"
           class="modal-close-btn"
@@ -11,10 +15,13 @@
         >
           ×
         </button>
-      </div>
-      <div class="modal-body">
+      </header>
+      <section class="modal-body hub-scrollbar">
         <slot />
-      </div>
+      </section>
+      <footer v-if="$slots.footer" class="modal-footer">
+        <slot name="footer" />
+      </footer>
     </div>
   </div>
 </template>

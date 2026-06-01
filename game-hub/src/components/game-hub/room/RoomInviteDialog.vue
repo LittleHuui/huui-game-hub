@@ -21,6 +21,9 @@
         </div>
       </div>
 
+      <div class="room-hub-form__spacer" />
+    </div>
+    <template #footer>
       <div class="room-hub-form__actions">
         <button
           type="button"
@@ -31,7 +34,7 @@
           关闭
         </button>
       </div>
-    </div>
+    </template>
   </AppModal>
 </template>
 

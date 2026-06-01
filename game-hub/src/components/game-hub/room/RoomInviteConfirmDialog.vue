@@ -5,6 +5,8 @@
         <strong>{{ inviterNickname }}</strong> 邀请你加入 <strong>{{ roomName }}</strong>
       </p>
       <p v-if="errorMessage" class="empty-text">{{ errorMessage }}</p>
+    </div>
+    <template #footer>
       <div class="room-hub-form__actions">
         <button
           type="button"
@@ -23,7 +25,7 @@
           同意
         </button>
       </div>
-    </div>
+    </template>
   </AppModal>
 </template>
 

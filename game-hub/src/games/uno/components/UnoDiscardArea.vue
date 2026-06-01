@@ -13,7 +13,7 @@
       <p v-if="!stackedCards.length" class="empty-text uno-discard-area__empty">暂无弃牌</p>
     </div>
     <p v-if="currentColorLabel" class="muted-small uno-discard-area__color">
-      当前花色：{{ currentColorLabel }}
+      当前花色：<span :class="currentColorClass">{{ currentColorLabel }}</span>
     </p>
   </section>
 </template>
@@ -21,7 +21,7 @@
 <script setup>
 import { computed } from 'vue';
 import UnoCard from './UnoCard.vue';
-import { UNO_COLOR_OPTIONS } from '../unoGameConstants.js';
+import { resolveUnoColorLabel } from '../unoDisplayText.js';
 
 const props = defineProps({
   title: {
@@ -39,16 +39,6 @@ const props = defineProps({
   }
 });
 
-/**
- * @param {string} color
- * @returns {string}
- */
-function resolveColorLabel(color) {
-  const normalized = String(color || '').trim().toLowerCase();
-  const matched = UNO_COLOR_OPTIONS.find((item) => item.value === normalized);
-  return matched ? matched.key : normalized.toUpperCase();
-}
-
 const stackedCards = computed(() => {
   const list = Array.isArray(props.discardPileRecentCards) ? props.discardPileRecentCards : [];
   return list.slice(-2).map((item, index) => ({
@@ -59,7 +49,15 @@ const stackedCards = computed(() => {
 
 const currentColorLabel = computed(() => {
   const color = String(props.currentColor || '').trim();
-  return color ? resolveColorLabel(color) : '';
+  return resolveUnoColorLabel(color);
+});
+
+const currentColorClass = computed(() => {
+  const color = String(props.currentColor || '').trim().toLowerCase();
+  if (!['red', 'yellow', 'blue', 'green'].includes(color)) {
+    return '';
+  }
+  return `uno-discard-area__color-value--${color}`;
 });
 
 /**

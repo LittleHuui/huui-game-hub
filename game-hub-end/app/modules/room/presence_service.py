@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 PING_INTERVAL_MS = 6000
 TIMEOUT_MISS_LIMIT = 3
 
-SHELL_MANAGED_REASONS = frozenset({"timeout"})
+SHELL_MANAGED_REASONS = frozenset({"presenceTimeout"})
 
 
 class RoomPresenceService(object):
@@ -138,7 +138,7 @@ class RoomPresenceService(object):
 
     async def _tick_room(self, room_id: str) -> None:
         """
-        对单个房间执行探活 ping 与超时判定。
+        对单个房间执行探活 ping 与 presenceTimeout 判定。
 
         :param room_id: 房间 ID。
         :return: 无。
@@ -178,12 +178,12 @@ class RoomPresenceService(object):
                 },
             )
             if missed >= TIMEOUT_MISS_LIMIT:
-                marked = await self._notify_shell_managed(room_id, player_id, "timeout")
+                marked = await self._notify_shell_managed(room_id, player_id, "presenceTimeout")
                 if marked:
                     await self._repository.delete_presence_state(room_id, player_id)
                 else:
                     logger.warning(
-                        "presence shell mark failed, keep state, roomId=%s playerId=%s missed=%s",
+                        "presenceTimeout shell mark failed, keep state, roomId=%s playerId=%s missed=%s",
                         room_id,
                         player_id,
                         missed,

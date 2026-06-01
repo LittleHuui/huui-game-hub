@@ -40,7 +40,14 @@
             :countdown-seconds="turnTimeoutSeconds"
             :countdown-expires-at-ms="player.isCurrentTurn ? turnDeadlineAtMs : null"
             low-hand-count-label="UNO"
-          />
+          >
+            <template #action-display>
+              <UnoPlayerActionDisplay
+                v-if="playerActionMap[player.playerId]"
+                :view-model="playerActionMap[player.playerId]"
+              />
+            </template>
+          </TurnPlayerPanel>
         </div>
       </template>
 
@@ -60,7 +67,14 @@
             :countdown-seconds="turnTimeoutSeconds"
             :countdown-expires-at-ms="player.isCurrentTurn ? turnDeadlineAtMs : null"
             low-hand-count-label="UNO"
-          />
+          >
+            <template #action-display>
+              <UnoPlayerActionDisplay
+                v-if="playerActionMap[player.playerId]"
+                :view-model="playerActionMap[player.playerId]"
+              />
+            </template>
+          </TurnPlayerPanel>
         </div>
       </template>
 
@@ -180,10 +194,17 @@ import { useRoomStore } from '../../stores/roomStore.js';
 import UnoCard from './components/UnoCard.vue';
 import UnoColorPicker from './components/UnoColorPicker.vue';
 import UnoDiscardArea from './components/UnoDiscardArea.vue';
+import UnoPlayerActionDisplay from './components/UnoPlayerActionDisplay.vue';
 import UnoSettlementDialog from './components/UnoSettlementDialog.vue';
 import { useUnoGameView } from './composables/useUnoGameView.js';
 import { useStrategyTurnGameView } from '../../composables/useStrategyTurnGameView.js';
 import { isWildHandCard, normalizeHandCard } from './unoGameViewUtils.js';
+import {
+  applyUnoPlayerActionEvents,
+  buildUnoPlayerActionMap,
+  clearUnoPlayerActionForCurrentTurn,
+  createEmptyUnoPlayerActionMap
+} from './unoPlayerActionViewModel.js';
 import {
   buildMatcherLegalActions,
   countWildColorCandidates,
@@ -209,7 +230,9 @@ const {
   playbackBusy: gameViewPlaybackBusy
 } = useUnoGameView();
 
-const { isGameOver: gameViewIsGameOver } = useStrategyTurnGameView();
+const { isGameOver: gameViewIsGameOver, frameEvents } = useStrategyTurnGameView();
+
+const accumulatedPlayerActions = ref(createEmptyUnoPlayerActionMap());
 
 const loading = ref(false);
 const loadError = ref('');
@@ -448,6 +471,53 @@ const rightPlayerPanels = computed(() => {
   }
   const mid = Math.ceil(list.length / 2);
   return list.slice(mid);
+});
+
+const playerActionMap = computed(() =>
+  buildUnoPlayerActionMap(
+    accumulatedPlayerActions.value,
+    gameViewPublicState.value,
+    gameViewIsGameOver.value
+  )
+);
+
+watch(
+  () => activeRoomId.value,
+  (nextRoomId, prevRoomId) => {
+    if (String(nextRoomId || '').trim() !== String(prevRoomId || '').trim()) {
+      accumulatedPlayerActions.value = createEmptyUnoPlayerActionMap();
+    }
+  }
+);
+
+watch(gameViewVersion, (nextVersion, prevVersion) => {
+  const next = Number(nextVersion) || 0;
+  const prev = Number(prevVersion) || 0;
+  if (next <= 0 && prev > 0) {
+    accumulatedPlayerActions.value = createEmptyUnoPlayerActionMap();
+    return;
+  }
+  if (next <= prev) {
+    return;
+  }
+  const events = frameEvents.value;
+  if (!Array.isArray(events) || !events.length) {
+    return;
+  }
+  accumulatedPlayerActions.value = applyUnoPlayerActionEvents(
+    accumulatedPlayerActions.value,
+    events
+  );
+});
+
+watch(currentPlayerIdInTurn, (nextPlayerId, prevPlayerId) => {
+  if (!nextPlayerId || nextPlayerId === prevPlayerId || !gameViewPublicState.value) {
+    return;
+  }
+  accumulatedPlayerActions.value = clearUnoPlayerActionForCurrentTurn(
+    accumulatedPlayerActions.value,
+    gameViewPublicState.value
+  );
 });
 
 watch(

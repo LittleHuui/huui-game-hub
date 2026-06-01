@@ -24,6 +24,7 @@ export { default as GameActionBar } from './controls/GameActionBar.vue';
 export { default as GameSelectControl } from './controls/GameSelectControl.vue';
 export { default as GameRadioGroupControl } from './controls/GameRadioGroupControl.vue';
 export { default as GameSwitchControl } from './controls/GameSwitchControl.vue';
+export { default as GameNumberInput } from './controls/GameNumberInput.vue';
 export { default as TurnActionBar } from './controls/TurnActionBar.vue';
 export { default as TurnCountdown } from './controls/TurnCountdown.vue';
 export { default as SelectableItemHand } from './controls/SelectableItemHand.vue';

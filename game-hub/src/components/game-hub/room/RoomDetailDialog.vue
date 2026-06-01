@@ -32,16 +32,18 @@
       <p v-else class="muted-small room-hub-detail__empty-config">暂无额外配置项</p>
     </div>
 
-    <div v-if="showActions" class="room-hub-form__actions room-hub-detail__actions">
-      <button
-        type="button"
-        class="game-action-btn game-action-btn--primary game-action-btn--sm"
-        :disabled="primaryActionDisabled || primaryActionLoading"
-        @click="$emit('primary-action')"
-      >
-        {{ primaryActionLoading ? primaryActionLoadingText : primaryActionText }}
-      </button>
-    </div>
+    <template v-if="showActions" #footer>
+      <div class="room-hub-form__actions room-hub-detail__actions">
+        <button
+          type="button"
+          class="game-action-btn game-action-btn--primary game-action-btn--sm"
+          :disabled="primaryActionDisabled || primaryActionLoading"
+          @click="$emit('primary-action')"
+        >
+          {{ primaryActionLoading ? primaryActionLoadingText : primaryActionText }}
+        </button>
+      </div>
+    </template>
   </AppModal>
 </template>
 

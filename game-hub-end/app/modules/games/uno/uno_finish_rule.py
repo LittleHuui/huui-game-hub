@@ -64,9 +64,9 @@ def should_finish_game(state: UnoRuntimeState, room_config: Dict[str, Any]) -> b
     try:
         threshold = int(remaining_to_end)
     except (TypeError, ValueError):
-        threshold = 1
-    if threshold < 1:
-        threshold = 1
+        threshold = 0
+    if threshold < 0:
+        threshold = 0
     remaining = count_remaining_real_playing_players(state)
     return remaining <= threshold
 

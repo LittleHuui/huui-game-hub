@@ -193,13 +193,20 @@ button:hover {
     position: relative;
     z-index: 8001;
     width: min(560px, 100%);
-    max-height: 86vh;
-    overflow: auto;
-    border-radius: 16px;
-    padding: 14px 18px 18px;
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 8px;
     background: #1e293b;
     border: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+}
+
+@supports (height: 100dvh) {
+    .modal {
+        max-height: calc(100dvh - 32px);
+    }
 }
 
 .modal-header {
@@ -207,7 +214,9 @@ button:hover {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    margin-bottom: 12px;
+    flex-shrink: 0;
+    padding: 16px 18px 10px;
+    margin-bottom: 0;
 }
 
 .modal-header__title {
@@ -243,9 +252,20 @@ button:hover {
 }
 
 .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 4px 18px 16px;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    flex-shrink: 0;
+    padding: 8px 18px 16px;
+    margin-top: 0;
+    border-top: none;
 }
 
 .modal .room-hub-form {
@@ -253,8 +273,8 @@ button:hover {
 }
 
 .modal .room-hub-form__actions {
-    margin-top: 8px;
-    padding-top: 4px;
+    margin-top: 0;
+    padding-top: 0;
 }
 
 .modal .room-hub-form__actions .game-action-btn--sm {

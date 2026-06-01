@@ -1,12 +1,11 @@
 <template>
   <AppModal :visible="visible" title="房间设置" @close="$emit('close')">
-    <form class="room-hub-form" @submit.prevent="onSubmit">
+    <form id="room-settings-form" class="room-hub-form" @submit.prevent="onSubmit">
       <div class="room-hub-form__field">
         <label for="room-settings-max-players">人数上限</label>
-        <input
-          id="room-settings-max-players"
-          v-model.number="maxPlayersValue"
-          type="number"
+        <GameNumberInput
+          input-id="room-settings-max-players"
+          v-model="maxPlayersValue"
           :min="minMaxPlayers"
           :max="ruleMaxPlayers"
           :disabled="submitting"
@@ -23,19 +22,20 @@
 
       <div v-for="field in visibleNumberFields" :key="field.key" class="room-hub-form__field">
         <label :for="`room-settings-${field.key}`">{{ field.label }}</label>
-        <input
-          :id="`room-settings-${field.key}`"
-          v-model.number="fieldValues[field.key]"
-          type="number"
+        <GameNumberInput
+          :input-id="`room-settings-${field.key}`"
+          v-model="fieldValues[field.key]"
           :min="field.min"
           :max="field.max"
           :disabled="submitting"
         />
         <p v-if="field.description" class="muted-small">{{ field.description }}</p>
       </div>
-
+    </form>
+    <template #footer>
       <div class="room-hub-form__actions">
         <button
+          form="room-settings-form"
           type="submit"
           class="game-action-btn game-action-btn--primary game-action-btn--sm"
           :disabled="submitting"
@@ -43,14 +43,14 @@
           {{ submitting ? '保存中…' : '保存' }}
         </button>
       </div>
-    </form>
+    </template>
   </AppModal>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import AppModal from '../../AppModal.vue';
-import { GameControlField, GAME_CONTROL_TYPE } from '../../game/index.js';
+import { GameControlField, GameNumberInput, GAME_CONTROL_TYPE } from '../../game/index.js';
 import {
   buildRoomConfigFormFields,
   buildRoomConfigPayload,

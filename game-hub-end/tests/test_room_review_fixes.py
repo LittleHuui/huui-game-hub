@@ -97,6 +97,8 @@ def _build_service() -> RoomModuleService:
     service._repository.save_player = AsyncMock(return_value=True)
     service._repository.save_meta = AsyncMock(return_value=True)
     service._repository.delete_player_room = AsyncMock()
+    service._repository.save_managed_shell_room_index = AsyncMock(return_value=True)
+    service._repository.delete_managed_shell_room_index = AsyncMock(return_value=True)
     service._load_runtime_snapshot = AsyncMock(return_value=_runtime_snapshot())
     service._extract_current_player_id = MagicMock(return_value="u1")
     service.create_managed_turn_task = AsyncMock()
@@ -268,7 +270,7 @@ async def test_mark_member_shell_managed_pushes_game_view_updated() -> None:
             pid: enrich(snapshot, pid, version, events) for pid in player_ids
         },
     ):
-        result = await service.mark_member_shell_managed("room-1", "u1", "timeout")
+        result = await service.mark_member_shell_managed("room-1", "u1", "presenceTimeout")
 
     assert result is True
     assert pushed_versions == [7]
@@ -368,7 +370,7 @@ async def test_mark_shell_lock_conflict_returns_false() -> None:
     """mark_member_shell_managed 锁冲突返回 False。"""
     service = _build_service()
     service._lock_service.acquire = AsyncMock(side_effect=LockAcquireError("busy"))
-    result = await service.mark_member_shell_managed("room-1", "u1", "timeout")
+    result = await service.mark_member_shell_managed("room-1", "u1", "presenceTimeout")
     assert result is False
 
 

@@ -12,9 +12,10 @@
           class="uno-color-picker__option"
           :class="`uno-color-picker__option--${option.value}`"
           :disabled="disabled"
+          :aria-label="option.label"
           @click="onSelect(option)"
         >
-          {{ option.key }}
+          {{ option.label }}
         </button>
       </div>
       <button
@@ -56,7 +57,7 @@ const emit = defineEmits(['select', 'cancel']);
 const colorOptions = UNO_COLOR_OPTIONS;
 
 /**
- * @param {{ key: string; value: string }} option
+ * @param {{ key: string; value: string; label: string }} option
  */
 function onSelect(option) {
   emit('select', { color: option.value, colorKey: option.key });

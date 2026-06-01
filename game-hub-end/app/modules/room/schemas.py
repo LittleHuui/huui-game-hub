@@ -70,9 +70,9 @@ class RoomMemberResponse(BaseModel):
         default=None,
         description="托管模式（active=在线托管，shell=空壳托管）",
     )
-    managedReason: Optional[Literal["manual", "leave", "timeout", "ai"]] = Field(
+    managedReason: Optional[Literal["manual", "turnTimeout", "presenceTimeout", "leave", "ai"]] = Field(
         default=None,
-        description="托管原因",
+        description="托管原因（active: manual/turnTimeout，shell: presenceTimeout/leave，AI: ai）",
     )
     managedAt: Optional[int] = Field(default=None, description="托管开始时间（毫秒）")
 

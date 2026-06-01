@@ -154,18 +154,18 @@ UNO_ONLINE_GAME_RULE_SEED = OnlineGameRuleSeed(
                 RoomConfigFieldOption(value="FIRST_FINISH", label="首位完成结束"),
                 RoomConfigFieldOption(
                     value="UNTIL_REAL_PLAYER_COUNT",
-                    label="剩余真人玩家数达阈值时结束",
+                    label="未结束对局剩余真人玩家数达阈值时结束",
                 ),
             ],
         ),
         RoomConfigFieldDefinition(
             key="remainingRealPlayerCountToEnd",
             type="number",
-            label="结束所需剩余玩家数",
+            label="未结束对局剩余真人玩家数",
             defaultValue=2,
-            min=1,
-            max=10,
-            description="finishMode 为 UNTIL_REAL_PLAYER_COUNT 时生效",
+            min=0,
+            max=9,
+            description="结束模式为 未结束对局剩余真人玩家数达阈值时结束 时生效",
             visibleWhen={"field": "finishMode", "equals": "UNTIL_REAL_PLAYER_COUNT"},
         ),
         RoomConfigFieldDefinition(
