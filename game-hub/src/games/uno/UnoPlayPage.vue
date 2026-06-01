@@ -175,7 +175,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { StrategyTurnMultiplayerLayout } from '../../game-templates/strategy-turn-multiplayer/index.js';
@@ -249,6 +249,8 @@ const matchState = ref(null);
 let releaseRoomRealtime = null;
 /** @type {(() => void)|null} */
 let releaseRoomPresence = null;
+/** @type {ReturnType<typeof setTimeout>|null} */
+let pendingBackToRoomTimer = null;
 
 const activeRoomId = computed(() => String(route.params.roomId || '').trim());
 const activeGameCode = computed(() => String(route.params.gameCode || '').trim() || UNO_CODE);
@@ -586,6 +588,13 @@ async function ensureRoomAndGameView() {
   }
 }
 
+function clearPendingBackToRoomTimer() {
+  if (pendingBackToRoomTimer !== null) {
+    clearTimeout(pendingBackToRoomTimer);
+    pendingBackToRoomTimer = null;
+  }
+}
+
 async function backToRoomOrLobby() {
   const roomId = activeRoomId.value;
   if (roomId) {
@@ -596,6 +605,16 @@ async function backToRoomOrLobby() {
   } else {
     await router.replace({ name: 'online-room-list', params: { gameCode: activeGameCode.value } });
   }
+}
+
+function showSettlementIfReady() {
+  if (!gameViewIsGameOver.value || settlementDismissed.value) {
+    return false;
+  }
+  if (!settlementVisible.value && gameViewVersion.value && !gameViewPlaybackBusy.value) {
+    settlementVisible.value = true;
+  }
+  return true;
 }
 
 function navigateToLobby() {
@@ -849,26 +868,81 @@ onMounted(async () => {
 });
 
 watch(
+  () => gameViewPlaybackBusy.value,
+  (busy, prevBusy) => {
+    if (busy || !prevBusy) {
+      return;
+    }
+    const status = String(currentRoom.value?.status || '').trim();
+    if (status === 'playing') {
+      return;
+    }
+    if (showSettlementIfReady()) {
+      return;
+    }
+    if (settlementDismissed.value) {
+      return;
+    }
+    clearPendingBackToRoomTimer();
+    pendingBackToRoomTimer = setTimeout(() => {
+      pendingBackToRoomTimer = null;
+      if (showSettlementIfReady()) {
+        return;
+      }
+      roomService.resetRoomGameView();
+      void backToRoomOrLobby();
+    }, 80);
+  }
+);
+
+watch(
   () => currentRoom.value?.status,
   (status) => {
     const normalized = String(status || '').trim();
     if (!activeRoomId.value) {
       return;
     }
-    if (normalized !== 'playing') {
-      if (gameViewIsGameOver.value && !settlementDismissed.value) {
-        if (!settlementVisible.value && gameViewVersion.value && !gameViewPlaybackBusy.value) {
-          settlementVisible.value = true;
-        }
-        return;
-      }
+    if (normalized === 'playing') {
+      clearPendingBackToRoomTimer();
+      return;
+    }
+    if (showSettlementIfReady()) {
+      return;
+    }
+    if (gameViewPlaybackBusy.value) {
+      clearPendingBackToRoomTimer();
+      return;
+    }
+    if (settlementDismissed.value) {
+      clearPendingBackToRoomTimer();
       roomService.resetRoomGameView();
       void backToRoomOrLobby();
+      return;
     }
+    if (gameViewVersion.value > 0) {
+      clearPendingBackToRoomTimer();
+      pendingBackToRoomTimer = setTimeout(() => {
+        pendingBackToRoomTimer = null;
+        void nextTick(() => {
+          if (showSettlementIfReady()) {
+            return;
+          }
+          if (!settlementDismissed.value) {
+            roomService.resetRoomGameView();
+            void backToRoomOrLobby();
+          }
+        });
+      }, 80);
+      return;
+    }
+    clearPendingBackToRoomTimer();
+    roomService.resetRoomGameView();
+    void backToRoomOrLobby();
   }
 );
 
 onUnmounted(() => {
+  clearPendingBackToRoomTimer();
   if (releaseRoomRealtime) {
     releaseRoomRealtime();
     releaseRoomRealtime = null;

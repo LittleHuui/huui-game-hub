@@ -843,6 +843,182 @@ async def test_submit_action_locked_saves_runtime_before_bump_version() -> None:
 
 
 @pytest.mark.asyncio
+async def test_submit_action_game_over_pushes_game_view_before_room_updated() -> None:
+    """对局结束时先推 gameViewUpdated，再推 roomUpdated 与 roomListUpdated。"""
+    service = _build_service()
+    service._require_meta = AsyncMock(
+        return_value={
+            "status": "playing",
+            "gameCode": "uno",
+            "ownerPlayerId": "u1",
+        },
+    )
+    service._require_playing_room = MagicMock()
+    service._repository.list_players = AsyncMock(
+        return_value=[
+            {
+                "playerId": "u1",
+                "joinedAt": 1,
+                "isAi": False,
+                "isManaged": False,
+            },
+            {
+                "playerId": "u2",
+                "joinedAt": 2,
+                "isAi": False,
+                "isManaged": False,
+            },
+        ],
+    )
+    game_over_snapshot = _runtime_snapshot("u1", ["u1", "u2"]).model_copy(update={"isGameOver": True})
+    service._load_runtime_snapshot = AsyncMock(return_value=game_over_snapshot)
+    service._runtime_service.apply_player_action = MagicMock(
+        return_value=MagicMock(snapshot=game_over_snapshot, newEvents=[]),
+    )
+    service._repository.clear_match_runtime = AsyncMock()
+    service._repository.remove_playing_room = AsyncMock()
+    service._repository.save_meta = AsyncMock(return_value=True)
+    service._bump_version = AsyncMock(return_value=8)
+    service._repository.refresh_room_ttl = AsyncMock()
+    service._enrich_game_view = MagicMock(return_value=MagicMock())
+    service._build_room_response = MagicMock(return_value=MagicMock(members=[]))
+    push_order = []
+
+    async def _track_game_view(*args, **kwargs):
+        del args, kwargs
+        push_order.append("game_view")
+
+    async def _track_room_updated(*args, **kwargs):
+        del args, kwargs
+        push_order.append("room_updated")
+
+    async def _track_room_list(*game_code):
+        del game_code
+        push_order.append("room_list")
+
+    with patch(
+        "app.modules.room.module_service.push_game_view_updated",
+        new=AsyncMock(side_effect=_track_game_view),
+    ), patch(
+        "app.modules.room.module_service.push_room_updated",
+        new=AsyncMock(side_effect=_track_room_updated),
+    ), patch(
+        "app.modules.room.module_service.push_room_list_updated",
+        new=AsyncMock(side_effect=_track_room_list),
+    ), patch(
+        "app.modules.room.module_service.build_views_for_members",
+        return_value={},
+    ), patch(
+        "app.modules.room.module_service.collect_human_player_ids",
+        return_value=["u1", "u2"],
+    ):
+        await service._submit_action_locked("room-1", "u1", "draw", None)
+    assert push_order == ["game_view", "room_updated", "room_list"]
+
+
+@pytest.mark.asyncio
+async def test_start_room_game_resets_human_managed_state() -> None:
+    """start_room_game 开局前重置真人托管状态，保留 AI 托管。"""
+    service = _build_service()
+    service._require_meta = AsyncMock(
+        return_value={
+            "status": "waiting",
+            "gameCode": "uno",
+            "mode": "classic",
+            "ownerPlayerId": "u1",
+            "maxPlayers": 4,
+            "roomConfig": {},
+        }
+    )
+    service._require_waiting_room = MagicMock()
+    service._require_room_owner = MagicMock()
+    human_member = {
+        "playerId": "u1",
+        "joinedAt": 1,
+        "isAi": False,
+        "isManaged": True,
+        "managedMode": "active",
+        "managedReason": "manual",
+        "managedAt": 100,
+    }
+    ai_member = {
+        "playerId": "ai-1",
+        "joinedAt": 2,
+        "isAi": True,
+        "isManaged": True,
+        "managedMode": "active",
+        "managedReason": "ai",
+        "managedAt": 200,
+    }
+    service._repository.list_players = AsyncMock(return_value=[human_member, ai_member])
+    service._require_member = MagicMock()
+    mock_definition = MagicMock()
+    mock_definition.roomRule.minPlayers = 2
+    service._game_service = MagicMock()
+    service._game_service.get_game_rule_definition = MagicMock(return_value=mock_definition)
+    runtime_rule = StrategyTurnRuntimeRule(
+        gameCode="uno",
+        mode="classic",
+        playerIds=["u1", "ai-1"],
+        config={},
+    )
+    service._build_runtime_rule = MagicMock(return_value=runtime_rule)
+    snapshot = _runtime_snapshot("u1", ["u1", "ai-1"])
+    start_result = MagicMock()
+    start_result.snapshot = snapshot
+    start_result.newEvents = []
+    service._runtime_service.start_game = MagicMock(return_value=start_result)
+    service._save_runtime_snapshot = AsyncMock()
+    service._bump_version = AsyncMock(return_value=5)
+    service._repository.save_meta = AsyncMock(return_value=True)
+    service._repository.add_playing_room = AsyncMock()
+    service._enrich_game_view = MagicMock(return_value=MagicMock())
+    service._build_room_response = MagicMock(return_value=MagicMock(members=[]))
+    service.create_current_player_managed_task_if_needed = AsyncMock()
+    saved_players = []
+
+    async def _save_player(room_id, player_id, member):
+        saved_players.append((room_id, player_id, dict(member)))
+        return True
+
+    service._repository.save_player = AsyncMock(side_effect=_save_player)
+    account = MagicMock()
+    account.server_id = "u1"
+    with patch("app.modules.room.module_service.push_room_updated", new=AsyncMock()), patch(
+        "app.modules.room.module_service.push_room_list_updated",
+        new=AsyncMock(),
+    ), patch(
+        "app.modules.room.module_service.push_game_view_updated",
+        new=AsyncMock(),
+    ), patch(
+        "app.modules.room.module_service.build_views_for_members",
+        return_value=[],
+    ), patch(
+        "app.modules.room.module_service.collect_human_player_ids",
+        return_value=[],
+    ):
+        await service.start_room_game(account, "room-1")
+    assert len(saved_players) == 1
+    assert saved_players[0][1] == "u1"
+    assert saved_players[0][2]["isManaged"] is False
+    assert saved_players[0][2]["managedMode"] is None
+    assert saved_players[0][2]["managedReason"] is None
+    assert saved_players[0][2]["managedAt"] is None
+    runtime_call = service._runtime_service.start_game.call_args
+    assert runtime_call is not None
+    player_ids = list(runtime_call.args[0].runtimeRule.playerIds)
+    assert "u1" in player_ids
+    assert "ai-1" in player_ids
+    build_rule_members = service._build_runtime_rule.call_args.args[1]
+    human_in_rule = next(item for item in build_rule_members if item.get("playerId") == "u1")
+    assert human_in_rule["isManaged"] is False
+    assert human_in_rule["managedMode"] is None
+    ai_in_rule = next(item for item in build_rule_members if item.get("playerId") == "ai-1")
+    assert ai_in_rule["isManaged"] is True
+    assert ai_in_rule["managedMode"] == "active"
+
+
+@pytest.mark.asyncio
 async def test_append_ai_players_rolls_back_on_meta_save_failure() -> None:
     """meta 保存失败时回滚新增 AI member 并还原 aiCount / aiPlayerIds / updatedAt。"""
     service = _build_service()

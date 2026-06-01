@@ -1166,6 +1166,31 @@ class RoomModuleService(object):
             members = [item for item in all_members if self._is_active_room_member(item)]
             self._require_member(members, player_id)
 
+            reset_managed_time = now_ms()
+            for member in members:
+                if bool(member.get("isAi")):
+                    continue
+                managed_changed = False
+                if bool(member.get("isManaged")):
+                    member["isManaged"] = False
+                    managed_changed = True
+                if member.get("managedMode") is not None:
+                    member["managedMode"] = None
+                    managed_changed = True
+                if member.get("managedReason") is not None:
+                    member["managedReason"] = None
+                    managed_changed = True
+                if member.get("managedAt") is not None:
+                    member["managedAt"] = None
+                    managed_changed = True
+                if managed_changed:
+                    member["updatedAt"] = reset_managed_time
+                    await self._repository.save_player(
+                        normalized_room_id,
+                        str(member.get("playerId", "")).strip(),
+                        member,
+                    )
+
             with self._game_service_scope() as game_service:
                 definition = game_service.get_game_rule_definition(game_code)
             min_players = int(definition.roomRule.minPlayers)
@@ -1552,9 +1577,6 @@ class RoomModuleService(object):
         await self._repository.refresh_room_ttl(normalized_room_id)
         actor_view = self._enrich_game_view(final_snapshot, player_id, version, frame_events)
         room_response = self._build_room_response(meta, members, version)
-        await push_room_updated(room_response)
-        if bool(final_snapshot.isGameOver):
-            await push_room_list_updated(game_code)
         player_ids = collect_human_player_ids(room_response.members)
         views = build_views_for_members(
             self._enrich_game_view,
@@ -1563,7 +1585,13 @@ class RoomModuleService(object):
             frame_events,
             player_ids,
         )
-        await push_game_view_updated(normalized_room_id, views, room_response.members)
+        if bool(final_snapshot.isGameOver):
+            await push_game_view_updated(normalized_room_id, views, room_response.members)
+            await push_room_updated(room_response)
+            await push_room_list_updated(game_code)
+        else:
+            await push_room_updated(room_response)
+            await push_game_view_updated(normalized_room_id, views, room_response.members)
         if not bool(final_snapshot.isGameOver):
             next_player_id = self._extract_current_player_id(final_snapshot)
             if next_player_id:
