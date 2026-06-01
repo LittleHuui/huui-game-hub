@@ -9,7 +9,7 @@ from redis.exceptions import RedisError
 from app.common.error_code import ErrorCode
 from app.main import app
 from tests.sync_helpers import create_test_user
-from tests.test_uno_room_flow import (
+from tests.integration.test_uno_room_flow import (
     ROOMS_PATH,
     _assert_api_error,
     _assert_api_success,

@@ -9,6 +9,8 @@ from app.core.database import get_db
 from app.core.lock.distributed_lock import RedisDistributedLock, distributed_lock
 from app.modules.game.deps import get_game_module_service
 from app.modules.game.module_service import GameModuleService
+from app.modules.games.uno.uno_action_scorer import UnoActionScorer
+from app.modules.room.action_scorer import ManagedActionScorerRegistry
 from app.modules.room.managed_action_selector import ManagedActionSelector
 from app.modules.room.managed_task_service import managed_turn_task_service
 from app.modules.room.module_service import RoomModuleService
@@ -46,13 +48,24 @@ def get_strategy_turn_runtime_service() -> StrategyTurnRuntimeService:
     return StrategyTurnRuntimeService()
 
 
+def get_managed_action_scorer_registry() -> ManagedActionScorerRegistry:
+    """
+    组装托管动作评分器注册表。
+
+    :return: 已注册各游戏评分器的 ``ManagedActionScorerRegistry`` 实例。
+    """
+    registry = ManagedActionScorerRegistry()
+    registry.register("uno", UnoActionScorer())
+    return registry
+
+
 def get_managed_action_selector() -> ManagedActionSelector:
     """
     组装托管动作选择器依赖。
 
     :return: ``ManagedActionSelector`` 实例。
     """
-    return ManagedActionSelector()
+    return ManagedActionSelector(get_managed_action_scorer_registry())
 
 
 def get_room_module_service(

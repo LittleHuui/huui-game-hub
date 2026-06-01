@@ -3,7 +3,7 @@
 import logging
 
 from app.core.lock.distributed_lock import distributed_lock
-from app.modules.room.managed_action_selector import ManagedActionSelector
+from app.modules.room.deps import get_managed_action_selector
 from app.modules.room.managed_task_service import managed_turn_task_service
 from app.modules.room.module_service import RoomModuleService
 from app.modules.room.presence_service import room_presence_service
@@ -39,7 +39,7 @@ def _build_room_module_service() -> RoomModuleService:
         StrategyTurnRuntimeService(),
         None,
         managed_turn_task_service,
-        ManagedActionSelector(),
+        get_managed_action_selector(),
     )
 
 

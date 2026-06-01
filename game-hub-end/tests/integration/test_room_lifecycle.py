@@ -10,7 +10,7 @@ from app.core.redis.redis_client import redis_client
 from app.core.redis.redis_keys import RedisKeys
 from app.main import app
 from tests.sync_helpers import create_test_user
-from tests.test_uno_room_flow import (
+from tests.integration.test_uno_room_flow import (
     ROOMS_PATH,
     _assert_api_error,
     _assert_api_success,
