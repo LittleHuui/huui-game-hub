@@ -1,23 +1,29 @@
 # huui-game-hub
 
-多游戏聚合平台：统一账号、背包、商城、排行榜与云同步；各游戏以独立模块接入，不侵入平台层。
+huui-game-hub 是可扩展的多游戏平台，包含：
+
+- 单人轻量游戏
+- 在线多人房间
+- 通用多人回合制框架
+- 托管 / bot action 选择
+- 积分、背包、商城、排行榜、云同步
 
 ## 当前游戏
 
-| 游戏 | gameCode | 状态 |
-|------|----------|------|
-| 雷区突围 | `minesweeper` | 已接入 |
-| 幻彩碰撞 | `match3` | 已接入 |
-| 数字方舟 | `2048` | 已接入 |
-| 数独 | `sudoku` | 已接入 |
+| 游戏 | gameCode | 类型 | 状态 |
+|------|----------|------|------|
+| 雷区突围 | minesweeper | 单人 | 已接入 |
+| 幻彩碰撞 | match3 | 单人 | 已接入 |
+| 数字方舟 | 2048 | 单人 | 已接入 |
+| 数独 | sudoku | 单人 | 已接入 |
+| UNO | uno | 在线多人回合制 | 已接入 |
 
 ## 技术栈
 
 | 层级 | 技术 |
 |------|------|
 | 前端 | Vue 3、Pinia、Vue Router、Vite |
-| 后端 | FastAPI、SQLAlchemy、Pydantic |
-| 数据库 | SQLite |
+| 后端 | FastAPI、SQLAlchemy、Pydantic、SQLite、Redis、WebSocket |
 | 部署 | Docker、nginx、supervisord |
 
 ## 项目结构
@@ -32,7 +38,24 @@ huui-game-hub/
 └── compose.yaml
 ```
 
+后端模块（`game-hub-end/app/modules/`）：
+
+| 路径 | 说明 |
+|------|------|
+| `game_config` | 平台游戏配置数据 |
+| `game_impls` | 具体游戏实现 |
+| `room` | 在线房间 |
+| `strategy_turn` | 通用多人回合制运行时 |
+
 ## 本地开发（非 Docker）
+
+### Redis
+
+后端启动前需要本地 Redis 可用。示例：
+
+```powershell
+docker run -d --name game-hub-redis -p 6379:6379 redis:7-alpine
+```
 
 ### 后端
 
@@ -44,7 +67,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-启动后 `init_db()` 只会**建表**。首次或清空数据库后，需导入业务种子（与前端 `GAME_SEED_CONFIG` 一致），例如在 `game-hub` 已执行 `npm run export:seed` 的前提下：
+启动后 `init_db()` 会建表。首次或清空数据库后，需导入业务种子（与前端 `GAME_SEED_CONFIG` 一致），例如在 `game-hub` 已执行 `npm run export:seed` 的前提下：
 
 ```powershell
 # 合并导入（默认：仅新增/更新，不删库内多余项）
@@ -79,7 +102,14 @@ npm run dev
 
 ```powershell
 cd game-hub-end
-pytest
+python -m compileall app tests
+python -m pytest -q
+```
+
+如需集成测试：
+
+```powershell
+python -m pytest tests/integration -q
 ```
 
 ## Docker 启动
@@ -93,7 +123,7 @@ docker compose build
 docker compose up -d
 ```
 
-镜像启动后数据库仅有表结构，**须**按 [docs/docker-guide.md](docs/docker-guide.md) 导入 `game-seed.json`（同源 `GAME_SEED_CONFIG`）后，大厅与商城等才可用。
+镜像启动后数据库仅有表结构，须按 [docs/docker-guide.md](docs/docker-guide.md) 导入 `game-seed.json`（同源 `GAME_SEED_CONFIG`）后，大厅与商城等才可用。
 
 访问 `http://127.0.0.1/`（API 经 nginx 反代至 `/api/game-hub/`）。
 
@@ -106,6 +136,7 @@ docker compose up -d
 | [docs/api.md](docs/api.md) | HTTP API（camelCase） |
 | [docs/new-game-guide.md](docs/new-game-guide.md) | 新游戏接入步骤与模板 |
 | [docs/docker-guide.md](docs/docker-guide.md) | Docker 构建与部署教程 |
+| [docs/dev-test/uno-api-test.md](docs/dev-test/uno-api-test.md) | UNO 房间与对局链路自检 |
 | [docs/code-style/frontend-code-style.md](docs/code-style/frontend-code-style.md) | 前端规范 |
 | [docs/code-style/backend-code-style.md](docs/code-style/backend-code-style.md) | 后端规范 |
 
