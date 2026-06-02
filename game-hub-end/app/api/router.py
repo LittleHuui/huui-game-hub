@@ -1,4 +1,4 @@
-"""API 路由聚合。"""
+﻿"""API 路由聚合。"""
 
 from fastapi import APIRouter
 
@@ -7,7 +7,7 @@ from app.modules.admin_config.api import router as admin_config_router
 from app.modules.auth.api import auth_router
 from app.modules.boot.api import boot_router
 from app.modules.inventory.api import inventory_router
-from app.modules.game.api import router as game_router
+from app.modules.game_config.api import router as game_router
 from app.modules.prop.api import router as prop_router
 from app.modules.purchase.api import purchase_router
 from app.modules.match.api import router as match_router

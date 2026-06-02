@@ -1,11 +1,11 @@
-"""UNO 牌堆构建工厂（基于在线规则种子）。"""
+﻿"""UNO 牌堆构建工厂（基于在线规则种子）。"""
 
 import random
 from typing import List, Optional
 
 from app.common.exceptions import ValidationException
 from app.modules.game_seed.schemas import CardDefinition, OnlineGameRuleSeed
-from app.modules.games.uno.schemas import UnoCard, UnoRuntimeState
+from app.modules.game_impls.uno.schemas import UnoCard, UnoRuntimeState
 
 
 def resolve_deck_set_count(seed: OnlineGameRuleSeed, player_count: int) -> int:

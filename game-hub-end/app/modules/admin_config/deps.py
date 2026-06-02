@@ -1,4 +1,4 @@
-"""管理配置导入模块 FastAPI 依赖注入。"""
+﻿"""管理配置导入模块 FastAPI 依赖注入。"""
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from app.modules.admin_config.entity_service import (
     PropDefinitionImportEntityService,
 )
 from app.modules.admin_config.module_service import AdminConfigModuleService
-from app.modules.game.repository import (
+from app.modules.game_config.repository import (
     GameClientConfigRepository,
     GameDefinitionRepository,
     GameDifficultyRepository,

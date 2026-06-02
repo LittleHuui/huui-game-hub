@@ -1,4 +1,4 @@
-"""UNO 策略回合制规则引擎。"""
+﻿"""UNO 策略回合制规则引擎。"""
 
 from typing import Any, Dict, List, Optional, Set
 
@@ -6,29 +6,29 @@ from app.common.exceptions import ValidationException
 from app.core.time_utils import now_ms
 from app.modules.game_seed.schemas import resolve_room_config_defaults
 from app.modules.game_seed.uno_seed import UNO_ONLINE_GAME_RULE_SEED
-from app.modules.games.uno.schemas import (
+from app.modules.game_impls.uno.schemas import (
     UnoCard,
     UnoDiscardRecentCard,
     UnoPlayerState,
     UnoRuleContext,
     UnoRuntimeState,
 )
-from app.modules.games.uno.uno_card_rule_registry import (
+from app.modules.game_impls.uno.uno_card_rule_registry import (
     _can_play_wild_draw4_under_pending,
     _can_stack_draw_two,
     get_card_rule_by_card_type,
 )
-from app.modules.games.uno.uno_deck_factory import (
+from app.modules.game_impls.uno.uno_deck_factory import (
     build_initial_draw_pile,
     draw_cards_from_pile,
     pop_starting_discard_card,
     resolve_deck_set_count,
 )
-from app.modules.games.uno.uno_finish_rule import (
+from app.modules.game_impls.uno.uno_finish_rule import (
     mark_player_finished,
     sync_game_over_phase,
 )
-from app.modules.games.uno.uno_turn_rule import advance_turn, is_player_turn, stamp_turn_clock
+from app.modules.game_impls.uno.uno_turn_rule import advance_turn, is_player_turn, stamp_turn_clock
 from app.modules.strategy_turn.rule_engine import StrategyTurnRuleEngine
 from app.modules.strategy_turn.schemas import (
     GameAction,

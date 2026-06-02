@@ -1,4 +1,4 @@
-"""游戏域数据访问。"""
+﻿"""游戏域数据访问。"""
 
 from typing import List, Optional
 
@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.time_utils import now_ms
-from app.modules.game.models import GameClientConfig, GameDefinition, GameDifficulty
+from app.modules.game_config.models import GameClientConfig, GameDefinition, GameDifficulty
 
 
 class GameDefinitionRepository:

@@ -1,14 +1,14 @@
-"""UNO 牌堆工厂单元测试。"""
+﻿"""UNO 牌堆工厂单元测试。"""
 
 from typing import List, Optional
 
 from app.modules.game_seed.uno_seed import UNO_ONLINE_GAME_RULE_SEED
-from app.modules.games.uno.schemas import UnoCard
-from app.modules.games.uno.uno_deck_factory import (
+from app.modules.game_impls.uno.schemas import UnoCard
+from app.modules.game_impls.uno.uno_deck_factory import (
     build_initial_draw_pile,
     pop_starting_discard_card,
 )
-from app.modules.games.uno.uno_rule_engine import UnoRuleEngine
+from app.modules.game_impls.uno.uno_rule_engine import UnoRuleEngine
 from app.modules.strategy_turn.schemas import StrategyTurnRuntimeRule
 
 

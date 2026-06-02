@@ -1,10 +1,10 @@
-"""排行榜模块 FastAPI 依赖注入。"""
+﻿"""排行榜模块 FastAPI 依赖注入。"""
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.modules.game.repository import GameDefinitionRepository
+from app.modules.game_config.repository import GameDefinitionRepository
 from app.modules.ranking.entity_service import RankingEntityService
 from app.modules.ranking.module_service import RankingModuleService
 from app.modules.score.repository import ScoreRecordRepository

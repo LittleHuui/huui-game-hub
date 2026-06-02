@@ -1,4 +1,4 @@
-"""房间模块 FastAPI 依赖注入。"""
+﻿"""房间模块 FastAPI 依赖注入。"""
 
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
@@ -7,9 +7,9 @@ from app.common.error_code import ErrorCode
 from app.common.exceptions import BizException
 from app.core.database import get_db
 from app.core.lock.distributed_lock import RedisDistributedLock, distributed_lock
-from app.modules.game.deps import get_game_module_service
-from app.modules.game.module_service import GameModuleService
-from app.modules.games.uno.uno_action_scorer import UnoActionScorer
+from app.modules.game_config.deps import get_game_module_service
+from app.modules.game_config.module_service import GameModuleService
+from app.modules.game_impls.action_scorer_registry import build_managed_action_scorer_registry
 from app.modules.room.action_scorer import ManagedActionScorerRegistry
 from app.modules.room.managed_action_selector import ManagedActionSelector
 from app.modules.room.managed_task_service import managed_turn_task_service
@@ -54,9 +54,7 @@ def get_managed_action_scorer_registry() -> ManagedActionScorerRegistry:
 
     :return: 已注册各游戏评分器的 ``ManagedActionScorerRegistry`` 实例。
     """
-    registry = ManagedActionScorerRegistry()
-    registry.register("uno", UnoActionScorer())
-    return registry
+    return build_managed_action_scorer_registry()
 
 
 def get_managed_action_selector() -> ManagedActionSelector:

@@ -1,16 +1,16 @@
-"""游戏模块 FastAPI 依赖注入。"""
+﻿"""游戏模块 FastAPI 依赖注入。"""
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.modules.game.entity_service import (
+from app.modules.game_config.entity_service import (
     GameClientConfigEntityService,
     GameDefinitionEntityService,
     GameDifficultyEntityService,
 )
-from app.modules.game.module_service import GameModuleService
-from app.modules.game.repository import (
+from app.modules.game_config.module_service import GameModuleService
+from app.modules.game_config.repository import (
     GameClientConfigRepository,
     GameDefinitionRepository,
     GameDifficultyRepository,

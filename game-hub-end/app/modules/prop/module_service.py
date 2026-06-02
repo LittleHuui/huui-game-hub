@@ -1,10 +1,10 @@
-"""道具域模块级编排服务。"""
+﻿"""道具域模块级编排服务。"""
 
 import json
 from typing import Any, Dict, List, Optional
 
 from app.common.exceptions import ValidationException
-from app.modules.game.schemas import GamePropRuleResponse
+from app.modules.game_config.schemas import GamePropRuleResponse
 from app.modules.prop.entity_service import GamePropRuleEntityService, PropDefinitionEntityService
 from app.modules.prop.models import GamePropRule, PropDefinition
 from app.modules.prop.schemas import PropDefinitionResponse

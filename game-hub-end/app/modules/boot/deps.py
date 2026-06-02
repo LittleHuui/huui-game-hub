@@ -1,10 +1,10 @@
-"""启动模块 FastAPI 依赖注入。"""
+﻿"""启动模块 FastAPI 依赖注入。"""
 
 from fastapi import Depends
 
 from app.modules.boot.module_service import BootModuleService
-from app.modules.game.deps import get_game_module_service
-from app.modules.game.module_service import GameModuleService
+from app.modules.game_config.deps import get_game_module_service
+from app.modules.game_config.module_service import GameModuleService
 from app.modules.inventory.deps import get_inventory_module_service
 from app.modules.inventory.module_service import InventoryModuleService
 from app.modules.match.deps import get_match_module_service

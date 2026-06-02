@@ -1,8 +1,8 @@
-"""UNO 回合推进与结束判定单元测试。"""
+﻿"""UNO 回合推进与结束判定单元测试。"""
 
-from app.modules.games.uno.schemas import UnoPlayerState, UnoRankingItem, UnoRuntimeState
-from app.modules.games.uno.uno_finish_rule import should_finish_game
-from app.modules.games.uno.uno_turn_rule import advance_turn, get_player_index
+from app.modules.game_impls.uno.schemas import UnoPlayerState, UnoRankingItem, UnoRuntimeState
+from app.modules.game_impls.uno.uno_finish_rule import should_finish_game
+from app.modules.game_impls.uno.uno_turn_rule import advance_turn, get_player_index
 
 
 def _build_state(player_ids, current_player_id, seat_statuses):

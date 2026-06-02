@@ -1,4 +1,4 @@
-"""成绩域数据访问。"""
+﻿"""成绩域数据访问。"""
 
 import json
 from typing import Any, Dict, List, Optional
@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.time_utils import now_ms
-from app.modules.game.repository import GameDefinitionRepository
+from app.modules.game_config.repository import GameDefinitionRepository
 from app.modules.ranking.schemas import LeaderboardRow
 from app.modules.score.leaderboard_rule import (
     SCORE_RESULT_WIN,

@@ -1,9 +1,9 @@
-"""UNO 回合推进规则。"""
+﻿"""UNO 回合推进规则。"""
 
 from typing import List
 
 from app.core.time_utils import now_ms
-from app.modules.games.uno.schemas import UnoRuntimeState
+from app.modules.game_impls.uno.schemas import UnoRuntimeState
 
 DEFAULT_TURN_TIMEOUT_SECONDS = 60
 

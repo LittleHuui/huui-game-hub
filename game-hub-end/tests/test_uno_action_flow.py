@@ -1,12 +1,12 @@
-"""UNO 操作结算、回合推进与视图一致性单元测试。"""
+﻿"""UNO 操作结算、回合推进与视图一致性单元测试。"""
 
 from typing import Dict, List, Optional
 
 import pytest
 
 from app.common.exceptions import ValidationException
-from app.modules.games.uno.schemas import UnoCard, UnoPendingDraw, UnoPlayerState, UnoRuntimeState
-from app.modules.games.uno.uno_rule_engine import UnoRuleEngine
+from app.modules.game_impls.uno.schemas import UnoCard, UnoPendingDraw, UnoPlayerState, UnoRuntimeState
+from app.modules.game_impls.uno.uno_rule_engine import UnoRuleEngine
 from app.modules.strategy_turn.schemas import GameAction
 
 _DEFAULT_ROOM_CONFIG = {

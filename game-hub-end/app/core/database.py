@@ -1,4 +1,4 @@
-"""SQLAlchemy 引擎、会话与通用时间戳混入。"""
+﻿"""SQLAlchemy 引擎、会话与通用时间戳混入。"""
 
 from contextlib import contextmanager
 from typing import Any, Generator, Optional, Tuple
@@ -75,7 +75,7 @@ def _import_all_models() -> None:
 
     仅负责装载模型类映射，不做业务初始化、不调用 service、不执行 seed。
     """
-    import app.modules.game.models as _game_models  # noqa: F401
+    import app.modules.game_config.models as _game_models  # noqa: F401
     import app.modules.inventory.models as _inventory_models  # noqa: F401
     import app.modules.match.models as _match_models  # noqa: F401
     import app.modules.prop.models as _prop_models  # noqa: F401

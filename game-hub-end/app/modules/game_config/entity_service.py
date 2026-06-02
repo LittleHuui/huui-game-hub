@@ -1,12 +1,12 @@
-"""游戏域单实体服务。"""
+﻿"""游戏域单实体服务。"""
 
 import json
 from typing import Any, Dict, List, Optional
 
 from app.core.database import new_entity_ids
 from app.common.exceptions import NotFoundException, ValidationException
-from app.modules.game.models import GameClientConfig, GameDefinition, GameDifficulty
-from app.modules.game.repository import (
+from app.modules.game_config.models import GameClientConfig, GameDefinition, GameDifficulty
+from app.modules.game_config.repository import (
     GameClientConfigRepository,
     GameDefinitionRepository,
     GameDifficultyRepository,

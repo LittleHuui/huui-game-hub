@@ -1,4 +1,4 @@
-"""房间模块业务编排。"""
+﻿"""房间模块业务编排。"""
 
 import logging
 from contextlib import contextmanager
@@ -11,8 +11,8 @@ from app.core.lock.distributed_lock import LockAcquireError, RedisDistributedLoc
 from app.core.redis.redis_keys import RedisKeys
 from app.core.id_utils import generate_server_id
 from app.core.time_utils import now_ms
-from app.modules.game.deps import build_game_module_service
-from app.modules.game.module_service import GameModuleService
+from app.modules.game_config.deps import build_game_module_service
+from app.modules.game_config.module_service import GameModuleService
 from app.modules.game_seed.schemas import OnlineGameRuleSeed, resolve_room_config_defaults
 from app.modules.room.managed_action_selector import ManagedActionSelector
 from app.modules.room.managed_task_service import (

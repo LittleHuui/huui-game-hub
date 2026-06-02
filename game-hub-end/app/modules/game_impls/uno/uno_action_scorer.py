@@ -1,10 +1,10 @@
-"""UNO 托管动作评分器。"""
+﻿"""UNO 托管动作评分器。"""
 
 import random
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.modules.games.uno.uno_action_score_config import UNO_ACTION_SCORE_CONFIG, UnoActionScoreConfig
+from app.modules.game_impls.uno.uno_action_score_config import UNO_ACTION_SCORE_CONFIG, UnoActionScoreConfig
 from app.modules.room.action_scorer import ActionScore, ManagedActionScorer
 from app.modules.strategy_turn.player_order import (
     get_next_active_player,

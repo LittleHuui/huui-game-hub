@@ -1,9 +1,9 @@
-"""UNO 牌型规则基类。"""
+﻿"""UNO 牌型规则基类。"""
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from app.modules.games.uno.schemas import UnoCard, UnoRuleContext
+from app.modules.game_impls.uno.schemas import UnoCard, UnoRuleContext
 
 
 class UnoCardRule(ABC):

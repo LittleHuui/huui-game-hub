@@ -1,13 +1,13 @@
-"""UNO +2/+4 叠加规则单元测试。"""
+﻿"""UNO +2/+4 叠加规则单元测试。"""
 
-from app.modules.games.uno.schemas import (
+from app.modules.game_impls.uno.schemas import (
     UnoCard,
     UnoPendingDraw,
     UnoPlayerState,
     UnoRuleContext,
     UnoRuntimeState,
 )
-from app.modules.games.uno.uno_card_rule_registry import (
+from app.modules.game_impls.uno.uno_card_rule_registry import (
     _can_play_wild_draw4_under_pending,
     _can_stack_draw_two,
     get_card_rule_by_card_type,

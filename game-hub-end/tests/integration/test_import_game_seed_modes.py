@@ -1,4 +1,4 @@
-"""import-game-seed 导入模式（merge / full）与删除模式测试。"""
+﻿"""import-game-seed 导入模式（merge / full）与删除模式测试。"""
 
 import json
 from pathlib import Path
@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.core.database import SessionLocal, init_db
 from app.main import app
-from app.modules.game.models import GameDefinition
+from app.modules.game_config.models import GameDefinition
 from app.modules.prop.models import GamePropRule, PropDefinition
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

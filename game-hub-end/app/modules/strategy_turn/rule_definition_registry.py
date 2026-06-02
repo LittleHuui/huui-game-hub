@@ -1,4 +1,4 @@
-"""策略回合制规则定义注册表。"""
+﻿"""策略回合制规则定义注册表。"""
 
 from typing import Dict, List, Optional
 
@@ -59,7 +59,7 @@ def list_registered_game_codes() -> List[str]:
 
 def _register_builtin_definitions() -> None:
     """注册内置 demo 规则定义（不含具体玩法实现）。"""
-    from app.modules.games.uno.uno_rule_engine import UnoRuleEngine
+    from app.modules.game_impls.uno.uno_rule_engine import UnoRuleEngine
 
     register_rule_engine(
         StrategyTurnRuleDefinition(

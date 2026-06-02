@@ -1,11 +1,11 @@
-"""托管动作评分与选择器测试。"""
+﻿"""托管动作评分与选择器测试。"""
 
 import math
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.modules.games.uno.uno_action_scorer import UnoActionScorer
+from app.modules.game_impls.uno.uno_action_scorer import UnoActionScorer
 from app.modules.room.action_scorer import ActionScore, ManagedActionScorerRegistry
 from app.modules.room.managed_action_selector import ManagedActionSelector
 from app.modules.strategy_turn.schemas import GameView, LegalAction
@@ -97,7 +97,7 @@ def _wild_card(card_id, card_type="WILD"):
 
 
 def _score_map(scorer, view, legal, jitter=0.0):
-    with patch("app.modules.games.uno.uno_action_scorer.random.uniform", return_value=jitter):
+    with patch("app.modules.game_impls.uno.uno_action_scorer.random.uniform", return_value=jitter):
         scores = scorer.score_actions(
             game_code="uno",
             game_view=view,
@@ -364,7 +364,7 @@ class TestUnoActionScorer(object):
         ]
         view = _uno_view(hand_cards=hand, legal_actions=legal)
         scorer = UnoActionScorer()
-        with patch("app.modules.games.uno.uno_action_scorer.random.uniform", return_value=0.0):
+        with patch("app.modules.game_impls.uno.uno_action_scorer.random.uniform", return_value=0.0):
             scores = scorer.score_actions(
                 game_code="uno",
                 game_view=view,
@@ -450,7 +450,7 @@ class TestUnoActionScorer(object):
         hand = [wild4] + numbers
         view = _uno_view(hand_cards=hand, legal_actions=legal)
         scorer = UnoActionScorer()
-        with patch("app.modules.games.uno.uno_action_scorer.random.uniform", return_value=0.0):
+        with patch("app.modules.game_impls.uno.uno_action_scorer.random.uniform", return_value=0.0):
             scores = scorer.score_actions(
                 game_code="uno",
                 game_view=view,
@@ -642,7 +642,7 @@ class TestUnoActionScorer(object):
         players = [_player("p1", len(hand)), _player("p2", 3), _player("p3", 4)]
         view = _uno_view(hand_cards=hand, legal_actions=legal, players=players)
         scorer = UnoActionScorer()
-        with patch("app.modules.games.uno.uno_action_scorer.random.uniform", return_value=0.0):
+        with patch("app.modules.game_impls.uno.uno_action_scorer.random.uniform", return_value=0.0):
             scores = scorer.score_actions(
                 game_code="uno",
                 game_view=view,
@@ -680,7 +680,7 @@ class TestUnoActionScorer(object):
         view_finish = _uno_view(hand_cards=hand_finish, legal_actions=legal_finish)
         scorer = UnoActionScorer()
         with patch(
-            "app.modules.games.uno.uno_action_scorer.random.uniform",
+            "app.modules.game_impls.uno.uno_action_scorer.random.uniform",
             side_effect=AssertionError("jitter on finish"),
         ):
             scores_finish = scorer.score_actions(
@@ -700,7 +700,7 @@ class TestUnoActionScorer(object):
             pending_draw={"amount": 2, "stackable": True, "sourceCardType": "DRAW_TWO"},
         )
         with patch(
-            "app.modules.games.uno.uno_action_scorer.random.uniform",
+            "app.modules.game_impls.uno.uno_action_scorer.random.uniform",
             side_effect=AssertionError("jitter on pending"),
         ):
             scores_pending = scorer.score_actions(
@@ -732,7 +732,7 @@ class TestUnoActionScorer(object):
         view = _uno_view(hand_cards=numbers, legal_actions=legal)
         scorer = UnoActionScorer()
         with patch(
-            "app.modules.games.uno.uno_action_scorer.random.uniform",
+            "app.modules.game_impls.uno.uno_action_scorer.random.uniform",
             side_effect=[25.0, -25.0],
         ):
             scores = scorer.score_actions(
@@ -765,7 +765,7 @@ class TestUnoActionScorer(object):
             players=[_player("p1", 1), _player("p2", 3), _player("p3", 4)],
         )
         scorer = UnoActionScorer()
-        with patch("app.modules.games.uno.uno_action_scorer.random.uniform", return_value=0.0):
+        with patch("app.modules.game_impls.uno.uno_action_scorer.random.uniform", return_value=0.0):
             score_one = scorer.score_actions(
                 game_code="uno",
                 game_view=view_one,

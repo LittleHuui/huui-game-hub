@@ -1,4 +1,4 @@
-"""管理配置导入模块编排服务。"""
+﻿"""管理配置导入模块编排服务。"""
 
 import json
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -22,7 +22,7 @@ from app.modules.admin_config.schemas import (
     ImportGameSeedResponse,
 )
 from app.modules.prop.entity_service import PropDefinitionEntityService
-from app.modules.game.models import GameClientConfig, GameDifficulty
+from app.modules.game_config.models import GameClientConfig, GameDifficulty
 from app.modules.prop.models import GamePropRule
 
 

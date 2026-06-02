@@ -1,13 +1,13 @@
-"""游戏域 HTTP 接口。"""
+﻿"""游戏域 HTTP 接口。"""
 
 from typing import List
 
 from fastapi import APIRouter, Depends, Path
 
 from app.common.response import ApiResponse, success
-from app.modules.game.deps import get_game_module_service
-from app.modules.game.module_service import GameModuleService, _to_game_summary
-from app.modules.game.schemas import GameConfigResponse, GameSummaryResponse
+from app.modules.game_config.deps import get_game_module_service
+from app.modules.game_config.module_service import GameModuleService, _to_game_summary
+from app.modules.game_config.schemas import GameConfigResponse, GameSummaryResponse
 from app.modules.game_seed.schemas import OnlineGameRuleSeed
 
 router = APIRouter(prefix="/games", tags=["game"])

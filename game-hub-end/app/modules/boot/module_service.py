@@ -1,4 +1,4 @@
-import json
+﻿import json
 from typing import Any, Dict, List, Optional, Set
 
 from pydantic import ValidationError as PydanticValidationError
@@ -29,8 +29,8 @@ from app.modules.boot.schemas import (
     UserWalletResponse,
     WalletLedgerResponse,
 )
-from app.modules.game.models import GameDefinition
-from app.modules.game.module_service import GameModuleService
+from app.modules.game_config.models import GameDefinition
+from app.modules.game_config.module_service import GameModuleService
 from app.modules.inventory.module_service import InventoryModuleService
 from app.modules.inventory.models import PropUsageRecord
 from app.modules.match.schemas import to_match_record_response

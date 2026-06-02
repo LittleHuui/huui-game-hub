@@ -1,9 +1,9 @@
-"""UNO 结束判定规则。"""
+﻿"""UNO 结束判定规则。"""
 
 from typing import Any, Dict, List
 
 from app.core.time_utils import now_ms
-from app.modules.games.uno.schemas import UnoRankingItem, UnoRuntimeState
+from app.modules.game_impls.uno.schemas import UnoRankingItem, UnoRuntimeState
 
 _FINISH_MODE_FIRST_FINISH = "FIRST_FINISH"
 _FINISH_MODE_UNTIL_REAL_PLAYER_COUNT = "UNTIL_REAL_PLAYER_COUNT"

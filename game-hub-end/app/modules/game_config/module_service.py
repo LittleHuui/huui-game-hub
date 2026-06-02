@@ -1,4 +1,4 @@
-"""游戏域模块级编排服务。"""
+﻿"""游戏域模块级编排服务。"""
 
 import json
 from typing import Any, Dict, List, Optional
@@ -6,13 +6,13 @@ from typing import Any, Dict, List, Optional
 from app.common.exceptions import NotFoundException, ValidationException
 from app.modules.game_seed.online_game_seed_registry import get_online_game_seed
 from app.modules.game_seed.schemas import OnlineGameRuleSeed
-from app.modules.game.entity_service import (
+from app.modules.game_config.entity_service import (
     GameClientConfigEntityService,
     GameDefinitionEntityService,
     GameDifficultyEntityService,
 )
-from app.modules.game.models import GameClientConfig, GameDefinition, GameDifficulty
-from app.modules.game.schemas import (
+from app.modules.game_config.models import GameClientConfig, GameDefinition, GameDifficulty
+from app.modules.game_config.schemas import (
     GameClientConfigListData,
     GameClientConfigRead,
     GameClientConfigResponse,

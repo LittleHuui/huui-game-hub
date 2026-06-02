@@ -1,11 +1,11 @@
-"""道具域 HTTP 接口。"""
+﻿"""道具域 HTTP 接口。"""
 
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Path, Query
 
 from app.common.response import ApiResponse, success
-from app.modules.game.schemas import GamePropRuleResponse
+from app.modules.game_config.schemas import GamePropRuleResponse
 from app.modules.prop.deps import get_prop_module_service
 from app.modules.prop.module_service import PropModuleService
 from app.modules.prop.schemas import PropDefinitionResponse

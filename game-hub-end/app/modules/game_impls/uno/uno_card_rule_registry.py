@@ -1,17 +1,17 @@
-"""UNO 牌型规则注册表。"""
+﻿"""UNO 牌型规则注册表。"""
 
 from typing import Any, Dict, List, Optional
 
 from app.common.exceptions import ValidationException
 from app.core.time_utils import now_ms
-from app.modules.games.uno.schemas import (
+from app.modules.game_impls.uno.schemas import (
     UnoCard,
     UnoDiscardRecentCard,
     UnoPendingDraw,
     UnoRuleContext,
 )
-from app.modules.games.uno.uno_card_rule import UnoCardRule
-from app.modules.games.uno.uno_turn_rule import (
+from app.modules.game_impls.uno.uno_card_rule import UnoCardRule
+from app.modules.game_impls.uno.uno_turn_rule import (
     advance_turn,
     count_active_players,
     peek_next_active_player,
