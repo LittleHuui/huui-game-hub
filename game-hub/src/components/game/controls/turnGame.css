@@ -215,6 +215,19 @@
   border: 1px solid rgba(148, 163, 184, 0.45);
 }
 
+.turn-player-panel__badge.managed-active {
+  color: #e2e8f0;
+  background: rgba(71, 85, 105, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.turn-player-panel__badge.managed-shell {
+  color: #cbd5e1;
+  background: rgba(51, 65, 85, 0.35);
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  opacity: 0.92;
+}
+
 .turn-player-panel__badge--ai-managed {
   color: #e0e7ff;
   background: rgba(99, 102, 241, 0.4);

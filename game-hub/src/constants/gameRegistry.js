@@ -98,6 +98,26 @@ export const GAME_REGISTRY = {
       shop: false,
       offline: false
     }
+  },
+  gomoku: {
+    code: 'gomoku',
+    logo: '⚫',
+    name: '五子棋',
+    subName: 'Gomoku',
+    gameCategory: 'strategy-turn',
+    runtimeType: 'strategy-turn-multiplayer',
+    viewTemplate: 'strategy-turn-multiplayer',
+    supportOnline: true,
+    onlineEnabled: true,
+    onlinePlayRouteName: 'gomoku-play',
+    onlinePlayRouteParamsBuilder: ({ roomId }) => ({ roomId }),
+    modes: ['classic'],
+    capabilities: {
+      leaderboard: false,
+      inventory: false,
+      shop: false,
+      offline: false
+    }
   }
 };
 

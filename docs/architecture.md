@@ -88,7 +88,7 @@ realtimeService → websocketClient → /ws/game-hub/realtime
 | runtimeType | 含义 | 典型游戏 |
 |-------------|------|----------|
 | `light-single` | 轻量单人运行时 | 扫雷、消消乐、2048、数独 |
-| `strategy-turn-multiplayer` | **策略回合制多人**运行时（按回合提交 `actionId`、房间聚合玩家）；**不是**卡牌专用类型，斗地主、德州扑克、飞行棋、五子棋等可基于同一类型接入 | `uno` |
+| `strategy-turn-multiplayer` | **策略回合制多人**运行时（按回合提交 `actionId`、房间聚合玩家）；**不是**卡牌专用类型，斗地主、德州扑克、飞行棋、五子棋等可基于同一类型接入 | `uno`、`gomoku` |
 
 `viewTemplate` 与 `runtimeType` 同名时指向 `src/game-templates/{runtimeType}/` 下的页面模板；模板只负责排版，不含玩法与 API。
 
@@ -410,7 +410,31 @@ UNO 为当前唯一已接入的策略回合制多人游戏，端到端能力包�
 
 ---
 
-## 6. 相关文档
+## 6. 房间生命周期（平台层）
+
+多人在线游戏的房间进出由 `room` 模块统一处理，游戏规则引擎不参与离开/重连。
+
+| 动作 | 接口 / 行为 | 语义 |
+|------|-------------|------|
+| 返回房间页 | 仅前端路由跳转 | 用户仍在房间；对局中不进入托管 |
+| 退出房间 | `POST /rooms/{roomId}/leave` | `waiting`：移除成员，空房删除；`playing`：保留席位，真人进入 `shell` 托管，对局继续 |
+| 重新加入 | `POST /rooms/{roomId}/rejoin` | 仅原成员恢复席位；取消 `shell`；不改变 `seatIndex` / `playerId` / 执棋颜色 / 手牌等身份 |
+| 加入房间 | `POST /rooms/{roomId}/join` | 仅 `waiting` 允许；`playing` 拒绝新玩家中途加入 |
+
+托管模式：
+
+- `active`：在线托管（手动开启或回合超时），用户仍在房间索引中。
+- `shell`：离开房间或在线探活超时，席位保留、删除 `player_room` 索引，可通过 `GET /rooms/my-managed-shell` 发现可恢复对局。
+
+前端约定：
+
+- 游戏对战页「返回房间」只跳转等待页，不调用 `leave`。
+- 「退出并托管」调用 `leave`；对局结束后从结算返回等待页仍视为在房间内。
+- 检测到本人为 `shell` 成员时展示「重新加入」，由用户点击后调用 `rejoin`，不自动恢复。
+
+---
+
+## 7. 相关文档
 
 - 接口明细：[api.md](api.md)
 - 新游戏接入：[new-game-guide.md](new-game-guide.md)

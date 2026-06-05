@@ -31,8 +31,8 @@ class GameRuleInfo(BaseModel):
 
     description: str = Field(min_length=1, description="游戏规则简介")
     ruleDescription: str = Field(min_length=1, description="玩法详细说明")
-    cardBackImage: str = Field(min_length=1, description="牌背图相对资源路径")
-    singleDeckCardCount: int = Field(ge=1, description="单套牌组总张数")
+    cardBackImage: str = Field(default="", description="牌背图相对资源路径，非卡牌游戏可为空")
+    singleDeckCardCount: int = Field(ge=0, description="单套牌组总张数，非卡牌游戏可为 0")
 
 
 class RoomRule(BaseModel):
@@ -122,7 +122,7 @@ class OnlineGameRuleSeed(BaseModel):
     ruleVersion: str = Field(min_length=1, description="规则版本标识")
     runtimeType: str = Field(min_length=1, description="前端运行时类型")
     gameRuleInfo: GameRuleInfo
-    cardDefinitions: List[CardDefinition] = Field(min_length=1)
+    cardDefinitions: List[CardDefinition] = Field(default_factory=list)
     roomRule: RoomRule
     roomConfigSchema: List[RoomConfigFieldDefinition] = Field(
         min_length=1,
@@ -142,11 +142,16 @@ def resolve_room_config_defaults(seed: OnlineGameRuleSeed) -> Dict[str, Any]:
     :return: 房间配置字典。
     """
     defaults: Dict[str, Any] = {}
-    for field in seed.roomConfigSchema:
-        defaults[field.key] = field.defaultValue
     extension = seed.extensionConfig
     if isinstance(extension, dict):
+        extension_rule = extension.get("rule")
+        if isinstance(extension_rule, dict):
+            extension_rule_config = extension_rule.get("config")
+            if isinstance(extension_rule_config, dict):
+                defaults.update(extension_rule_config)
         rules = extension.get("initialDeckSetRules")
         if isinstance(rules, list):
             defaults["initialDeckSetRules"] = rules
+    for field in seed.roomConfigSchema:
+        defaults[field.key] = field.defaultValue
     return defaults

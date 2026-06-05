@@ -5,6 +5,7 @@ from typing import Dict, List
 from app.common.error_code import ErrorCode
 from app.common.exceptions import BizException
 from app.modules.game_seed.schemas import OnlineGameRuleSeed
+from app.modules.game_seed.gomoku_seed import GOMOKU_ONLINE_GAME_RULE_SEED
 from app.modules.game_seed.uno_seed import UNO_ONLINE_GAME_RULE_SEED
 
 _REGISTRY = {}  # type: Dict[str, OnlineGameRuleSeed]
@@ -46,6 +47,7 @@ def list_online_game_seeds() -> List[OnlineGameRuleSeed]:
 def _register_builtin_seeds() -> None:
     """注册内置在线游戏规则种子。"""
     register_online_game_seed(UNO_ONLINE_GAME_RULE_SEED)
+    register_online_game_seed(GOMOKU_ONLINE_GAME_RULE_SEED)
 
 
 _register_builtin_seeds()

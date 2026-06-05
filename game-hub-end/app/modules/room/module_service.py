@@ -150,6 +150,67 @@ class RoomModuleService(object):
         )
         return room_response
 
+    async def _mark_shell_managed_locked(
+        self,
+        room_id: str,
+        meta: Dict[str, Any],
+        members: List[Dict[str, Any]],
+        player_id: str,
+        reason: str,
+        current_time: int,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        在已持有房间锁的上下文中将成员标记为 shell 托管并维护索引（不广播、不删房）。
+
+        :param room_id: 房间 ID。
+        :param meta: 房间元信息。
+        :param members: 房间成员列表。
+        :param player_id: 玩家 ID。
+        :param reason: 托管原因（presenceTimeout / leave）。
+        :param current_time: 当前时间戳（毫秒）。
+        :return: 更新后的成员；未找到或 AI 时返回 ``None``。
+        """
+        target = self._find_member(members, player_id)
+        if target is None:
+            return None
+        if bool(target.get("isAi")):
+            return None
+        target["isManaged"] = True
+        target["managedMode"] = "shell"
+        target["managedReason"] = reason
+        target["managedAt"] = current_time
+        target["onlineState"] = "managed"
+        target["updatedAt"] = current_time
+        if not await self._repository.save_player(room_id, player_id, target):
+            raise BizException(ErrorCode.SYSTEM_ERROR, message="房间成员写入失败")
+        game_code = str(meta.get("gameCode", "")).strip()
+        saved = await self._repository.save_managed_shell_room_index(
+            player_id,
+            game_code,
+            room_id,
+        )
+        if not saved:
+            raise BizException(
+                ErrorCode.SYSTEM_ERROR,
+                message="托管房间索引写入失败",
+            )
+        await self._repository.delete_player_room(player_id)
+        return target
+
+    def _should_cleanup_playing_room(
+        self,
+        members: List[Dict[str, Any]],
+    ) -> bool:
+        """
+        判断 playing 房间是否应清理（无在线真人且无 shell 可重连真人）。
+
+        :param members: 房间成员列表。
+        :return: 是否应删除房间。
+        """
+        has_real_human = self._has_real_human_member(members)
+        has_shell_human = self._has_rejoinable_shell_human_member(members)
+        return not has_real_human and not has_shell_human
+
     async def mark_member_active_managed(self, room_id: str, player_id: str, reason: str) -> bool:
         """
         将成员标记为 active 托管并同步房间状态。
@@ -259,22 +320,21 @@ class RoomModuleService(object):
                     normalized_reason,
                 )
                 return True
+            if bool(target.get("isAi")):
+                return True
             current_time = now_ms()
-            target["isManaged"] = True
-            target["managedMode"] = "shell"
-            target["managedReason"] = normalized_reason
-            target["managedAt"] = current_time
-            target["onlineState"] = "managed"
-            target["updatedAt"] = current_time
-            await self._repository.save_player(normalized_room_id, normalized_player_id, target)
-            await self._repository.delete_player_room(normalized_player_id)
+            marked = await self._mark_shell_managed_locked(
+                normalized_room_id,
+                meta,
+                members,
+                normalized_player_id,
+                normalized_reason,
+                current_time,
+            )
+            if marked is None:
+                return True
 
             game_code = str(meta.get("gameCode", "")).strip()
-            await self._repository.save_managed_shell_room_index(
-                normalized_player_id,
-                game_code,
-                normalized_room_id,
-            )
             owner_id = str(meta.get("ownerPlayerId", "")).strip()
             if owner_id == normalized_player_id:
                 human_members = [
@@ -293,7 +353,7 @@ class RoomModuleService(object):
 
             version = await self._bump_version(normalized_room_id)
             refreshed_members = await self._repository.list_players(normalized_room_id)
-            if not self._has_real_human_member(refreshed_members):
+            if self._should_cleanup_playing_room(refreshed_members):
                 await self._clear_managed_shell_indexes(game_code, refreshed_members)
                 await self._repository.delete_room_cascade(
                     normalized_room_id,
@@ -998,29 +1058,23 @@ class RoomModuleService(object):
                     member_player_ids.append(member_id)
 
             current_time = now_ms()
-            leaving_member = self._find_member(members_before, player_id)
             if room_status == "playing":
-                managed_member = dict(leaving_member or {})
-                managed_member["isManaged"] = True
-                managed_member["managedMode"] = "shell"
-                managed_member["managedReason"] = "leave"
-                managed_member["managedAt"] = current_time
-                managed_member["onlineState"] = "managed"
-                managed_member["updatedAt"] = current_time
-                if not await self._repository.save_player(normalized_room_id, player_id, managed_member):
-                    raise BizException(ErrorCode.SYSTEM_ERROR, message="房间成员写入失败")
-                await self._repository.delete_player_room(player_id)
-                await self._repository.save_managed_shell_room_index(
-                    player_id,
-                    game_code,
+                await self._mark_shell_managed_locked(
                     normalized_room_id,
+                    meta,
+                    members_before,
+                    player_id,
+                    "leave",
+                    current_time,
                 )
             else:
                 await self._repository.delete_player(normalized_room_id, player_id)
                 await self._repository.delete_player_room(player_id)
 
             if room_status == "playing":
-                remaining_members = self._sort_members_by_joined_at(await self._repository.list_players(normalized_room_id))
+                remaining_members = self._sort_members_by_joined_at(
+                    await self._repository.list_players(normalized_room_id)
+                )
             else:
                 remaining_members = self._sort_members_by_joined_at(
                     [
@@ -1030,28 +1084,8 @@ class RoomModuleService(object):
                     ]
                 )
 
-            if not self._has_real_human_member(remaining_members):
-                await self._clear_managed_shell_indexes(game_code, remaining_members)
-                await self._repository.delete_room_cascade(
-                    normalized_room_id,
-                    game_code,
-                    member_player_ids,
-                )
-                await push_room_list_updated(game_code)
-                return RoomLeaveResponse(
-                    roomId=normalized_room_id,
-                    gameCode=game_code,
-                    dissolved=True,
-                    room=None,
-                )
-
-            meta["updatedAt"] = current_time
-            if owner_player_id == player_id:
-                human_members = [
-                    item for item in self._sort_members_by_joined_at(remaining_members)
-                    if self._is_real_human_member(item)
-                ]
-                if not human_members:
+            if room_status == "waiting":
+                if not remaining_members:
                     await self._clear_managed_shell_indexes(game_code, remaining_members)
                     await self._repository.delete_room_cascade(
                         normalized_room_id,
@@ -1065,10 +1099,35 @@ class RoomModuleService(object):
                         dissolved=True,
                         room=None,
                     )
-                new_owner = human_members[0]
-                new_owner_id = str(new_owner.get("playerId", "")).strip()
-                meta["ownerPlayerId"] = new_owner_id
-                meta["ownerNickname"] = str(new_owner.get("nickname", new_owner_id)).strip()
+            elif room_status == "playing":
+                if self._should_cleanup_playing_room(remaining_members):
+                    await self._clear_managed_shell_indexes(game_code, remaining_members)
+                    await self._repository.delete_room_cascade(
+                        normalized_room_id,
+                        game_code,
+                        member_player_ids,
+                    )
+                    await push_room_list_updated(game_code)
+                    return RoomLeaveResponse(
+                        roomId=normalized_room_id,
+                        gameCode=game_code,
+                        dissolved=True,
+                        room=None,
+                    )
+
+            meta["updatedAt"] = current_time
+            if owner_player_id == player_id:
+                human_members = [
+                    item for item in self._sort_members_by_joined_at(remaining_members)
+                    if self._is_real_human_member(item)
+                ]
+                if human_members:
+                    new_owner = human_members[0]
+                    new_owner_id = str(new_owner.get("playerId", "")).strip()
+                    meta["ownerPlayerId"] = new_owner_id
+                    meta["ownerNickname"] = str(
+                        new_owner.get("nickname", new_owner_id)
+                    ).strip()
 
             if not await self._repository.save_meta(normalized_room_id, meta):
                 raise BizException(ErrorCode.SYSTEM_ERROR, message="房间元信息更新失败")
@@ -1822,11 +1881,10 @@ class RoomModuleService(object):
             member_id = str(member.get("playerId", "")).strip()
             if member_id:
                 player_ids.append(member_id)
-        room_config = meta.get("roomConfig")
-        if not isinstance(room_config, dict):
-            room_config = resolve_room_config_defaults(definition)
-        else:
-            room_config = dict(room_config)
+        room_config = resolve_room_config_defaults(definition)
+        room_config_from_meta = meta.get("roomConfig")
+        if isinstance(room_config_from_meta, dict):
+            room_config.update(room_config_from_meta)
         ai_player_ids = []
         for member in sorted_members:
             if bool(member.get("isAi")):
@@ -2210,6 +2268,20 @@ class RoomModuleService(object):
         """
         for member in members:
             if self._is_real_human_member(member):
+                return True
+        return False
+
+    def _has_rejoinable_shell_human_member(self, members: List[Dict[str, Any]]) -> bool:
+        """
+        判断成员列表中是否仍有可重新加入的 shell 托管真人席位。
+
+        :param members: 成员列表。
+        :return: 是否存在可重连的 shell 托管真人。
+        """
+        for member in members:
+            if bool(member.get("isAi")):
+                continue
+            if self._is_shell_managed(member):
                 return True
         return False
 

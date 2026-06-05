@@ -1,6 +1,28 @@
 <template>
+  <div v-if="shellRejoinOffered" class="room-hub-page room-hub-page--waiting">
+    <p class="empty-text">你已退出对局，席位由托管保留。</p>
+    <div class="room-hub-form__actions">
+      <button
+        type="button"
+        class="game-action-btn game-action-btn--primary game-action-btn--sm"
+        :disabled="rejoinBusy"
+        @click="onRejoinManagedRoom"
+      >
+        {{ rejoinBusy ? '处理中…' : '重新加入' }}
+      </button>
+      <button
+        type="button"
+        class="game-action-btn game-action-btn--ghost game-action-btn--sm"
+        @click="onBackToLobbyFromShell"
+      >
+        返回大厅
+      </button>
+    </div>
+    <p v-if="errorMessage" class="empty-text">{{ errorMessage }}</p>
+  </div>
+
   <RoomWaitingPage
-    v-if="ready && room"
+    v-else-if="ready && room"
     :room="room"
     :current-player-id="currentPlayerId"
     :room-rule="roomRule"
@@ -118,6 +140,8 @@ const ready = ref(false);
 const loading = ref(false);
 const actionBusy = ref(false);
 const errorMessage = ref('');
+const shellRejoinOffered = ref(false);
+const rejoinBusy = ref(false);
 
 const detailVisible = ref(false);
 const settingsVisible = ref(false);
@@ -172,6 +196,22 @@ function isUserInRoom(value) {
 
 const isRoomMember = computed(() => isUserInRoom(room.value));
 
+/**
+ * @param {object|null|undefined} value
+ */
+function isUserShellInRoom(value) {
+  const playerId = currentPlayerId.value;
+  if (!playerId || !value?.members) {
+    return false;
+  }
+  return value.members.some((item) => {
+    const samePlayer = String(item?.playerId || '').trim() === playerId;
+    return samePlayer && String(item?.managedMode || '').trim() === 'shell';
+  });
+}
+
+const isShellMember = computed(() => isUserShellInRoom(room.value));
+
 async function navigateLobby() {
   if (!gameCode.value) {
     return;
@@ -207,10 +247,15 @@ async function ensureRoomContext() {
       return;
     }
     if (!isRoomMember.value) {
+      if (isUserShellInRoom(room.value)) {
+        shellRejoinOffered.value = true;
+        return;
+      }
       errorMessage.value = '你尚未加入该房间';
       await navigateLobby();
       return;
     }
+    shellRejoinOffered.value = false;
     ready.value = true;
   } catch (err) {
     errorMessage.value = err?.message || '加载房间失败';
@@ -222,6 +267,33 @@ async function ensureRoomContext() {
 
 function onOpenDetail() {
   detailVisible.value = true;
+}
+
+async function onRejoinManagedRoom() {
+  const id = roomId.value;
+  if (!id || rejoinBusy.value) {
+    return;
+  }
+  rejoinBusy.value = true;
+  errorMessage.value = '';
+  try {
+    await roomService.rejoinManagedRoom(id);
+    shellRejoinOffered.value = false;
+    await roomService.loadRoomDetail(id);
+    ready.value = true;
+    const status = String(room.value?.status || '').trim();
+    if (status === 'playing') {
+      await navigatePlayRoom();
+    }
+  } catch (err) {
+    errorMessage.value = err?.message || '重新加入失败';
+  } finally {
+    rejoinBusy.value = false;
+  }
+}
+
+async function onBackToLobbyFromShell() {
+  await navigateLobby();
 }
 
 async function onLeaveRoom() {
@@ -451,7 +523,7 @@ watch(
   () => room.value?.status,
   (status) => {
     const normalized = String(status || '').trim();
-    if (!roomId.value) {
+    if (!roomId.value || shellRejoinOffered.value || isShellMember.value) {
       return;
     }
     if (normalized === 'playing') {

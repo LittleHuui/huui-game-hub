@@ -56,6 +56,23 @@ def test_get_uno_rule_definition_returns_seed_fields() -> None:
     assert "icon" not in data
 
 
+def test_get_gomoku_rule_definition_returns_seed_fields() -> None:
+    """已注册五子棋规则种子时应返回规定字段且牌组可为空。"""
+    with TestClient(app) as client:
+        response = client.get(RULE_DEFINITION_PATH.format(game_code="gomoku"))
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    data = payload["data"]
+    assert data["gameCode"] == "gomoku"
+    assert data["runtimeType"] == "strategy-turn-multiplayer"
+    assert data["gameRuleInfo"]["singleDeckCardCount"] == 0
+    assert data["cardDefinitions"] == []
+    assert data["roomRule"]["minPlayers"] == 2
+    assert data["roomRule"]["maxPlayers"] == 2
+    assert data["extensionConfig"]["rule"]["name"] == "gomoku"
+
+
 def test_get_rule_definition_not_found_returns_biz_error() -> None:
     """未注册规则种子的游戏应返回业务错误，而非空对象。"""
     with TestClient(app) as client:

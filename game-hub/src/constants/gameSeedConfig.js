@@ -504,6 +504,34 @@ export const GAME_SEED_CONFIG = {
       ],
       clientConfigs: [],
       propRules: []
+    },
+    {
+      gameCode: 'gomoku',
+      gameName: '五子棋',
+      gameSubName: 'Gomoku',
+      supportOnline: true,
+      enabled: true,
+      sortNo: 6,
+      config: {
+        featureFlags: {
+          leaderboard: false,
+          shop: false,
+          inventory: false,
+          offline: false,
+          onlineBattle: true
+        }
+      },
+      difficulties: [
+        {
+          difficultyCode: 'standard',
+          difficultyName: '标准',
+          enabled: true,
+          sortNo: 1,
+          config: {}
+        }
+      ],
+      clientConfigs: [],
+      propRules: []
     }
   ]
 };

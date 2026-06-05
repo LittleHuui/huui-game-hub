@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="modal-mask" @click.self="$emit('close')">
+  <div v-if="visible" class="modal-mask" @click.self="onMaskClick">
     <div class="modal" role="dialog" aria-modal="true" @click.stop>
       <header class="modal-header">
         <h2 class="modal-header__title">
@@ -8,10 +8,11 @@
           </slot>
         </h2>
         <button
+          v-if="closable"
           type="button"
           class="modal-close-btn"
           aria-label="关闭"
-          @click="$emit('close')"
+          @click="emitClose"
         >
           ×
         </button>
@@ -27,9 +28,26 @@
 </template>
 
 <script setup>
-defineProps({
+const props = defineProps({
   visible: { type: Boolean, default: false },
-  title: { type: String, default: '' }
+  title: { type: String, default: '' },
+  closable: { type: Boolean, default: true },
+  maskClosable: { type: Boolean, default: true }
 });
-defineEmits(['close']);
+
+const emit = defineEmits(['close']);
+
+function emitClose() {
+  if (!props.closable) {
+    return;
+  }
+  emit('close');
+}
+
+function onMaskClick() {
+  if (!props.maskClosable) {
+    return;
+  }
+  emit('close');
+}
 </script>

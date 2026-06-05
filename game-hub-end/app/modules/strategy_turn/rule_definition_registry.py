@@ -59,6 +59,7 @@ def list_registered_game_codes() -> List[str]:
 
 def _register_builtin_definitions() -> None:
     """注册内置 demo 规则定义（不含具体玩法实现）。"""
+    from app.modules.game_impls.gomoku.gomoku_rule_engine import GomokuRuleEngine
     from app.modules.game_impls.uno.uno_rule_engine import UnoRuleEngine
 
     register_rule_engine(
@@ -79,4 +80,23 @@ def _register_builtin_definitions() -> None:
             assets={},
         ),
         UnoRuleEngine(),
+    )
+    register_rule_engine(
+        StrategyTurnRuleDefinition(
+            gameCode="gomoku",
+            ruleVersion="1.0.0",
+            roomRule={
+                "minPlayers": 2,
+                "maxPlayers": 2,
+                "allowAi": True,
+                "defaultExpireSeconds": 86400,
+            },
+            runtimeRule={
+                "actionSubmitMode": "actionIdOnly",
+                "privateView": False,
+            },
+            actionTypes=[],
+            assets={},
+        ),
+        GomokuRuleEngine(),
     )

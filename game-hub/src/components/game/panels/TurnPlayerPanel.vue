@@ -97,6 +97,14 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  managedLabel: {
+    type: String,
+    default: ''
+  },
+  managedBadgeClass: {
+    type: String,
+    default: ''
+  },
   isSpectator: {
     type: Boolean,
     default: false
@@ -140,6 +148,10 @@ const avatarInitial = computed(() => {
 });
 
 const statusBadgeText = computed(() => {
+  const explicitLabel = String(props.managedLabel || '').trim();
+  if (explicitLabel) {
+    return explicitLabel;
+  }
   if (props.isAi) {
     return 'AI';
   }
@@ -150,6 +162,10 @@ const statusBadgeText = computed(() => {
 });
 
 const statusBadgeClass = computed(() => {
+  const explicitClass = String(props.managedBadgeClass || '').trim();
+  if (explicitClass) {
+    return ['turn-player-panel__badge', explicitClass].join(' ');
+  }
   if (props.isAi) {
     return 'turn-player-panel__badge--ai';
   }

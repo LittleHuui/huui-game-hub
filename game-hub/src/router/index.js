@@ -6,6 +6,7 @@ import Match3Page from '../games/match3/Match3Page.vue';
 import Game2048Page from '../games/game2048/Game2048Page.vue';
 import SudokuPage from '../games/sudoku/SudokuPage.vue';
 import UnoPlayPage from '../games/uno/UnoPlayPage.vue';
+import GomokuPlayPage from '../games/gomoku/GomokuPlayPage.vue';
 import OnlineRoomListPage from '../pages/OnlineRoomListPage.vue';
 import OnlineRoomWaitingPage from '../pages/OnlineRoomWaitingPage.vue';
 import OnlineGamePlayEntryPage from '../pages/OnlineGamePlayEntryPage.vue';
@@ -59,6 +60,12 @@ const router = createRouter({
           name: 'uno-play',
           component: UnoPlayPage,
           meta: { title: 'UNO 对战' }
+        },
+        {
+          path: 'games/gomoku/play/:roomId',
+          name: 'gomoku-play',
+          component: GomokuPlayPage,
+          meta: { title: '五子棋对战' }
         },
         {
           path: 'games/:gameCode/play/:roomId',

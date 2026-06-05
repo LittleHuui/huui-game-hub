@@ -6,7 +6,28 @@
       {{ gameViewLoadError }}
     </p>
 
-    <div v-if="!canShowGameView" class="uno-page__loading-shell">
+    <div v-else-if="shellRejoinOffered" class="uno-page__status">
+      <p class="empty-text">你已退出对局，席位由托管保留。重新加入后可继续对局。</p>
+      <div class="uno-page__actions">
+        <button
+          type="button"
+          class="game-action-btn game-action-btn--primary game-action-btn--sm"
+          :disabled="rejoinBusy"
+          @click="onRejoinRoom"
+        >
+          {{ rejoinBusy ? '处理中…' : '重新加入' }}
+        </button>
+        <button
+          type="button"
+          class="game-action-btn game-action-btn--ghost game-action-btn--sm"
+          @click="navigateToLobby"
+        >
+          返回大厅
+        </button>
+      </div>
+    </div>
+
+    <div v-else-if="!canShowGameView" class="uno-page__loading-shell">
       <p class="empty-text">正在校验房间状态…</p>
     </div>
 
@@ -17,9 +38,16 @@
           <button
             type="button"
             class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-            @click="onLeaveRoom"
+            @click="onBackToRoom"
           >
-            离开房间
+            返回房间
+          </button>
+          <button
+            type="button"
+            class="game-action-btn game-action-btn--ghost game-action-btn--sm"
+            @click="onExitRoomWithShell"
+          >
+            退出并托管
           </button>
         </div>
       </template>
@@ -33,7 +61,8 @@
             :nickname="player.nickname"
             :hand-count="player.handCount"
             :is-ai="player.isAi"
-            :is-managed="player.isManaged"
+            :managed-label="player.managedLabel"
+            :managed-badge-class="player.managedBadgeClass"
             :is-current-turn="player.isCurrentTurn"
             :finish-rank="player.finishRank"
             :show-countdown="player.isCurrentTurn"
@@ -61,6 +90,8 @@
             :hand-count="player.handCount"
             :is-ai="player.isAi"
             :is-managed="player.isManaged"
+            :managed-label="player.managedLabel"
+            :managed-badge-class="player.managedBadgeClass"
             :is-current-turn="player.isCurrentTurn"
             :finish-rank="player.finishRank"
             :show-countdown="player.isCurrentTurn"
@@ -237,6 +268,8 @@ const accumulatedPlayerActions = ref(createEmptyUnoPlayerActionMap());
 const loading = ref(false);
 const loadError = ref('');
 const gameViewActionBusy = ref(false);
+const shellRejoinOffered = ref(false);
+const rejoinBusy = ref(false);
 const gameViewLoadError = ref('');
 const selectedCardIds = ref([]);
 const colorPickerVisible = ref(false);
@@ -270,6 +303,21 @@ function isUserInRoom(room) {
   return room.members.some((item) => {
     const samePlayer = String(item?.playerId || '').trim() === playerId;
     return samePlayer && String(item?.managedMode || '').trim() !== 'shell';
+  });
+}
+
+/**
+ * @param {object|null|undefined} room
+ * @returns {boolean}
+ */
+function isUserShellInRoom(room) {
+  const playerId = currentPlayerId.value;
+  if (!playerId || !room?.members) {
+    return false;
+  }
+  return room.members.some((item) => {
+    const samePlayer = String(item?.playerId || '').trim() === playerId;
+    return samePlayer && String(item?.managedMode || '').trim() === 'shell';
   });
 }
 
@@ -421,6 +469,48 @@ const currentPlayerIdInTurn = computed(() =>
 );
 
 /**
+ * @param {object|null|undefined} member
+ * @returns {string}
+ */
+function resolveManagedLabel(member) {
+  const managedMode = String(member?.managedMode || '').trim();
+  if (managedMode === 'active') {
+    return '托管中';
+  }
+  if (managedMode === 'shell') {
+    return '离线托管';
+  }
+  return '';
+}
+
+/**
+ * @param {object|null|undefined} member
+ * @returns {string}
+ */
+function resolveManagedClass(member) {
+  const managedMode = String(member?.managedMode || '').trim();
+  if (managedMode === 'active') {
+    return 'managed-active';
+  }
+  if (managedMode === 'shell') {
+    return 'managed-shell';
+  }
+  return '';
+}
+
+/**
+ * @param {string} playerId
+ * @returns {object|null|undefined}
+ */
+function findRoomMember(playerId) {
+  const members = currentRoom.value?.members;
+  if (!Array.isArray(members)) {
+    return null;
+  }
+  return members.find((item) => String(item?.playerId || '').trim() === playerId) || null;
+}
+
+/**
  * @param {string} playerId
  * @returns {string}
  */
@@ -445,12 +535,17 @@ const opponentPanels = computed(() => {
     .map((item) => {
       const playerId = String(item.playerId || '').trim();
       const finishRank = Number(item.finishRank);
+      const member = findRoomMember(playerId);
+      const managedMode = String(member?.managedMode || '').trim();
+      const isManagedMode = ['active', 'shell'].includes(managedMode);
       return {
         playerId,
         nickname: resolvePlayerNickname(playerId),
         handCount: Number(item.handCount) || 0,
-        isAi: Boolean(item.isAi),
-        isManaged: Boolean(item.isManaged),
+        isAi: Boolean(member?.isAi ?? item.isAi),
+        isManaged: isManagedMode,
+        managedLabel: resolveManagedLabel(member),
+        managedBadgeClass: resolveManagedClass(member),
         isCurrentTurn: playerId === currentPlayerIdInTurn.value,
         finishRank: Number.isFinite(finishRank) && finishRank > 0 ? finishRank : null
       };
@@ -566,10 +661,15 @@ async function ensureRoomAndGameView() {
       return;
     }
     if (!isRoomMember.value) {
+      if (isUserShellInRoom(currentRoom.value)) {
+        shellRejoinOffered.value = true;
+        return;
+      }
       loadError.value = '你尚未加入该房间';
       await backToRoomOrLobby();
       return;
     }
+    shellRejoinOffered.value = false;
     const status = String(currentRoom.value.status || '').trim();
     if (status !== 'playing') {
       await backToRoomOrLobby();
@@ -628,7 +728,11 @@ async function onSettlementClose() {
   await backToRoomOrLobby();
 }
 
-async function onLeaveRoom() {
+async function onBackToRoom() {
+  await backToRoomOrLobby();
+}
+
+async function onExitRoomWithShell() {
   const roomId = activeRoomId.value;
   if (!roomId) {
     navigateToLobby();
@@ -641,9 +745,27 @@ async function onLeaveRoom() {
     roomService.resetRoomGameView();
     await router.push({ name: 'online-room-list', params: { gameCode: activeGameCode.value } });
   } catch (err) {
-    loadError.value = err?.message || '离开房间失败';
+    loadError.value = err?.message || '退出房间失败';
   } finally {
     gameViewActionBusy.value = false;
+  }
+}
+
+async function onRejoinRoom() {
+  const roomId = activeRoomId.value;
+  if (!roomId || rejoinBusy.value) {
+    return;
+  }
+  rejoinBusy.value = true;
+  loadError.value = '';
+  try {
+    await roomService.rejoinManagedRoom(roomId);
+    shellRejoinOffered.value = false;
+    await unoService.loadRoomGameView(roomId);
+  } catch (err) {
+    loadError.value = err?.message || '重新加入失败';
+  } finally {
+    rejoinBusy.value = false;
   }
 }
 
