@@ -1,5 +1,6 @@
 ﻿"""房间模块业务编排。"""
 
+import copy
 import logging
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Optional
@@ -175,6 +176,8 @@ class RoomModuleService(object):
             return None
         if bool(target.get("isAi")):
             return None
+        old_member = copy.deepcopy(target)
+        game_code = str(meta.get("gameCode", "")).strip()
         target["isManaged"] = True
         target["managedMode"] = "shell"
         target["managedReason"] = reason
@@ -183,18 +186,43 @@ class RoomModuleService(object):
         target["updatedAt"] = current_time
         if not await self._repository.save_player(room_id, player_id, target):
             raise BizException(ErrorCode.SYSTEM_ERROR, message="房间成员写入失败")
-        game_code = str(meta.get("gameCode", "")).strip()
-        saved = await self._repository.save_managed_shell_room_index(
+        saved_index = await self._repository.save_managed_shell_room_index(
             player_id,
             game_code,
             room_id,
         )
-        if not saved:
+        if not saved_index:
+            rollback_ok = await self._repository.save_player(room_id, player_id, old_member)
+            if not rollback_ok:
+                logger.error(
+                    "shell index save failed and member rollback failed, roomId=%s playerId=%s",
+                    room_id,
+                    player_id,
+                )
             raise BizException(
                 ErrorCode.SYSTEM_ERROR,
                 message="托管房间索引写入失败",
             )
-        await self._repository.delete_player_room(player_id)
+        deleted_player_room = await self._repository.delete_player_room(player_id)
+        if not deleted_player_room:
+            index_cleared = await self._repository.delete_managed_shell_room_index(
+                player_id,
+                game_code,
+            )
+            if not index_cleared:
+                logger.error(
+                    "delete_player_room failed and shell index cleanup failed, roomId=%s playerId=%s",
+                    room_id,
+                    player_id,
+                )
+            rollback_ok = await self._repository.save_player(room_id, player_id, old_member)
+            if not rollback_ok:
+                logger.error(
+                    "delete_player_room failed and member rollback failed, roomId=%s playerId=%s",
+                    room_id,
+                    player_id,
+                )
+            raise BizException(ErrorCode.SYSTEM_ERROR, message="玩家房间索引删除失败")
         return target
 
     def _should_cleanup_playing_room(
@@ -349,7 +377,9 @@ class RoomModuleService(object):
                     meta["ownerPlayerId"] = new_owner_id
                     meta["ownerNickname"] = str(new_owner.get("nickname", new_owner_id)).strip()
             meta["updatedAt"] = current_time
-            await self._repository.save_meta(normalized_room_id, meta)
+            saved_meta = await self._repository.save_meta(normalized_room_id, meta)
+            if not saved_meta:
+                raise BizException(ErrorCode.SYSTEM_ERROR, message="房间元信息更新失败")
 
             version = await self._bump_version(normalized_room_id)
             refreshed_members = await self._repository.list_players(normalized_room_id)

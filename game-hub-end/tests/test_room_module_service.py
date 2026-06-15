@@ -299,13 +299,19 @@ async def test_mark_shell_managed_skips_ai_and_does_not_write_shell_index() -> N
 
 @pytest.mark.asyncio
 async def test_mark_shell_managed_locked_shell_index_failure_raises() -> None:
-    """shell index 写入失败时抛异常，不能静默成功。"""
+    """shell index 写入失败时抛异常、回滚 member，且不删除 player_room。"""
     service = _build_leave_service()
     service._repository.save_managed_shell_room_index = AsyncMock(return_value=False)
     meta = _playing_meta("owner-1")
-    members = [
-        {"playerId": "guest-1", "joinedAt": 1, "isAi": False, "nickname": "客人"},
-    ]
+    original_member = {
+        "playerId": "guest-1",
+        "joinedAt": 1,
+        "isAi": False,
+        "nickname": "客人",
+        "isManaged": False,
+        "managedMode": None,
+    }
+    members = [dict(original_member)]
     with pytest.raises(BizException) as exc_info:
         await service._mark_shell_managed_locked(
             "room-1",
@@ -318,6 +324,112 @@ async def test_mark_shell_managed_locked_shell_index_failure_raises() -> None:
     assert exc_info.value.code == ErrorCode.SYSTEM_ERROR.code
     assert "托管房间索引写入失败" in str(exc_info.value.message)
     service._repository.delete_player_room.assert_not_awaited()
+    assert service._repository.save_player.await_count == 2
+    rollback_args = service._repository.save_player.await_args_list[1]
+    rolled_back = rollback_args.args[2]
+    assert rolled_back["isManaged"] is False
+    assert rolled_back.get("managedMode") is None
+    assert rolled_back["playerId"] == "guest-1"
+
+
+@pytest.mark.asyncio
+async def test_mark_shell_managed_locked_delete_player_room_failure_rolls_back() -> None:
+    """delete_player_room 失败时抛异常、回滚 member 并清理 shell index。"""
+    service = _build_leave_service()
+    service._repository.save_managed_shell_room_index = AsyncMock(return_value=True)
+    service._repository.delete_player_room = AsyncMock(return_value=False)
+    meta = _playing_meta("owner-1")
+    original_member = {
+        "playerId": "guest-1",
+        "joinedAt": 1,
+        "isAi": False,
+        "nickname": "客人",
+        "isManaged": False,
+        "managedMode": None,
+    }
+    members = [dict(original_member)]
+    with pytest.raises(BizException) as exc_info:
+        await service._mark_shell_managed_locked(
+            "room-1",
+            meta,
+            members,
+            "guest-1",
+            "leave",
+            1000,
+        )
+    assert exc_info.value.code == ErrorCode.SYSTEM_ERROR.code
+    assert "玩家房间索引删除失败" in str(exc_info.value.message)
+    service._repository.delete_managed_shell_room_index.assert_awaited_once_with(
+        "guest-1",
+        "uno",
+    )
+    assert service._repository.save_player.await_count == 2
+    rollback_args = service._repository.save_player.await_args_list[1]
+    rolled_back = rollback_args.args[2]
+    assert rolled_back["isManaged"] is False
+    assert rolled_back.get("managedMode") is None
+
+
+@pytest.mark.asyncio
+async def test_mark_member_shell_managed_save_meta_failure_no_bump_no_push() -> None:
+    """mark_member_shell_managed 在 save_meta 失败时不 bump version、不推送房间更新。"""
+    service = _build_leave_service()
+    service._repository.get_meta = AsyncMock(return_value=_playing_meta("owner-1"))
+    guest_id = "guest-1"
+    service._repository.list_players = AsyncMock(
+        return_value=[
+            {"playerId": "owner-1", "joinedAt": 1, "isAi": False},
+            {"playerId": guest_id, "joinedAt": 2, "isAi": False},
+        ],
+    )
+    service._repository.save_meta = AsyncMock(return_value=False)
+    with patch("app.modules.room.module_service.push_room_updated", new=AsyncMock()) as push_room, patch(
+        "app.modules.room.module_service.push_room_list_updated",
+        new=AsyncMock(),
+    ) as push_list, patch(
+        "app.modules.room.module_service.push_game_view_updated",
+        new=AsyncMock(),
+    ):
+        with pytest.raises(BizException) as exc_info:
+            await service.mark_member_shell_managed("room-1", guest_id, "presenceTimeout")
+    assert exc_info.value.code == ErrorCode.SYSTEM_ERROR.code
+    assert "房间元信息更新失败" in str(exc_info.value.message)
+    service._bump_version.assert_not_awaited()
+    push_room.assert_not_awaited()
+    push_list.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_leave_room_bumps_version_once() -> None:
+    """playing leave 成功路径只 bump 一次 version。"""
+    service = _build_leave_service()
+    service._require_meta = AsyncMock(return_value=_playing_meta("owner-1"))
+    guest_id = "guest-1"
+    service._repository.list_players = AsyncMock(
+        side_effect=[
+            [
+                {"playerId": "owner-1", "joinedAt": 1, "isAi": False, "nickname": "房主"},
+                {"playerId": guest_id, "joinedAt": 2, "isAi": False, "nickname": "客人"},
+            ],
+            [
+                {"playerId": "owner-1", "joinedAt": 1, "isAi": False, "nickname": "房主"},
+                _shell_human(guest_id),
+            ],
+        ],
+    )
+    service._repository.delete_player_room = AsyncMock(return_value=True)
+    account = MagicMock()
+    account.server_id = guest_id
+    with patch("app.modules.room.module_service.push_room_updated", new=AsyncMock()), patch(
+        "app.modules.room.module_service.push_room_list_updated",
+        new=AsyncMock(),
+    ), patch(
+        "app.modules.room.module_service.push_game_view_updated",
+        new=AsyncMock(),
+    ):
+        result = await service.leave_room(account, "room-1")
+    assert result.dissolved is False
+    service._bump_version.assert_awaited_once_with("room-1")
 
 
 @pytest.mark.asyncio
