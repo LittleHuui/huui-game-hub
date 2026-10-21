@@ -27,7 +27,6 @@ class DoudizhuScoreInput(object):
         player_ids: List[str],
         landlord_player_id: str,
         winner_role: str,
-        personal_multipliers: Dict[str, int],
         global_multiplier: int,
         base_score: int,
         spring_type: Optional[str] = None,
@@ -39,7 +38,6 @@ class DoudizhuScoreInput(object):
         :param player_ids: 玩家 ID 列表，必须为 3 人。
         :param landlord_player_id: 地主玩家 ID。
         :param winner_role: 胜方角色 ``landlord`` / ``farmer``。
-        :param personal_multipliers: 各玩家个人倍数。
         :param global_multiplier: 全局倍数。
         :param base_score: 底分。
         :param spring_type: 春天类型。
@@ -48,7 +46,6 @@ class DoudizhuScoreInput(object):
         self.playerIds = player_ids
         self.landlordPlayerId = landlord_player_id
         self.winnerRole = winner_role
-        self.personalMultipliers = personal_multipliers
         self.globalMultiplier = global_multiplier
         self.baseScore = base_score
         self.springType = spring_type
@@ -77,7 +74,6 @@ def build_settlement(score_input: DoudizhuScoreInput) -> DoudizhuSettlementResul
             DoudizhuPlayerSettlement(
                 playerId=player_id,
                 role=role,
-                personalMultiplier=score_input.personalMultipliers[player_id],
                 scoreDelta=score_delta,
             )
         )
@@ -106,6 +102,8 @@ def _validate_score_input(score_input: DoudizhuScoreInput) -> None:
                 len(score_input.playerIds),
             )
         )
+    if len(set(score_input.playerIds)) != DOUDIZHU_PLAYER_COUNT:
+        raise ValidationException("斗地主结算玩家不能重复")
     if score_input.landlordPlayerId not in score_input.playerIds:
         raise ValidationException("地主玩家不在玩家列表中")
     if score_input.winnerRole not in (_WINNER_LANDLORD, _WINNER_FARMER):
@@ -114,22 +112,16 @@ def _validate_score_input(score_input: DoudizhuScoreInput) -> None:
         raise ValidationException("底分必须大于 0")
     if score_input.globalMultiplier < 1:
         raise ValidationException("全局倍数必须大于 0")
-    for player_id in score_input.playerIds:
-        multiplier = score_input.personalMultipliers.get(player_id)
-        if multiplier is None or multiplier < 1:
-            raise ValidationException(
-                "玩家 {0} 个人倍数无效".format(player_id)
-            )
 
 
 def _build_theoretical_deltas(
     score_input: DoudizhuScoreInput,
 ) -> Dict[str, int]:
     """
-    按地主与每名农民的独立结算关系计算理论积分变动（零和）。
+    按全桌统一倍率计算地主两份、每名农民一份的理论积分（零和）。
 
     单对结算额：
-    baseScore × globalMultiplier × landlordPersonalMultiplier × farmerPersonalMultiplier
+    baseScore × globalMultiplier
 
     :param score_input: 结算输入。
     :return: 玩家 ID -> 理论积分变动。
@@ -140,27 +132,10 @@ def _build_theoretical_deltas(
         if player_id != score_input.landlordPlayerId
     ]
     landlord_id = score_input.landlordPlayerId
-    landlord_multiplier = score_input.personalMultipliers[landlord_id]
     base_unit = score_input.baseScore * score_input.globalMultiplier
-    deltas = {}  # type: Dict[str, int]
-    pair_amounts = []
-    for farmer_id in farmers:
-        farmer_multiplier = score_input.personalMultipliers[farmer_id]
-        pair_amount = base_unit * landlord_multiplier * farmer_multiplier
-        pair_amounts.append(pair_amount)
-
-    if score_input.winnerRole == _WINNER_LANDLORD:
-        landlord_gain = 0
-        for farmer_id, pair_amount in zip(farmers, pair_amounts):
-            deltas[farmer_id] = -pair_amount
-            landlord_gain += pair_amount
-        deltas[landlord_id] = landlord_gain
-    else:
-        landlord_loss = 0
-        for farmer_id, pair_amount in zip(farmers, pair_amounts):
-            deltas[farmer_id] = pair_amount
-            landlord_loss += pair_amount
-        deltas[landlord_id] = -landlord_loss
+    farmer_delta = -base_unit if score_input.winnerRole == _WINNER_LANDLORD else base_unit
+    deltas = {farmer_id: farmer_delta for farmer_id in farmers}
+    deltas[landlord_id] = -sum(deltas.values())
 
     total = sum(deltas.values())
     if total != 0:

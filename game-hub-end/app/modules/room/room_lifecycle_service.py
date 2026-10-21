@@ -262,11 +262,10 @@ class RoomLifecycleService(object):
         :param room_id: 房间 ID。
         :return: 房间详情。
         """
-        meta = await require_meta(self._repository, room_id)
-        members = await self._repository.list_players(room_id)
-        version = await self._repository.get_room_version(room_id)
-        if version is None:
-            version = 0
+        snapshot = await self._repository.read_room_snapshot(room_id)
+        if snapshot is None:
+            raise BizException(ErrorCode.ROOM_NOT_FOUND)
+        meta, members, version = snapshot
         return build_room_response(meta, members, version)
 
     async def get_my_active_room(

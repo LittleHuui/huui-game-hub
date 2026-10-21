@@ -258,6 +258,10 @@ class HintSuggestionPage(BaseModel):
 
     items: List[HintSuggestion] = Field(default_factory=list, description="提示列表")
     nextCursor: Optional[str] = Field(default=None, description="下一页游标")
+    hasLegalAction: Optional[bool] = Field(
+        default=None,
+        description="请求 actionType 是否存在合法提交；false 表示已完整核验不存在，null 表示未确认",
+    )
 
 
 class GameView(BaseModel):

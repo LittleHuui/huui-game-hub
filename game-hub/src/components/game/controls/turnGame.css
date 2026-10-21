@@ -513,7 +513,7 @@ button.turn-action-bar__btn--end:disabled {
   margin-left: 0;
 }
 
-.selectable-item-hand:not(.selectable-item-hand--disabled)
+.selectable-item-hand:not(.selectable-item-hand--disabled):not(.selectable-item-hand--selecting)
   .selectable-item-hand__item:not(.selectable-item-hand__item--disabled):hover {
   transform: translateY(-18px);
 }
@@ -522,8 +522,9 @@ button.turn-action-bar__btn--end:disabled {
   transform: translateY(-28px);
 }
 
-.selectable-item-hand__item--drag-selected {
-  transform: translateY(-28px);
+.selectable-item-hand__item--range-preview {
+  outline: 2px dashed #7dd3fc;
+  outline-offset: 3px;
 }
 
 .selectable-item-hand:not(.selectable-item-hand--disabled)

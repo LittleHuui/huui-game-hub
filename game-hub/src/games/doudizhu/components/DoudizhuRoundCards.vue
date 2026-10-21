@@ -18,7 +18,7 @@
       />
     </div>
     <p class="doudizhu-round-cards__caption" data-test="global-multiplier">
-      当前倍率 ×{{ globalMultiplier }}
+      全桌倍率 ×{{ globalMultiplier }}
     </p>
   </div>
 </template>

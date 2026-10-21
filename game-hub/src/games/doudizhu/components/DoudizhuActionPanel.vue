@@ -13,6 +13,15 @@
         {{ resolveLabel(action.actionType) }}
       </button>
       <button
+        v-if="canHint"
+        type="button"
+        class="game-action-btn game-action-btn--md doudizhu-action-panel__hint"
+        :disabled="isHintDisabled"
+        @click="$emit('hint')"
+      >
+        提示
+      </button>
+      <button
         v-if="canPlayCards"
         type="button"
         class="game-action-btn game-action-btn--primary game-action-btn--md"
@@ -20,15 +29,6 @@
         @click="$emit('play')"
       >
         出牌
-      </button>
-      <button
-        v-if="canHint"
-        type="button"
-        class="game-action-btn game-action-btn--ghost game-action-btn--md"
-        :disabled="isHintDisabled"
-        @click="$emit('hint')"
-      >
-        提示
       </button>
       <slot name="middle" />
     </div>

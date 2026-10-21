@@ -50,12 +50,6 @@ export function useDoudizhuTableView(input) {
   const viewerManagedActive = computed(
     () => String(viewerRoomMember.value?.managedMode || '').trim() === 'active'
   );
-  const viewerPersonalMultiplier = computed(() => {
-    const player = publicPlayers.value.find(
-      (item) => String(item?.playerId || '').trim() === String(input.viewerIdRef.value || '').trim()
-    );
-    return Number(player?.personalMultiplier) || 1;
-  });
   const viewerIsCurrentTurn = computed(
     () => input.viewerIdRef.value === currentPlayerIdInTurn.value
   );
@@ -155,7 +149,6 @@ export function useDoudizhuTableView(input) {
     handCards,
     passPlayerIds,
     viewerManagedActive,
-    viewerPersonalMultiplier,
     viewerIsCurrentTurn,
     leftOpponent,
     rightOpponent,

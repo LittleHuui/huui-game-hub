@@ -18,7 +18,7 @@ from app.modules.game_impls.doudizhu.doudizhu_event_factory import (
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import (
     all_players_decided,
     animation_durations,
-    append_multiplier_detail,
+    apply_global_multiplier,
     build_phase_auto_advance,
     first_seat_player_id,
     next_calling_player_id,
@@ -113,11 +113,10 @@ class DoudizhuBiddingPhaseService(object):
         multiplier = int(rule_config.get("showCardsMultiplier", 2))
         player["showCards"] = True
         player["showCardsDecided"] = True
-        player["personalMultiplier"] = int(player.get("personalMultiplier") or 1) * multiplier
         players[player_id] = player
         state["players"] = players
         record_seat_action_feedback(state, player_id, "SHOW_CARDS")
-        append_multiplier_detail(
+        apply_global_multiplier(
             state,
             "SHOW_CARDS",
             player_id,
@@ -128,7 +127,7 @@ class DoudizhuBiddingPhaseService(object):
             context,
             "DOUDIZHU_SHOW_CARDS",
             player_id,
-            {"personalMultiplier": player.get("personalMultiplier")},
+            {"globalMultiplier": state.get("globalMultiplier")},
         )
         self.advance_showing_turn(state)
 
@@ -180,7 +179,7 @@ class DoudizhuBiddingPhaseService(object):
         record_seat_action_feedback(state, player_id, "CALL_LANDLORD")
         rule_config = state.get("ruleConfig") or {}
         call_multiplier = int(rule_config.get("callLandlordMultiplier", 1))
-        append_multiplier_detail(
+        apply_global_multiplier(
             state,
             "CALL_LANDLORD",
             player_id,
@@ -191,7 +190,10 @@ class DoudizhuBiddingPhaseService(object):
             context,
             "DOUDIZHU_CALL_LANDLORD",
             player_id,
-            {"multiplier": call_multiplier},
+            {
+                "multiplier": call_multiplier,
+                "globalMultiplier": state.get("globalMultiplier"),
+            },
         )
         self.enter_robbing_phase(state)
 
@@ -238,10 +240,9 @@ class DoudizhuBiddingPhaseService(object):
         player_id = action.playerId
         rule_config = state.get("ruleConfig") or {}
         rob_multiplier = int(rule_config.get("robLandlordMultiplier", 2))
-        state["globalMultiplier"] = int(state.get("globalMultiplier") or 1) * rob_multiplier
         state["landlordCandidatePlayerId"] = player_id
         record_seat_action_feedback(state, player_id, "ROB_LANDLORD")
-        append_multiplier_detail(
+        apply_global_multiplier(
             state,
             "ROB_LANDLORD",
             player_id,
@@ -301,11 +302,10 @@ class DoudizhuBiddingPhaseService(object):
         multiplier = int(rule_config.get("doubleMultiplier", 2))
         player["isDoubled"] = True
         player["doubleDecided"] = True
-        player["personalMultiplier"] = int(player.get("personalMultiplier") or 1) * multiplier
         players[player_id] = player
         state["players"] = players
         record_seat_action_feedback(state, player_id, "DOUBLE")
-        append_multiplier_detail(
+        apply_global_multiplier(
             state,
             "DOUBLE",
             player_id,
@@ -316,7 +316,7 @@ class DoudizhuBiddingPhaseService(object):
             context,
             "DOUDIZHU_DOUBLE",
             player_id,
-            {"personalMultiplier": player.get("personalMultiplier")},
+            {"globalMultiplier": state.get("globalMultiplier")},
         )
         self.advance_doubling_turn(state)
 

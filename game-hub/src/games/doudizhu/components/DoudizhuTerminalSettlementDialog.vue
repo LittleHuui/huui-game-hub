@@ -15,6 +15,10 @@
         <strong>{{ winnerLabel }}</strong>
       </p>
 
+      <p class="doudizhu-settlement__multiplier" data-test="settlement-multiplier">
+        全桌倍率 ×{{ globalMultiplier }}
+      </p>
+
       <ul v-if="isCompleted && playerRows.length" class="doudizhu-settlement__list">
         <li
           v-for="row in playerRows"
@@ -146,6 +150,9 @@ const winnerLabel = computed(() => {
 });
 const winnerBanner = computed(() =>
   WINNER_BANNERS[String(props.settlement?.winnerRole || '').trim().toLowerCase()] || null
+);
+const globalMultiplier = computed(() =>
+  Math.max(1, Number(props.settlement?.globalMultiplier) || 1)
 );
 const settlementStatus = computed(() =>
   String(props.terminalMetadata?.settlementStatus || '').trim()

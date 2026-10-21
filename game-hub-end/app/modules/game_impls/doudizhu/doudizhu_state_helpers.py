@@ -4,6 +4,7 @@ import hashlib
 
 from typing import Any, Dict, List, Optional
 
+from app.common.exceptions import ValidationException
 from app.modules.game_impls.doudizhu.doudizhu_combo_rule import DoudizhuComboRuleConfig
 from app.modules.game_impls.doudizhu.schemas import DoudizhuCard, DoudizhuComboInfo
 from app.modules.game_seed.doudizhu_seed import DOUDIZHU_ONLINE_GAME_RULE_SEED
@@ -169,7 +170,6 @@ def empty_player_state(player_id: str, seat_index: int) -> Dict[str, Any]:
         "isLandlord": False,
         "showCards": False,
         "showCardsDecided": False,
-        "personalMultiplier": 1,
         "isDoubled": False,
         "callDecided": False,
         "doubleDecided": False,
@@ -351,7 +351,7 @@ def record_seat_action_feedback(
     }
 
 
-def append_multiplier_detail(
+def apply_global_multiplier(
     state: Dict[str, Any],
     detail_type: str,
     player_id: Optional[str],
@@ -359,7 +359,7 @@ def append_multiplier_detail(
     event_type: str,
 ) -> None:
     """
-    追加倍数明细记录。
+    累乘全桌倍率并记录本次来源，两者随同一个动作提交。
 
     :param state: 对局状态。
     :param detail_type: 明细类型。
@@ -368,6 +368,9 @@ def append_multiplier_detail(
     :param event_type: 关联事件类型。
     :return: 无。
     """
+    if multiplier < 1:
+        raise ValidationException("全局倍率因子必须大于 0")
+    state["globalMultiplier"] = int(state.get("globalMultiplier") or 1) * multiplier
     details = list(state.get("multiplierDetails") or [])
     details.append(
         {

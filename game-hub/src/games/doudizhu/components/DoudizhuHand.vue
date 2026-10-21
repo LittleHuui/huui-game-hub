@@ -10,6 +10,7 @@
       :disabled-item-ids="disabledItemIds"
       :disabled="disabled"
       :busy="busy"
+      :selection-context="selectionContext"
       :multiple="true"
       :stack-items="true"
       @change="$emit('change', $event)"
@@ -51,6 +52,10 @@ const props = defineProps({
   busy: {
     type: Boolean,
     default: false
+  },
+  selectionContext: {
+    type: String,
+    default: ''
   }
 });
 

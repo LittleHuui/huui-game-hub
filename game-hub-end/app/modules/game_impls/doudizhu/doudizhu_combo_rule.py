@@ -55,19 +55,23 @@ from app.modules.game_impls.doudizhu.schemas import DoudizhuCard, DoudizhuComboI
 def recognize_combo(
     cards: List[DoudizhuCard],
     config: Optional[DoudizhuComboRuleConfig] = None,
+    target: Optional[DoudizhuComboInfo] = None,
 ) -> Optional[DoudizhuComboInfo]:
     """
-    识别一组出牌是否为合法牌型。
+    按固定家族优先级识别牌型；跟牌时选择可压过目标的解释。
 
     :param cards: 待识别牌列表。
     :param config: 规则配置；默认关闭癞子且允许带单。
-    :return: 牌型信息；无法识别时返回 ``None``。
+    :param target: 待压过的牌型；为空时仅识别牌组。
+    :return: 牌型信息；不存在符合上下文的解释时返回 ``None``。
     """
     if not cards:
         return None
+    # 实例顺序只用于稳定元数据及癞子分配，不参与牌型大小判定。
+    ordered_cards = sorted(cards, key=lambda card: card.cardInstanceId)
     rule_config = config or DoudizhuComboRuleConfig()
     jokers, laizis, naturals = partition_cards(
-        cards,
+        ordered_cards,
         rule_config.laiziRankCode,
         rule_config.enableLaizi,
     )
@@ -89,8 +93,8 @@ def recognize_combo(
         try_single,
     ]
     for detector in detectors:
-        combo = detector(cards, jokers, laizis, naturals, rule_config)
-        if combo is not None:
+        combo = detector(ordered_cards, jokers, laizis, naturals, rule_config)
+        if combo is not None and can_beat(combo, target):
             return combo
     return None
 

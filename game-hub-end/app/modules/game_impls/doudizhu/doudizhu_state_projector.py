@@ -3,6 +3,7 @@
 from typing import Any, Dict, List
 
 from app.modules.game_impls.doudizhu.doudizhu_constants import PHASE_FINISHED, PHASE_SETTLEMENT
+from app.modules.game_impls.doudizhu.doudizhu_state_codec import parse_state
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import parse_cards
 from app.modules.strategy_turn.lifecycle import GameStateProjector
 from app.modules.strategy_turn.schemas import GameStateProjection
@@ -25,6 +26,7 @@ class DoudizhuStateProjector(GameStateProjector):
         :return: 状态投影。
         """
         del current_time_ms
+        state = parse_state(state)
         viewer_id = str(viewer_player_id).strip()
         phase = str(state.get("phase") or "")
         public_players = self._build_public_players(state, viewer_id)
@@ -73,7 +75,6 @@ class DoudizhuStateProjector(GameStateProjector):
                     "showCards": bool(player_raw.get("showCards")),
                     "visibleCards": visible_cards,
                     "isDoubled": bool(player_raw.get("isDoubled")),
-                    "personalMultiplier": int(player_raw.get("personalMultiplier") or 1),
                     "playCount": int(player_raw.get("playCount") or 0),
                     "passCount": int(player_raw.get("passCount") or 0),
                 }

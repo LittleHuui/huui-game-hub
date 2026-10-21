@@ -68,6 +68,8 @@ Finalize 的后续清理携带最终 CAS 的 `terminalRoomVersion`，与开局�
 
 房间 meta 与成员 Hash 是成员事实，player-room 与 managed-shell 是派生归属索引。`room_membership_index_lua.py` 统一分类、归属变更和续期；`RoomRepository.get_active_membership` 为跨游戏当前房间查询、创建、加入、恢复席位和邀请中的同房检查提供同一事实读取。Lua 在同一次读取中核对玩家索引、房间 meta、成员和 roomVersion；索引在读取期间切换时有限重试。已失效索引仅比较归属后清理，损坏事实显式报错。未知或缺失的 gameCode 不会使真人非 shell 的真实占用失效，终局展示和结算中的 playing 房间仍受占用限制。
 
+房间详情通过 `RoomRepository.read_room_snapshot` 在一次只读 Lua 中取得 meta、成员和 roomVersion，保留原始 JSON 后在 Python 校验解析。详情不能分次读取这些事实，避免 Finalize 或成员变更期间把旧状态、旧房主标为新版本，导致客户端拒绝同版本的正确实时快照。
+
 `RoomMutationCommit` 在单实例 Redis 中将创建、加入、恢复的成员写入与玩家占用认领原子提交，冲突不写入房间。它与 `RoomGameCommit` 共用成员索引变更逻辑：shell 转换、恢复和成员移除随事实一起提交，仅释放自身归属，不再由应用服务提前或事后补写索引。按游戏的房间列表索引与房间提交同步维护。列表中的成员清理与其他房间操作共用房间锁。启动重建由同一 Lua 分类输出候选，Python 只聚合候选和处理唯一性；已有有效 owner 保留，缺失且只有唯一候选时恢复，多个真实候选只记录歧义。请求链不扫描全部房间。
 
 普通房间续期及 `RoomMutationCommit`、`RoomGameCommit`、`Finalize` 原子提交共用已有归属的续期逻辑，期限不超过房间 meta 与成员事实；续期不调用重建，不补缺失 owner，也不覆盖另一房间。`room_membership_index_bindings.py` 只负责显式 RedisKeys 绑定与成员集合预读；Lua 在写入前再次核对集合，新增未绑定成员或版本冲突时不写数据和 TTL。普通续期遇到预绑定变化有限重试。shell 仅在 playing 且 gameCode 非空时具有自己的 shell 索引，不作为 active 占用。共享游戏列表索引的 TTL 不因短期房间加入而缩短。
@@ -79,6 +81,8 @@ Finalize 的后续清理携带最终 CAS 的 `terminalRoomVersion`，与开局�
 `strategyTurnGameViewService` 按版本顺序应用实时增量。当 `incomingVersion > highestAcceptedVersion + 1` 时，取消事件展示、丢弃旧展示任务并重新拉取权威 GameView。权威状态立即可交互，展示不锁住输入。连续缺口合并目标版本并共用在途请求，低于目标的完整快照可以应用，但不能提前宣布恢复完成。请求生命周期与展示生命周期独立；reset、切房和重试同时取消网络、timer 与等待 Promise，旧响应不能回写。
 
 房间查询、成员命令、对局请求和实时订阅分别位于 `roomQueryService`、`roomService`、`roomGameService`、`roomRealtimeService`。页面使用可取消上下文管理查询、订阅和后续导航，房间版本与请求代次在写回边界校验。大厅/等待页的弹窗及命令各有实际流程模块，不保留旧服务转发别名。
+
+等待入口由 `roomQueryService.loadRoomForWaiting` 区分正常 playing 与终局 playing：前者返回对局，后者显示结束处理提示并重查房间详情，只有权威 waiting 才展示房主管理操作。房间版本与对局版本独立；等待期间每次详情仍为 playing 时串行重查 GameView，以获得该对局版本的终局元数据，不能按 roomVersion 缓存结算状态或展示期限。等待按 `terminalDisplayUntil` 加 30 秒余量计算，单次最多 120 秒；超时提供重试、返回对局和大厅入口。推送丢失时查询仍可收敛，切房、身份变化及卸载取消请求和计时器；同版本事实等价时不重复写回，成员归属仍只由独立查询更新。
 
 跨游戏成员归属只保存为 `roomStore.activeRoom` 查询快照，`currentRoom` 仍是浏览或对局详情，不能推断成员资格。`roomQueryService` 是归属快照的唯一写入者，按用户、服务地址和数据模式隔离请求，取消被替代的查询；查询失败保留已知事实并记录错误。查询状态明确区分 `idle/loading/ready/error`，只有 `ready` 的空值表示已确认无归属，旧查询不能回退新状态。`roomService` 在创建、加入、恢复和退出开始时废止旧查询，结束后统一重查归属，命令成功或原异常不会被查询失败改写。大厅、全局邀请与恢复入口消费同一快照；composable 只管理确认、忙态、错误展示和导航，页面 reset 不清其他页面的共享事实。退出确认固定目标房间，弹窗关闭与次要按钮事件分开，只有明确的退出意图进入确认。
 

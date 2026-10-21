@@ -58,7 +58,11 @@ Ticket 存储在 Redis，短时有效且只能消费一次。房间及实时操�
 
 房间、在线状态和对局接口使用 HTTP Bearer 认证。
 
+`POST /rooms/{roomId}/action-suggestions` 的 Path 参数 `roomId` 为房间 ID，Body 包含必填 `baseVersion`（整数）、`actionType`（字符串），以及可选 `cursor`（字符串或 `null`）和 `limit`（整数）。响应 `data` 包含 `items`（提示数组）、`nextCursor`（字符串或 `null`）及 `hasLegalAction`（布尔值或 `null`，默认 `null`）。该字段只描述请求的 `actionType`：`true` 表示存在合法提交，`false` 只表示服务端已完整核验不存在合法提交；`null` 表示未确认，包括搜索数量或耗时预算耗尽。空 `items` 本身不表示无法出牌。例如 `{"items":[],"nextCursor":null,"hasLegalAction":false}` 才是已确认无合法提示动作。斗地主查询 `PLAY_CARDS` 得到这个结果，且同一版本存在合法 `PASS` Offer 时，允许客户端复用普通动作提交执行不出；查询本身不会提交动作。
+
 `GET /rooms/my-active` 无请求体、无 `gameCode` 筛选，按当前认证用户查询跨游戏的活跃房间。响应 `data.room` 为房间详情对象（含 `roomId`、`gameCode`、`status`、`members`、`roomVersion` 等现有字段），无有效占用时为 `null`。有效占用要求房间处于 `waiting` 或 `playing`，且当前用户为非 AI、非 shell 成员；终局展示和待结算仍属于 `playing`，不会提前释放占用。
+
+`GET /rooms/{roomId}` 的 `status`、`ownerPlayerId`、`members` 与 `roomVersion` 来自同一次原子读取，不混用 Finalize 前后的事实和版本。终局展示期间仍返回 `playing`；开始游戏、添加 AI 和移除成员等等待房间操作须以服务端返回的 `waiting` 为准。
 
 该查询与创建、加入、恢复席位共用成员事实核对。房间已不存在、成员已移除、已转为 shell 或房间状态已失效时，仅清理仍属于该房间的旧索引；有效的其他房间仍返回 `90006`（玩家已在其他房间中）。无法可靠读取的损坏事实返回明确错误，不作为“无房间”放行。创建、加入与恢复成功时，成员和活跃占用在同一原子提交中写入。
 
@@ -126,6 +130,18 @@ Ticket 存储在 Redis，短时有效且只能消费一次。房间及实时操�
 `RuntimeSnapshot` 是对局事实源，`GameView` 是按查看者投影的结果。客户端消费 `actionOffers`，不读取 `GameView.legalActions`。
 
 斗地主癞子玩法的初始阶段为 `laizi_reveal`：`publicState.gameState` 已公开 `enableLaizi`、`laiziRankCode`、`laiziRankValue` 和 `laiziCardCodes`，此时玩家手牌与底牌尚未生成。自动推进到 `dealing` 后，`privateState.handCards` 中对应点数牌的 `isLaizi` 为 `true`；底牌在地主确认前仍通过 `bottomCards: []` 隐藏。癞子点数独立于底牌确定，普通玩法直接从 `dealing` 开始。
+
+斗地主 `GET /rooms/{roomId}/view` 的倍率与理论结算字段如下，开局、动作响应及实时 GameView 使用相同投影：
+
+| JSON 路径（相对 `publicState`） | 类型 | 说明与示例 |
+| --- | --- | --- |
+| `gameState.globalMultiplier` | integer，必填 | 全桌唯一累计倍率，初始 `1`；明牌、抢地主、加倍、炸弹、王炸、春天 / 反春天均累乘此值，例如 `16`。 |
+| `gameState.multiplierDetails` | array，必填 | 倍率明细，初始 `[]`；每项包含 `type`、`playerId`（春天可空）、`multiplier`、`globalMultiplierAfter`、`eventType`。 |
+| `players[].showCards` / `players[].isDoubled` | boolean，必填 | 玩家是否选择明牌 / 加倍，例如 `true`；只表示行为，玩家不再返回 `personalMultiplier`。 |
+| `gameState.settlement` | object / null，必填 | 未结算为 `null`；结算对象包括 `baseScore`、`globalMultiplier`、`landlordPlayerId`、`winnerRole`、`springType`、`multiplierDetails.entries`、`playerSettlements`。 |
+| `gameState.settlement.playerSettlements[]` | object | 新结算每项仅含 `playerId`、`role`、`scoreDelta`；地主按两份、农民各一份 `baseScore × globalMultiplier` 生成理论零和积分，例如 `+32 / -16 / -16`，不含个人倍率。 |
+
+历史上已生成的旧结算保留原结果；新结算与已归一化的未结算局统一使用全桌倍率。实际钱包入账仍以 `terminalMetadata.settlementResult.playerSettlements[].actualDelta` 为准。
 
 ```json
 {

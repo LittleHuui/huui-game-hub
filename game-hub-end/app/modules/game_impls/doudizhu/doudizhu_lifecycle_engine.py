@@ -1,6 +1,5 @@
 """斗地主生命周期引擎。"""
 
-import copy
 from typing import Any, Dict
 
 from app.common.exceptions import ValidationException
@@ -35,6 +34,7 @@ from app.modules.game_impls.doudizhu.doudizhu_playing_phase_service import (
 from app.modules.game_impls.doudizhu.doudizhu_settlement_service import (
     DoudizhuSettlementService,
 )
+from app.modules.game_impls.doudizhu.doudizhu_state_codec import parse_state
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import (
     empty_player_state,
     resolve_room_config,
@@ -178,7 +178,7 @@ class DoudizhuLifecycleEngine(GameLifecycleEngine):
         :param action: 已解析操作。
         :return: 动作执行结果。
         """
-        working = copy.deepcopy(state)
+        working = parse_state(state)
         phase = str(working.get("phase") or "")
         if phase == PHASE_FINISHED:
             raise ValidationException("对局已结束，无法继续操作")
@@ -226,7 +226,7 @@ class DoudizhuLifecycleEngine(GameLifecycleEngine):
         :param state: 当前对局状态。
         :return: 推进结果。
         """
-        working = copy.deepcopy(state)
+        working = parse_state(state)
         phase = str(working.get("phase") or "")
         if phase in (
             PHASE_DEALING,

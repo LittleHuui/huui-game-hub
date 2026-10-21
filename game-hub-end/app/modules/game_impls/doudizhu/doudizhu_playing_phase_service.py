@@ -10,7 +10,7 @@ from app.modules.game_impls.doudizhu.doudizhu_event_factory import (
     DoudizhuEventFactory,
 )
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import (
-    append_multiplier_detail,
+    apply_global_multiplier,
     build_combo_signature,
     build_last_play_signature,
     clear_seat_action_feedback,
@@ -142,8 +142,7 @@ class DoudizhuPlayingPhaseService(object):
         if combo.isRocket:
             multiplier = int(rule_config.get("rocketMultiplier", 2))
             state["rocketCount"] = int(state.get("rocketCount") or 0) + 1
-            state["globalMultiplier"] = int(state.get("globalMultiplier") or 1) * multiplier
-            append_multiplier_detail(
+            apply_global_multiplier(
                 state,
                 "ROCKET",
                 player_id,
@@ -159,8 +158,7 @@ class DoudizhuPlayingPhaseService(object):
         elif combo.isBomb:
             multiplier = int(rule_config.get("bombMultiplier", 2))
             state["bombCount"] = int(state.get("bombCount") or 0) + 1
-            state["globalMultiplier"] = int(state.get("globalMultiplier") or 1) * multiplier
-            append_multiplier_detail(
+            apply_global_multiplier(
                 state,
                 "BOMB",
                 player_id,

@@ -124,7 +124,6 @@ class DoudizhuPlayerSettlement(BaseModel):
 
     playerId: str = Field(min_length=1, description="玩家 ID")
     role: str = Field(min_length=1, description="角色：landlord / farmer")
-    personalMultiplier: int = Field(description="个人倍数")
     scoreDelta: int = Field(description="理论积分变动")
 
 

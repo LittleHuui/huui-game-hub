@@ -1,20 +1,28 @@
 <template>
   <div
+    ref="handRef"
     class="selectable-item-hand"
-    :class="{ 'selectable-item-hand--disabled': disabled || busy }"
+    :class="{
+      'selectable-item-hand--disabled': disabled || busy,
+      'selectable-item-hand--selecting': multiple && isSelecting
+    }"
+    :style="{ touchAction: multiple ? 'none' : 'manipulation' }"
     role="list"
-    @mouseleave="onHandMouseLeave"
-    @mouseup="onHandMouseUp"
+    @pointermove="onPointerMove"
+    @pointerup="onPointerUp"
+    @pointercancel="onPointerCancel"
+    @lostpointercapture="onPointerCancel"
   >
     <div
       v-for="(item, index) in items"
       :key="item.id"
+      :data-item-id="item.id"
       class="selectable-item-hand__item"
       :class="{
         'selectable-item-hand__item--selected':
           !interactionBlocked && !isItemDisabled(item) && isSelected(item.id),
-        'selectable-item-hand__item--drag-selected':
-          !interactionBlocked && !isItemDisabled(item) && isDragSelected(item.id),
+        'selectable-item-hand__item--range-preview':
+          !interactionBlocked && !isItemDisabled(item) && rangePreviewIds.includes(item.id),
         'selectable-item-hand__item--disabled': isItemDisabled(item),
         'selectable-item-hand__item--shake':
           !interactionBlocked && !isItemDisabled(item) && shakeItemId === item.id
@@ -22,16 +30,15 @@
       :style="stackItems ? { zIndex: resolveStackOrder(item, index) } : undefined"
       role="listitem"
       :aria-disabled="isItemDisabled(item)"
-      @mousedown.prevent="onItemMouseDown(item, index, $event)"
-      @mouseenter="onItemMouseEnter(item, index)"
-      @click="onItemClick(item, index)"
+      @pointerdown="onItemPointerDown(item, index, $event)"
+      @click="onItemClick(item, $event)"
     >
       <slot
         name="item"
         :item="item"
         :index="index"
         :selected="
-          !interactionBlocked && !isItemDisabled(item) && isVisuallySelected(item.id)
+          !interactionBlocked && !isItemDisabled(item) && isSelected(item.id)
         "
         :disabled="isItemDisabled(item)"
       />
@@ -41,6 +48,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useSelectableItemGesture } from './useSelectableItemGesture.js';
 import './turnGame.css';
 
 const ILLEGAL_SELECTION_FEEDBACK_MS = 380;
@@ -83,6 +91,11 @@ const props = defineProps({
   stackItems: {
     type: Boolean,
     default: false
+  },
+  /** 选择所属的交互上下文，变化时取消未完成的手势。 */
+  selectionContext: {
+    type: String,
+    default: ''
   }
 });
 
@@ -92,36 +105,28 @@ const interactionBlocked = computed(() => props.disabled || props.busy);
 
 const selectableSet = computed(() => new Set(normalizeIds(props.selectableItemIds)));
 const disabledSet = computed(() => new Set(normalizeIds(props.disabledItemIds)));
+const selectedSet = computed(() => new Set(normalizeIds(props.selectedItemIds)));
 
 const shakeItemId = ref('');
-/** @type {boolean} */
-const dragSelecting = ref(false);
-/** @type {string[]} */
-const dragSelectedIds = ref([]);
-/** @type {string[]} */
-let dragBaselineSelection = [];
-/** @type {boolean} */
-let dragMoved = false;
+const handRef = ref(null);
 let shakeTimer = null;
 
-onBeforeUnmount(() => {
-  clearShake();
-  cancelDragSelection();
-});
+const { isSelecting, rangePreviewIds, onItemPointerDown, onPointerMove, onPointerUp, onPointerCancel, onItemClick } =
+  useSelectableItemGesture(props, {
+    handRef,
+    isItemSelectable,
+    changeSelection: (ids) => emit('change', ids),
+    illegalSelection: onIllegalSelection
+  });
+
+onBeforeUnmount(clearShake);
 
 watch(
   () => props.items,
   () => {
     clearShake();
-    cancelDragSelection();
   }
 );
-
-watch(interactionBlocked, (blocked) => {
-  if (blocked) {
-    cancelDragSelection();
-  }
-});
 
 /**
  * 规范化 ID 列表。
@@ -157,47 +162,12 @@ function clearShake() {
 }
 
 /**
- * 取消拖拽选牌。
- */
-function cancelDragSelection() {
-  dragSelecting.value = false;
-  dragSelectedIds.value = [];
-  dragBaselineSelection = [];
-  dragMoved = false;
-}
-
-/**
+ * 只用已确认的受控选择驱动抬牌及选中外观，拖动范围单独高亮。
  * @param {string} id
  * @returns {boolean}
  */
 function isSelected(id) {
-  const normalized = String(id || '').trim();
-  if (!normalized) {
-    return false;
-  }
-  return normalizeIds(props.selectedItemIds).includes(normalized);
-}
-
-/**
- * 判断牌是否位于当前拖动框选范围。
- * @param {string} id
- * @returns {boolean}
- */
-function isDragSelected(id) {
-  if (!dragSelecting.value) {
-    return false;
-  }
-  const normalized = String(id || '').trim();
-  return Boolean(normalized) && dragSelectedIds.value.includes(normalized);
-}
-
-/**
- * 计算操作过程中的可视选中状态。拖动尚未结束时也必须立即给出反馈。
- * @param {string} id
- * @returns {boolean}
- */
-function isVisuallySelected(id) {
-  return isSelected(id) || isDragSelected(id);
+  return selectedSet.value.has(String(id || '').trim());
 }
 
 /**
@@ -255,135 +225,14 @@ function triggerShake(id) {
 }
 
 /**
- * 拖拽经过时更新临时选中集合。
- * @param {{ id: string }} item
- */
-function trackDragItem(item) {
-  const id = String(item?.id || '').trim();
-  if (!id || !isItemSelectable(item)) {
-    return;
-  }
-  if (!dragSelectedIds.value.includes(id)) {
-    dragSelectedIds.value = [...dragSelectedIds.value, id];
-  }
-}
-
-/**
- * 完成拖拽选牌。
- */
-function finishDragSelection() {
-  if (!dragSelecting.value || !dragMoved) {
-    cancelDragSelection();
-    return;
-  }
-  const nextSelection = normalizeIds(dragSelectedIds.value);
-  const baselineSelection = normalizeIds(dragBaselineSelection);
-  cancelDragSelection();
-  if (!nextSelection.length) {
-    return;
-  }
-  const allSelectable = nextSelection.every((id) => {
-    const item = (props.items || []).find((entry) => String(entry?.id || '').trim() === id);
-    return item && isItemSelectable(item);
-  });
-  if (allSelectable) {
-    emit('change', nextSelection);
-    return;
-  }
-  emit('change', baselineSelection);
-  const shakeId = nextSelection[nextSelection.length - 1] || '';
-  if (shakeId && !interactionBlocked.value) {
-    triggerShake(shakeId);
-    emit('illegal-click', { id: shakeId, reason: 'drag-not-selectable' });
-  }
-}
-
-/**
- * @param {{ id: string }} item
- * @param {number} index
- * @param {MouseEvent} event
- */
-function onItemMouseDown(item, _index, event) {
-  if (interactionBlocked.value || event.button !== 0) {
-    return;
-  }
-  const id = String(item?.id || '').trim();
-  if (!id || !isItemSelectable(item)) {
-    return;
-  }
-  dragBaselineSelection = normalizeIds(props.selectedItemIds);
-  dragSelecting.value = true;
-  dragSelectedIds.value = isSelected(id) ? normalizeIds(props.selectedItemIds) : [id];
-  trackDragItem(item);
-}
-
-/**
- * @param {{ id: string }} item
- * @param {number} index
- */
-function onItemMouseEnter(item, _index) {
-  if (!dragSelecting.value || interactionBlocked.value) {
-    return;
-  }
-  dragMoved = true;
-  trackDragItem(item);
-}
-
-function onHandMouseUp() {
-  if (!dragSelecting.value) {
-    return;
-  }
-  if (!dragMoved) {
-    cancelDragSelection();
-    return;
-  }
-  finishDragSelection();
-}
-
-function onHandMouseLeave() {
-  if (!dragSelecting.value) {
-    return;
-  }
-  if (!dragMoved) {
-    cancelDragSelection();
-    return;
-  }
-  finishDragSelection();
-}
-
-/**
+ * 展示一次非法选择反馈。
  * @param {{ id: string; disabled?: boolean }} item
- * @param {number} index
+ * @returns {void}
  */
-function onItemClick(item, _index) {
-  if (dragSelecting.value) {
-    cancelDragSelection();
-  }
-  if (dragMoved) {
-    dragMoved = false;
-    return;
-  }
+function onIllegalSelection(item) {
   const id = String(item?.id || '').trim();
-  if (!id || interactionBlocked.value) {
-    return;
-  }
-  if (!isItemSelectable(item)) {
-    triggerShake(id);
-    emit('illegal-click', {
-      id,
-      reason: isItemDisabled(item) ? 'disabled' : 'not-selectable'
-    });
-    return;
-  }
-  const current = normalizeIds(props.selectedItemIds);
-  if (current.includes(id)) {
-    emit('change', current.filter((itemId) => itemId !== id));
-    return;
-  }
-  if (props.multiple) {
-    emit('change', [...current, id]);
-    return;
-  }
-  emit('change', [id]);
+  if (!id || interactionBlocked.value) return;
+  triggerShake(id);
+  emit('illegal-click', { id, reason: isItemDisabled(item) ? 'disabled' : 'not-selectable' });
 }
 </script>

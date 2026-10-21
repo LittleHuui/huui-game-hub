@@ -131,4 +131,4 @@ def resolve_combo_from_payload(
     selected = select_cards_by_instance_ids(context.hand_cards, card_ids)
     if not selected:
         return None
-    return recognize_combo(selected, context.combo_config)
+    return recognize_combo(selected, context.combo_config, context.last_play)

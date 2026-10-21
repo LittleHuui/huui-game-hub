@@ -22,6 +22,12 @@ from app.modules.room.task_errors import TaskTemporaryInfrastructureError, TaskT
 ROOM_EXPIRE_SECONDS = 86400
 logger = logging.getLogger(__name__)
 
+_READ_ROOM_SNAPSHOT_LUA = """
+local meta = redis.call('GET', KEYS[1])
+if not meta then return {} end
+return {meta, redis.call('HVALS', KEYS[2]), redis.call('GET', KEYS[3]) or ''}
+"""
+
 _ADD_GAME_ROOM_INDEX_LUA = """
 redis.call('SADD', KEYS[1], ARGV[1])
 local ttl = redis.call('TTL', KEYS[1])
@@ -90,6 +96,35 @@ class RoomRepository(object):
         :return: 房间元信息；不存在时返回 ``None``。
         """
         return self._as_dict(await self._redis.get_json(RedisKeys.room_meta(room_id)))
+
+    async def read_room_snapshot(
+        self, room_id: str,
+    ) -> Optional[Tuple[Dict[str, Any], List[Dict[str, Any]], int]]:
+        """原子读取详情事实与版本，避免终局提交夹在多次读取之间。"""
+        raw = await self._redis.eval_raw(
+            _READ_ROOM_SNAPSHOT_LUA, 3,
+            [RedisKeys.room_meta(room_id), RedisKeys.room_players(room_id),
+             RedisKeys.room_room_version(room_id)], [],
+        )
+        if raw == []:
+            return None
+        try:
+            if not isinstance(raw, (list, tuple)) or len(raw) != 3:
+                raise ValueError("invalid room snapshot")
+            meta = json.loads(raw[0])
+            if not isinstance(meta, dict) or meta.get("roomId") != room_id:
+                raise ValueError("invalid room meta")
+            if not isinstance(raw[1], (list, tuple)):
+                raise ValueError("invalid room members")
+            members = [json.loads(item) for item in raw[1]]
+            if any(not isinstance(member, dict) for member in members):
+                raise ValueError("invalid room member")
+            version = int(raw[2])
+            if version < 1:
+                raise ValueError("invalid room version")
+            return meta, members, version
+        except (TypeError, ValueError) as exc:
+            raise BizException(ErrorCode.SYSTEM_ERROR, message="房间详情快照无效，请重试") from exc
 
     async def get_meta_for_task(self, room_id: str) -> Optional[Dict[str, Any]]:
         """

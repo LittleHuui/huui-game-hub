@@ -21,7 +21,7 @@ from app.modules.game_impls.doudizhu.doudizhu_score_rule import (
 )
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import (
     animation_durations,
-    append_multiplier_detail,
+    apply_global_multiplier,
     build_phase_auto_advance,
 )
 
@@ -73,14 +73,12 @@ class DoudizhuSettlementService(object):
         rule_config = state.get("ruleConfig") or {}
         animation_ms = animation_durations(rule_config)
         landlord_id = str(state.get("landlordPlayerId") or "")
-        players = state.get("players") or {}
         landlord_won = winner_player_id == landlord_id
         winner_role = WINNER_LANDLORD if landlord_won else WINNER_FARMER
         spring_type = self.detect_spring_type(state, landlord_won)
         if spring_type is not None:
             multiplier = int(rule_config.get("springMultiplier", 2))
-            state["globalMultiplier"] = int(state.get("globalMultiplier") or 1) * multiplier
-            append_multiplier_detail(
+            apply_global_multiplier(
                 state,
                 spring_type,
                 None,
@@ -98,15 +96,11 @@ class DoudizhuSettlementService(object):
                 },
             )
         state["winnerRole"] = winner_role
-        personal_multipliers = {}
-        for player_id, player_raw in players.items():
-            personal_multipliers[player_id] = int(player_raw.get("personalMultiplier") or 1)
         settlement = build_settlement(
             DoudizhuScoreInput(
                 player_ids=list(state.get("playerIds") or []),
                 landlord_player_id=landlord_id,
                 winner_role=winner_role,
-                personal_multipliers=personal_multipliers,
                 global_multiplier=int(state.get("globalMultiplier") or 1),
                 base_score=int(rule_config.get("baseScore", 1)),
                 spring_type=spring_type,

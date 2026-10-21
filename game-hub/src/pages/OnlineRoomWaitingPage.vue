@@ -22,7 +22,7 @@
   </div>
 
   <RoomWaitingPage
-    v-else-if="ready && room"
+    v-else-if="ready && room?.status === 'waiting'"
     :room="room"
     :current-player-id="currentPlayerId"
     :room-rule="roomRule"
@@ -37,6 +37,17 @@
   />
   <div v-else class="room-hub-page room-hub-page--waiting">
     <p class="empty-text">{{ statusText }}</p>
+    <div v-if="errorMessage && !loading && !onlineBlocked" class="room-hub-form__actions">
+      <button type="button" class="game-action-btn game-action-btn--primary game-action-btn--sm" @click="ensureRoomContext">
+        重试
+      </button>
+      <button v-if="isRoomMember && room?.status === 'playing'" type="button" class="game-action-btn game-action-btn--ghost game-action-btn--sm" @click="navigatePlayRoom">
+        返回对局
+      </button>
+      <button type="button" class="game-action-btn game-action-btn--ghost game-action-btn--sm" @click="navigateLobby">
+        返回大厅
+      </button>
+    </div>
   </div>
 
   <RoomDetailDialog
@@ -139,10 +150,12 @@ const roomStore = useRoomStore();
 const { currentRoom, roomRule, roomConfigSchema } = storeToRefs(roomStore);
 
 const onlineBlocked = computed(() => !canFetchRemote());
+const membershipScope = computed(() => roomAccessService.getRoomMembershipScope());
 const gameCode = computed(() => String(route.params.gameCode || '').trim());
 const roomId = computed(() => String(route.params.roomId || '').trim());
 const ready = ref(false);
 const loading = ref(false);
+const finalizing = ref(false);
 const actionBusy = ref(false);
 const errorMessage = ref('');
 const shellRejoinOffered = ref(false);
@@ -156,6 +169,7 @@ const statusText = computed(() => {
     return '当前为本地模式，在线房间不可用。';
   }
   if (loading.value) {
+    if (finalizing.value) return '本局已结束，正在返回房间…';
     return '正在加载房间信息...';
   }
   if (errorMessage.value) {
@@ -217,7 +231,7 @@ async function navigatePlayRoom() {
 
 async function ensureRoomContext() {
   const operation = context.capture();
-  if (!operation.isCurrent()) return;
+  if (!operation.isCurrent() || loading.value) return;
   const id = roomId.value;
   if (!id || !gameCode.value || onlineBlocked.value) {
     errorMessage.value = id ? '房间不可用' : '房间 ID 无效';
@@ -226,11 +240,18 @@ async function ensureRoomContext() {
     return;
   }
   loading.value = true;
+  ready.value = false;
+  finalizing.value = false;
   errorMessage.value = '';
   try {
     await loadOnlineRuleDefinition(gameCode.value, { signal: operation.signal });
     if (!operation.isCurrent()) return;
-    await roomQueryService.loadRoomDetail(id, { signal: operation.signal });
+    await roomQueryService.loadRoomForWaiting(id, {
+      signal: operation.signal,
+      onFinalizing: () => {
+        if (operation.isCurrent()) finalizing.value = true;
+      }
+    });
     if (!operation.isCurrent()) return;
     if (!room.value) {
       errorMessage.value = '房间不存在或已被删除';
@@ -249,12 +270,14 @@ async function ensureRoomContext() {
       return;
     }
     shellRejoinOffered.value = false;
+    if (room.value.status === 'playing') {
+      await navigatePlayRoom();
+      return;
+    }
     ready.value = true;
   } catch (err) {
     if (!operation.isCurrent()) return;
     errorMessage.value = err?.message || '加载房间失败';
-    await navigateLobby();
-    if (!operation.isCurrent()) return;
   } finally {
     if (operation.isCurrent()) loading.value = false;
   }
@@ -306,10 +329,11 @@ const {
   onInviteUser
 } = useRoomWaitingDialogs({ roomId, room, isRoomMember, context, actionBusy, errorMessage });
 
-watch([gameCode, roomId, onlineBlocked], () => {
+watch([gameCode, roomId, onlineBlocked, membershipScope], () => {
   const operation = context.reset();
   ready.value = false;
   loading.value = false;
+  finalizing.value = false;
   actionBusy.value = false;
   rejoinBusy.value = false;
   shellRejoinOffered.value = false;
@@ -324,7 +348,7 @@ watch(
   () => room.value?.status,
   (status) => {
     const normalized = String(status || '').trim();
-    if (!roomId.value || shellRejoinOffered.value || isShellMember.value) {
+    if (!ready.value || !roomId.value || shellRejoinOffered.value || isShellMember.value) {
       return;
     }
     if (normalized === 'playing') {

@@ -1,4 +1,4 @@
-"""斗地主癞子归一化搜索与附带牌分配。"""
+"""斗地主癞子归一化搜索与附带牌分配；同牌型优先最高合法主牌。"""
 
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -44,7 +44,7 @@ def match_fixed_counts(
     if not candidate_ranks and laizis and config.enableLaizi:
         for value in range(3, 16):
             candidate_ranks.append(rank_code_for_value(value))
-    for rank_code in candidate_ranks:
+    for rank_code in sorted(candidate_ranks, key=rank_value_for_code, reverse=True):
         natural_count = len(naturals.get(rank_code, []))
         other_count = sum(
             len(group)
@@ -93,6 +93,7 @@ def match_two_rank_counts(
             code = rank_code_for_value(value)
             if code not in rank_codes:
                 rank_codes.append(code)
+    rank_codes.sort(key=rank_value_for_code, reverse=True)
     for main_rank in rank_codes:
         for attach_rank in rank_codes:
             if attach_rank == main_rank:
@@ -178,7 +179,7 @@ def match_consecutive_singles(
     :param length: 顺子长度。
     :return: ``(最高主牌值, 癞子分配)`` 或 ``None``。
     """
-    for start in range(3, 15 - length + 1):
+    for start in range(15 - length, 2, -1):
         end = start + length - 1
         needed_values = list(range(start, end + 1))
         assignment = solve_consecutive_requirements(
@@ -208,7 +209,7 @@ def match_consecutive_pairs(
     :param pair_count: 连对的对数。
     :return: ``(最高主牌值, 癞子分配)`` 或 ``None``。
     """
-    for start in range(3, 15 - pair_count + 1):
+    for start in range(15 - pair_count, 2, -1):
         end = start + pair_count - 1
         if end > 14:
             break
@@ -240,7 +241,7 @@ def match_consecutive_triples(
     :param group_count: 飞机连续组数。
     :return: ``(最高主牌值, 癞子分配)`` 或 ``None``。
     """
-    for start in range(3, 15 - group_count + 1):
+    for start in range(15 - group_count, 2, -1):
         end = start + group_count - 1
         if end > 14:
             break
@@ -332,7 +333,7 @@ def match_airplane_with_attachments(
         return None
     if joker_single_count > group_count:
         return None
-    for start in range(3, 15 - group_count + 1):
+    for start in range(15 - group_count, 2, -1):
         end = start + group_count - 1
         if end > 14:
             break
@@ -543,6 +544,7 @@ def match_four_with_attachments(
             code = rank_code_for_value(value)
             if code not in rank_codes:
                 rank_codes.append(code)
+    rank_codes.sort(key=rank_value_for_code, reverse=True)
     for main_rank in rank_codes:
         assignment = solve_four_with_attachments_for_main(
             naturals,

@@ -20,7 +20,6 @@ from app.modules.game_impls.doudizhu.doudizhu_combo_rule import (
     COMBO_TRIPLE_WITH_PAIR,
     COMBO_TRIPLE_WITH_SINGLE,
     DoudizhuComboRuleConfig,
-    can_beat,
     recognize_combo,
 )
 from app.modules.game_impls.doudizhu.doudizhu_laizi_rule import (
@@ -153,8 +152,8 @@ def generate_follow_combo_card_sets(
     hand_size = len(ctx["hand_cards"])
     if hand_size > 0:
         full_hand = list(ctx["hand_cards"])
-        combo = recognize_combo(full_hand, combo_config)
-        if combo is not None and can_beat(combo, last_play):
+        combo = recognize_combo(full_hand, combo_config, last_play)
+        if combo is not None:
             append_card_set(collector, full_hand)
 
 

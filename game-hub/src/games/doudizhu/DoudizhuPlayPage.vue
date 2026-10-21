@@ -149,7 +149,7 @@
           <DoudizhuActionPanel
             :button-actions="buttonActions"
             :can-play-cards="canPlayCards"
-            preview-message=""
+            :preview-message="hintMessage"
             :disabled="manualActionDisabled"
             :busy="gameViewActionBusy"
             :play-enabled="playActionEnabled"
@@ -170,6 +170,7 @@
                 :disabled-item-ids="disabledItemIds"
                 :disabled="handInteractionDisabled"
                 :busy="gameViewActionBusy"
+                :selection-context="playSelectionContextSignature"
                 @change="onHandSelectionChange"
               />
             </div>
@@ -424,12 +425,14 @@ const hintEnabled = computed(() => {
   return Boolean(capability?.supportsSuggestions) && hasPlayCardsOffer(gameViewActionOffers.value);
 });
 
-const { requestHint, clearHintCursor } = useDoudizhuHint({
+const { requestHint, clearHintCursor, hintMessage } = useDoudizhuHint({
   roomIdRef: activeRoomId,
   gameViewVersionRef: gameViewVersion,
   currentPlayerIdRef: gameViewCurrentPlayerId,
   viewerPlayerIdRef: gameViewViewerId,
   hintEnabledRef: hintEnabled,
+  actionOffersRef: gameViewActionOffers,
+  submitPass: onPanelAction,
   applySelection: (cardInstanceIds) => {
     selectedCardIds.value = [...cardInstanceIds];
   }
@@ -575,6 +578,7 @@ function onHandSelectionChange(ids) {
   if (interactionDisabled.value) {
     return;
   }
+  clearHintCursor();
   selectedCardIds.value = Array.isArray(ids) ? [...ids] : [];
 }
 

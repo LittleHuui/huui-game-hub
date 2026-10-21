@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from app.modules.game_impls.doudizhu.doudizhu_combo_rule import (
     DoudizhuComboRuleConfig,
-    can_beat,
     recognize_combo,
 )
 from app.modules.game_impls.doudizhu.doudizhu_laizi_rule import partition_cards
@@ -54,10 +53,8 @@ def enumerate_play_candidates_structured(
         if key in seen_ids:
             continue
         seen_ids.add(key)
-        combo = recognize_combo(cards, combo_config)
+        combo = recognize_combo(cards, combo_config, last_play)
         if combo is None:
-            continue
-        if last_play is not None and not can_beat(combo, last_play):
             continue
         candidates.append((combo, cards))
         if len(candidates) >= _MAX_CANDIDATES:

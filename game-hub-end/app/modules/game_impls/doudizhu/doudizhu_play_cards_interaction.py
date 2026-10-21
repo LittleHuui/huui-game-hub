@@ -6,7 +6,8 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.common.exceptions import ValidationException
-from app.modules.game_impls.doudizhu.doudizhu_combo_rule import can_beat, recognize_combo
+from app.modules.game_impls.doudizhu.doudizhu_combo_rule import recognize_combo
+from app.modules.game_impls.doudizhu.doudizhu_hint_play_search import find_legal_hint_play
 from app.modules.game_impls.doudizhu.doudizhu_play_candidate_generator import (
     enumerate_play_candidates_structured,
 )
@@ -78,12 +79,12 @@ class DoudizhuPlayCardsRuleService(object):
         hand_cards = self._hand_cards(context.state, context.playerId)
         selected_cards = self._pick_cards(hand_cards, normalized_ids)
         combo_config = build_combo_config(context.state)
-        combo = recognize_combo(selected_cards, combo_config)
-        if combo is None:
-            raise ValidationException("出牌牌型不合法")
         last_play = parse_combo_info(context.state.get("lastPlay"))
-        if not can_beat(combo, last_play):
-            raise ValidationException("出牌不能压过上家")
+        combo = recognize_combo(selected_cards, combo_config, last_play)
+        if combo is None:
+            if last_play is not None and recognize_combo(selected_cards, combo_config) is not None:
+                raise ValidationException("出牌不能压过上家")
+            raise ValidationException("出牌牌型不合法")
         sorted_ids = sorted(normalized_ids)
         combo_dict = combo.model_dump()
         payload = {
@@ -167,6 +168,26 @@ class DoudizhuPlayCardsRuleService(object):
             if len(results) >= int(limit):
                 break
         return results
+
+    def verify_hint_result(
+        self,
+        context: ActionInteractionContext,
+    ) -> Tuple[Optional[DoudizhuPlayCardsResolveResult], bool]:
+        """
+        在快速提示为空时核验合法牌，搜索未完成不能推断为无法出牌。
+
+        :param context: 当前版本的动作交互上下文。
+        :return: 补充提示结果与核验是否完成。
+        """
+        self._validate_turn(context)
+        cards, complete = find_legal_hint_play(
+            self._hand_cards(context.state, context.playerId),
+            build_combo_config(context.state),
+            parse_combo_info(context.state.get("lastPlay")),
+        )
+        if cards is None:
+            return None, complete
+        return self.resolve_selection(context, [card.cardInstanceId for card in cards]), True
 
     def _validate_turn(self, context: ActionInteractionContext) -> None:
         """
@@ -365,7 +386,14 @@ class DoudizhuPlayCardsInteraction(
             return HintSuggestionPage(items=[], nextCursor=None)
         results = self._rule_service.list_candidate_results(context, _HINT_CANDIDATE_BUDGET)
         if not results:
-            return HintSuggestionPage(items=[], nextCursor=None)
+            verified_result, complete = self._rule_service.verify_hint_result(context)
+            if verified_result is None:
+                return HintSuggestionPage(
+                    items=[],
+                    nextCursor=None,
+                    hasLegalAction=False if complete else None,
+                )
+            results = [verified_result]
         signature = self._build_cursor_signature(context)
         offset = self._decode_cursor(cursor, signature)
         limit = max(1, int(page_size or 20))
@@ -390,6 +418,7 @@ class DoudizhuPlayCardsInteraction(
                 for result in selected
             ],
             nextCursor=self._encode_cursor(signature, next_offset),
+            hasLegalAction=True,
         )
 
     def _list_hint_suggestions(
