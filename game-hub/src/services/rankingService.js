@@ -1,4 +1,4 @@
-import { hasGameCapability } from '../constants/gameRegistry.js';
+import { hasGameCapability } from '../games/gameModuleRegistry.js';
 import * as rankingRepository from '../repositories/rankingRepository.js';
 import { useRankingStore } from '../stores/rankingStore.js';
 import { canFetchRemote } from './remoteGate.js';

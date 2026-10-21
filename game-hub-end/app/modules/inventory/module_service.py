@@ -4,7 +4,8 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from app.common.page_response import PageResponse
 from app.common.exceptions import NotFoundException, ValidationException
-from app.modules.boot.schemas import PropUsageRecordResponse, UserPropBagResponse
+from app.modules.inventory.response_schemas import PropUsageRecordResponse
+from app.modules.inventory.response_schemas import UserPropBagResponse
 from app.modules.inventory.entity_service import (
     PropUsageRecordEntityService,
     UserPropBagEntityService,

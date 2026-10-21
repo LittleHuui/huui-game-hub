@@ -1,16 +1,20 @@
 """Redis 异步客户端工具封装。"""
 
+import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from app.core.config import settings
+from app.core.redis.redis_errors import RedisOperationError
 from app.core.redis.redis_constants import TimeUnit
 
 logger = logging.getLogger(__name__)
+REDIS_CONNECT_TIMEOUT_SECONDS = 3
+REDIS_IO_TIMEOUT_SECONDS = 5
 
 
 class RedisClient(object):
@@ -22,13 +26,95 @@ class RedisClient(object):
 
         :param client: 可选底层 Redis client，便于测试注入。
         """
-        self._client = client or Redis(
+        self._injected_client = client is not None
+        self._provided_client = client
+        self._provided_client_loop = None  # type: Optional[asyncio.AbstractEventLoop]
+        self._clients_by_loop = {}  # type: Dict[asyncio.AbstractEventLoop, Redis]
+
+    @property
+    def _client(self) -> Redis:
+        """
+        获取当前运行事件循环专属的底层客户端。
+
+        redis.asyncio 的连接、Future 与 Pub/Sub 都绑定创建和使用它们的事件循环。
+        单体应用的 lifespan、请求和后台任务运行在同一循环，因此复用同一客户端；
+        测试或嵌入式运行环境切换循环时必须创建独立客户端，不能复用已绑定的连接。
+        :return: 当前事件循环可安全使用的 Redis 客户端。
+        """
+        return self._get_client_for_running_loop()
+
+    def _get_client_for_running_loop(self) -> Redis:
+        """
+        返回当前运行循环的客户端，并丢弃已关闭循环的客户端引用。
+
+        已关闭循环上的异步连接不能在当前循环中关闭或复用；移除引用后由该循环
+        的关闭过程释放其底层资源，避免跨循环等待 Future。
+        :return: 当前运行循环对应的客户端。
+        """
+        loop = asyncio.get_running_loop()
+        self._discard_closed_loop_clients(loop)
+        client = self._clients_by_loop.get(loop)
+        if client is not None:
+            return client
+        if self._injected_client:
+            if self._provided_client_loop is None:
+                self._provided_client_loop = loop
+                self._clients_by_loop[loop] = self._provided_client
+                return self._provided_client
+            raise RuntimeError("injected Redis client is bound to a different event loop")
+        client = self._create_client()
+        self._clients_by_loop[loop] = client
+        return client
+
+    def _discard_closed_loop_clients(self, current_loop: asyncio.AbstractEventLoop) -> None:
+        """
+        清理已关闭循环持有的客户端引用。
+
+        不能在另一个循环中调用这些客户端的 ``aclose``，否则 Redis 内部 Future
+        会再次触发跨循环错误。运行中的其他循环不会被影响。
+        :param current_loop: 当前正在运行的事件循环。
+        :return: 无。
+        """
+        for loop in list(self._clients_by_loop):
+            if loop is current_loop or not loop.is_closed():
+                continue
+            self._clients_by_loop.pop(loop, None)
+            if self._provided_client_loop is loop:
+                self._provided_client_loop = None
+
+    def _create_client(self) -> Redis:
+        """
+        创建底层 Redis 异步客户端。
+
+        :return: Redis 客户端实例。
+        """
+        return Redis(
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
             db=settings.REDIS_DB,
             password=settings.REDIS_PASSWORD or None,
             decode_responses=settings.REDIS_DECODE_RESPONSES,
+            socket_connect_timeout=REDIS_CONNECT_TIMEOUT_SECONDS,
+            socket_timeout=REDIS_IO_TIMEOUT_SECONDS,
         )
+
+    async def reconnect(self) -> None:
+        """
+        关闭旧连接并创建新底层客户端（跨事件循环或应用重启场景）。
+
+        :return: 无。
+        """
+        if self._injected_client:
+            return
+        loop = asyncio.get_running_loop()
+        self._discard_closed_loop_clients(loop)
+        previous = self._clients_by_loop.pop(loop, None)
+        if previous is not None:
+            try:
+                await previous.aclose()
+            except Exception:
+                logger.debug("Redis aclose during reconnect ignored", exc_info=True)
+        self._clients_by_loop[loop] = self._create_client()
 
     async def set_string(self, key: str, value: str, expire: int, unit: TimeUnit = TimeUnit.SECONDS) -> bool:
         """
@@ -87,6 +173,51 @@ class RedisClient(object):
         except RedisError:
             logger.exception("Redis get_string failed, key=%s", key)
             return None
+
+    async def get_string_strict(self, key: str) -> Optional[str]:
+        """
+        严格读取字符串：key 不存在返回 ``None``，Redis 失败抛 ``RedisOperationError``。
+
+        :param key: Redis key。
+        :return: 字符串值；不存在时返回 ``None``。
+        :raises RedisOperationError: Redis 不可用时抛出。
+        """
+        try:
+            return await self._client.get(key)
+        except RedisError as exc:
+            logger.exception("Redis get_string_strict failed, key=%s", key)
+            raise RedisOperationError("redis get_string failed") from exc
+
+    async def get_json_strict(self, key: str) -> Optional[Any]:
+        """
+        严格读取 JSON：key 不存在返回 ``None``，Redis 失败抛 ``RedisOperationError``。
+
+        :param key: Redis key。
+        :return: 反序列化对象；不存在或格式非法时返回 ``None``。
+        :raises RedisOperationError: Redis 不可用时抛出。
+        """
+        value = await self.get_string_strict(key)
+        return self._decode_json(value, key)
+
+    async def hgetall_json_strict(self, key: str) -> Dict[str, Any]:
+        """
+        严格读取 hash 全部 JSON 字段；Redis 失败抛 ``RedisOperationError``。
+
+        :param key: Redis key。
+        :return: 字段名到 JSON 对象的映射。
+        :raises RedisOperationError: Redis 不可用时抛出。
+        """
+        try:
+            raw = await self._client.hgetall(key)
+        except RedisError as exc:
+            logger.exception("Redis hgetall_json_strict failed, key=%s", key)
+            raise RedisOperationError("redis hgetall failed") from exc
+        result = {}
+        for field, value in raw.items():
+            decoded = self._decode_json(value, "{0}:{1}".format(key, field))
+            if decoded is not None:
+                result[str(field)] = decoded
+        return result
 
     async def set_json(
         self,
@@ -404,6 +535,35 @@ class RedisClient(object):
             return []
         return keys
 
+    async def scan_keys_page(
+        self,
+        pattern: str,
+        cursor: int = 0,
+        count: int = 100,
+    ) -> Tuple[int, List[str]]:
+        """
+        使用 SCAN 分页查询匹配 key（禁止 KEYS 全库扫描）。
+
+        :param pattern: scan match pattern。
+        :param cursor: 当前游标；0 表示新一轮扫描起点。
+        :param count: 单次 SCAN 建议返回 key 数量。
+        :return: ``(下一游标, 本批 key 列表)``；游标为 0 表示本轮扫描结束。
+        """
+        try:
+            next_cursor, keys = await self._client.scan(
+                cursor=int(cursor),
+                match=pattern,
+                count=max(1, int(count)),
+            )
+            return int(next_cursor), list(keys)
+        except RedisError:
+            logger.exception(
+                "Redis scan_keys_page failed, pattern=%s cursor=%s",
+                pattern,
+                cursor,
+            )
+            return 0, []
+
     async def ping(self) -> bool:
         """
         检查 Redis 连接是否可用。
@@ -481,7 +641,44 @@ class RedisClient(object):
 
         :return: 无。
         """
-        await self._client.aclose()
+        if self._injected_client:
+            return
+        loop = asyncio.get_running_loop()
+        self._discard_closed_loop_clients(loop)
+        client = self._clients_by_loop.pop(loop, None)
+        if client is not None:
+            await client.aclose()
+
+    async def publish_json(self, channel: str, payload: Dict[str, Any]) -> int:
+        """
+        发布 JSON 格式的跨进程事件。
+        :param channel: Redis 发布频道。
+        :param payload: 可序列化事件载荷。
+        :return: 实际订阅者数量。
+        """
+        try:
+            result = await self._client.publish(
+                str(channel or "").strip(),
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            )
+            return int(result or 0)
+        except (RedisError, TypeError, ValueError):
+            logger.exception("Redis publish_json failed, channel=%s", channel)
+            return 0
+
+    async def subscribe_json(self, channel: str) -> Any:
+        """
+        创建 JSON 频道订阅对象。
+        :param channel: Redis 发布频道。
+        :return: 底层订阅对象；调用方负责关闭。
+        """
+        pubsub = self._client.pubsub()
+        try:
+            await pubsub.subscribe(str(channel or "").strip())
+        except BaseException:
+            await pubsub.aclose()
+            raise
+        return pubsub
 
     def _to_seconds(self, expire: int, unit: TimeUnit) -> int:
         """

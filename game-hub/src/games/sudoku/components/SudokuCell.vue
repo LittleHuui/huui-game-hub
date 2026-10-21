@@ -51,8 +51,6 @@ function handleContextMenu(event) {
   emit('erase-cell', props.cell, event);
 }
 
-const editable = computed(() => !props.cell.fixed);
-
 const showDrafts = computed(
   () => props.cell.value == null && Array.isArray(props.cell.drafts) && props.cell.drafts.length > 0
 );

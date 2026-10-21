@@ -174,11 +174,12 @@ import { useWalletStore } from '../stores/walletStore.js';
 import { useInventoryStore } from '../stores/inventoryStore.js';
 import { useHistoryStore } from '../stores/historyStore.js';
 import { useSettingStore } from '../stores/settingStore.js';
+import { canFetchRemote } from '../services/remoteGate.js';
 import { getDifficultyName } from '../services/gameDifficultyService.js';
 import { resolveGameDisplayName } from '../services/gameCatalogService.js';
 import { resolveMatchGameCode } from '../mappers/matchMapper.js';
 import { formatDisplayTime } from '../utils/formatTime.js';
-import { resolvePropDisplayName } from '../utils/resolvePropDisplayName.js';
+import { resolvePropDisplayNameFromShop } from '../services/shopDisplayService.js';
 import { recentHistoryRecords } from '../utils/historySort.js';
 import * as userService from '../services/userService.js';
 import * as walletService from '../services/walletService.js';
@@ -242,7 +243,8 @@ const purchaseRows = computed(() => {
 
 const ledgerRows = computed(() => {
   const uid = userStore.auth.currentUserId;
-  return walletStore.listForUser(uid).slice().reverse();
+  const rows = canFetchRemote() ? walletStore.displayPageForUser(uid) : walletStore.listForUser(uid);
+  return rows.slice().reverse();
 });
 
 const modalTitle = computed(() => {
@@ -313,7 +315,7 @@ function diffLabel(item) {
 function purchaseRecordLabel(row) {
   const propCode = row?.propCode || row?.payload?.propCode || '';
   const gameCode = row?.gameCode || '';
-  const name = resolvePropDisplayName(propCode, gameCode);
+  const name = resolvePropDisplayNameFromShop(propCode, gameCode);
   return name || '购买';
 }
 
@@ -334,11 +336,11 @@ function walletLedgerDisplayLabel(row) {
   const usePropReasons = new Set(['use_prop', 'prop_use', 'use']);
 
   if (purchaseReasons.has(reason)) {
-    return resolvePropDisplayName(propCode, gameCode) || '购买道具';
+    return resolvePropDisplayNameFromShop(propCode, gameCode) || '购买道具';
   }
 
   if (usePropReasons.has(reason)) {
-    return resolvePropDisplayName(propCode, gameCode) || '使用道具';
+    return resolvePropDisplayNameFromShop(propCode, gameCode) || '使用道具';
   }
 
   if (gameCode) {

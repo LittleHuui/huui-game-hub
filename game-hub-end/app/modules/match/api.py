@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.common.page_response import PageResponse
 from app.common.response import ApiResponse, success
-from app.modules.boot.schemas import MatchRecordResponse
+from app.modules.match.response_schemas import MatchRecordResponse
 from app.modules.match.deps import get_match_module_service
 from app.modules.match.module_service import MatchModuleService
 

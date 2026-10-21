@@ -25,7 +25,7 @@ export function mapRemoteUserToLocal(remote) {
 }
 
 /**
- * 规范化用户列表字段（原 store.normalizeUsers）。
+ * 规范化用户列表字段。
  * @param {import('../stores/userStore.js').GameUser[]} users
  */
 export function normalizeUsersList(users) {

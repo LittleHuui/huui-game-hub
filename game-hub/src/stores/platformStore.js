@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
-import { GAME_REGISTRY } from '../constants/gameRegistry.js';
+import {
+  getGameDisplayMetadata,
+  getGameFrontendModule
+} from '../games/gameModuleRegistry.js';
 
 export const usePlatformStore = defineStore('platform', {
   state: () => ({
@@ -7,7 +10,7 @@ export const usePlatformStore = defineStore('platform', {
     currentGameMode: '',
     bootStatus: 'syncing',
     networkMode: 'unknown',
-    /** 最近一次 health 探测是否成功 */
+    /** 最近一次依赖就绪探测是否成功 */
     remoteAvailable: false,
     syncMessage: '正在同步云存档...',
     /** boot/context 返回的 games，在线时优先用于目录 */
@@ -29,15 +32,16 @@ export const usePlatformStore = defineStore('platform', {
       if (fromCatalog) {
         return fromCatalog;
       }
-      const reg = GAME_REGISTRY[state.currentGameCode];
-      if (reg) {
-        const caps = reg.capabilities || {};
+      const module = getGameFrontendModule(state.currentGameCode);
+      const metadata = getGameDisplayMetadata(state.currentGameCode);
+      if (module && metadata) {
+        const caps = module.capabilities || {};
         return {
-          code: reg.code,
-          name: reg.name,
-          subName: reg.subName,
-          logo: reg.logo,
-          supportOnline: reg.supportOnline,
+          code: module.gameCode,
+          name: metadata.name,
+          subName: metadata.subName,
+          logo: metadata.logo,
+          supportOnline: caps.onlineBattle === true,
           enabled: true,
           sortNo: 0,
           playable: caps.offline === true || caps.leaderboard === true || caps.shop === true,
@@ -96,17 +100,19 @@ export const usePlatformStore = defineStore('platform', {
     setGameCatalog(list) {
       this.gameCatalog = Array.isArray(list) ? list : [];
     },
+    /**
+     * 选择已注册游戏并写入其默认模式。
+     * @param {string} code
+     * @returns {void}
+     */
     setCurrentGame(code) {
-      if (this.gameCatalog.some((g) => g.code === code)) {
-        this.currentGameCode = code;
-        const reg = GAME_REGISTRY[code];
-        this.currentGameMode = reg?.modes?.[0] || '';
+      const module = getGameFrontendModule(code);
+      if (!module) {
         return;
       }
-      if (GAME_REGISTRY[code]) {
-        this.currentGameCode = code;
-        this.currentGameMode = GAME_REGISTRY[code].modes?.[0] || '';
-      }
+      this.currentGameCode = code;
+      const metadata = getGameDisplayMetadata(code);
+      this.currentGameMode = metadata?.modes?.[0] || '';
     },
     /**
      * 锁定顶栏游戏切换（对局进行中）。
@@ -120,6 +126,7 @@ export const usePlatformStore = defineStore('platform', {
     },
     /**
      * 解除顶栏游戏切换锁。
+     * @returns {void}
      */
     unlockGameSwitch() {
       this.gameSwitchLocked = false;

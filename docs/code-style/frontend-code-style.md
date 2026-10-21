@@ -76,9 +76,9 @@ games/*Engine.js  ← 纯算法，被 Page / Service 调用，不依赖 Vue / DO
 
 | `repositoryMode` | 行为摘要 |
 |------------------|----------|
-| `local` | 纯本地；`networkMode` 视为 offline；不启用在线状态刷新、WebSocket、在线用户人数刷新；除健康检查外不发送远端业务请求 |
+| `local` | 纯本地；`networkMode` 视为 offline；不启用在线状态刷新、WebSocket、在线用户人数刷新；仅允许发送依赖就绪检查，不发送远端业务请求 |
 | `auto` | 探测远端可用性；可用则获取当前用户并启动在线运行时，否则 offline |
-| `remote` | 强制走远端（需 healthCheck 通过），获取当前用户后启动在线运行时 |
+| `remote` | 强制走远端（需 readinessCheck 通过），获取当前用户后启动在线运行时 |
 
 相关实现参考：`dataModeService.js`、`remoteGate.js`（`canFetchRemote()`）、`api/request.js`、`realtimeService.js`、`websocketClient.js`。
 
@@ -498,6 +498,8 @@ Engine **只产出** 上述结构；**不** 含 CSS class 名或毫秒时长（�
 | `gameSettingService` | 顶栏游戏设置分组展示、`setHubGameSettingSwitch`（读写在 `userService`） |
 | `gameSessionService` | `createGameSession`：对局会话、结算、对局/成绩入队 |
 | `syncService` | 云同步、`flushPendingIfOnline`、`refreshRemoteAfterSettle` |
+| `roomQueryService` / `roomService` | 房间查询与版本写回 / 成员及配置命令 |
+| `roomGameService` / `roomRealtimeService` | 对局请求与 GameView 接纳 / 房间订阅、Presence 与邀请 |
 | `onlineService` | 在线状态标记、在线用户列表、在线状态定时刷新 |
 | `realtimeService` | 平台单一 WebSocket 实时通道连接、发送、订阅 |
 | `dataModeService` | local/auto/remote 切换 |
@@ -619,6 +621,16 @@ await refreshRemoteAfterSettle({ includeRanking: true, gameCode, difficultyCode,
 | 结算后 `refreshRemoteAfterSettle` | Page 读 `LS_KEYS.PENDING_EVENTS` 并手动 splice |
 | 离线游玩、队列待传 | 页面 `onMounted` 无条件 `sync()` |
 
+### 13.4 事实与异步归属
+
+- 请求前捕获本地/服务端身份；响应仅写原目标桶，不能在 await 后重新读取当前身份决定归属。认证失败还须匹配请求 token 代次。
+- pending 的 ownerUserId 是本地元数据，不发送给 API。不能猜测历史无归属事件属于当前用户；保留待确认。
+- 同步发送完整事件快照；仅全批成功或重复、响应计数吻合时确认该发送集合，部分失败整批保留幂等重试。请求期间新增或同 clientId 内容变化的事件必须保留。
+- 钱包完整流水与分页展示缓存分离。完整分页校验通过后才合并事实，不能以第一页替换本地流水；保留其他用户和未确认事件。
+- 库存 pending 净额保留正负，叠加云快照后才裁剪为零。只有事实 ID 可证明关联时才确认本地 gain/cost；不得按数量或时间猜测存量购买归属。
+- 在线购买只合并购买及库存事实，余额摘要不能覆盖完整本地流水；成功后按原用户刷新完整钱包。刷新失败保留已有事实，并明确购买已完成，不能重发购买或推测服务端流水身份。
+- 身份映射辅助只接收参数，不能通过辅助工具扩大 Repository 对 Store 的依赖。
+
 ---
 
 ## 14. 排行榜规范
@@ -708,6 +720,8 @@ Page 触发使用意图
 - 使用 `async/await` 或 Promise 链 **串行** 播放步骤，避免并发冲突。
 - 时长、缓动函数放在 **一处**（Page 或 `useXxxAnimation.js`）。
 - 无效交换：Engine 返回 `swap` + 回弹步骤；Page 负责播放两次。
+- reset、重开和卸载必须取消 timer/RAF 并结束等待 Promise；每次 await 后核对对局代次，子动画也不能回写旧状态。
+- 单人 useXPage 组合控制器、展示、输入/动画和结算构造器；展示不调用引擎或持久化。幻彩碰撞到时等已接纳连锁结束后统一结算一次；数独生成唯一解，预算耗尽可保留更多已知格。
 
 ### 17.3 允许 / 禁止
 
@@ -902,7 +916,7 @@ Page 触发使用意图
 
 ### 23.2 `viewTemplate` 与种子边界
 
-- 页面模板键（如 `viewTemplate: 'light-single'`）仅写在 **`constants/gameRegistry.js`**（前端注册表）。
+- 页面模板键（如 `viewTemplate: 'light-single'`）仅写在 **`games/gameModuleRegistry.js` 与各游戏 `gameModule.js`**（前端注册表）。
 - **禁止** 将 `viewTemplate` 写入 `GAME_SEED_CONFIG` / `game-seed.json`；seed 只承载业务配置（难度、道具、排行榜规则等）。
 
 ### 23.3 可选模板 `light-single` 约束
@@ -919,7 +933,7 @@ Page 触发使用意图
 
 商城 / 排行榜 / 背包 UI 仍使用平台 `GameShopPanel`、`GameRankingPanel`、`GameInventoryPanel`，由 `{Game}Page.vue` 通过 slot 注入。
 
-详见 [`docs/new-game-guide.md` §3.1](../new-game-guide.md#31-轻量单人可选模板-light-single)。
+详见 [新游戏接入指南](../new-game-guide.md#前端接入)。
 
 ### 23.4 `GamePlayLayout` 结构（基础布局）
 
@@ -1160,7 +1174,7 @@ Page → Service → Repository → Local Cache → Sync Queue → Backend
 | 5 | 各游戏自建与 `gameSettings` 平行的第二套存储或键名表 |
 | 6 | 未注册 `gameSettingDefinitions` 却在顶栏/页面硬编码新开关 |
 
-游戏内 `*PageSettings.js` 仅复用 `findGameSettingDefinition` 的文案元数据；逻辑默认值以定义中 `defaultValue` 为准。详见 [architecture.md §2.8](../architecture.md#28-统一游戏设置game-settings)、[new-game-guide.md §9](../new-game-guide.md#9-新增游戏设置)、[api.md §4.5–4.6](../api.md#45-获取用户游戏设置)。
+游戏内 `*PageSettings.js` 仅复用 `findGameSettingDefinition` 的文案元数据；逻辑默认值以定义中 `defaultValue` 为准。接入边界见 [架构说明](../architecture.md)、[新游戏接入指南](../new-game-guide.md#前端接入) 和 [API 文档](../api.md)。
 
 ---
 
@@ -1184,7 +1198,7 @@ Page → Service → Repository → Local Cache → Sync Queue → Backend
 - 全站只使用 `/ws/game-hub/realtime` 一条 WebSocket。
 - 页面不直接 `new WebSocket`，统一通过 `services/realtimeService.js`。
 - 底层连接、重连、心跳、按 `type` 分发由 `utils/websocketClient.js` 封装。
-- 本地模式、缺少有效 `serviceId`、手动关闭、身份/权限失败状态均不得创建或自动重连 WebSocket。
+- 本地模式、缺少有效 Token、手动关闭、身份/权限失败状态均不得创建或自动重连 WebSocket。
 - close code `1008` 表示身份/权限失败，不自动重连；重新获取当前用户或切换到在线模式后清理失败状态并允许主动连接。
 - 普通网络断开由 `onclose` 统一触发指数退避重连，初始 1s，最大 30s；成功连接后重置退避状态。
 - `disconnect()` 必须清理重连定时器、心跳定时器和 socket 引用；已有 OPEN / CONNECTING 连接时不得重复创建。

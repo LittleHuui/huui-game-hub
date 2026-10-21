@@ -1,5 +1,5 @@
 import * as onlineApi from '../api/onlineApi.js';
-import * as userRepository from '../repositories/userRepository.js';
+import * as onlineAuthService from './onlineAuthService.js';
 import * as toastService from './toastService.js';
 import { canFetchRemote } from './remoteGate.js';
 
@@ -16,11 +16,10 @@ export async function markOnline() {
   if (!canFetchRemote()) {
     return null;
   }
-  const serviceId = userRepository.resolveServerUserId();
-  if (!serviceId) {
+  if (!onlineAuthService.hasCurrentAccessToken()) {
     return null;
   }
-  return onlineApi.updateOnlineStatus('online', serviceId);
+  return onlineApi.updateOnlineStatus('online');
 }
 
 /**
@@ -32,12 +31,11 @@ export async function markOffline() {
   if (!canFetchRemote()) {
     return;
   }
-  const serviceId = userRepository.resolveServerUserId();
-  if (!serviceId) {
+  if (!onlineAuthService.hasCurrentAccessToken()) {
     return;
   }
   try {
-    await onlineApi.updateOnlineStatus('offline', serviceId);
+    await onlineApi.updateOnlineStatus('offline');
   } catch {
     // 离线标记失败时由 Redis TTL 兜底。
   }
@@ -93,4 +91,10 @@ export async function loadOnlineUsers(options = {}) {
     }
     return [...onlineUsers];
   }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('game-hub-online-auth-failed', () => {
+    stopOnlineRefresh();
+  });
 }

@@ -3,7 +3,6 @@ import { createClientId } from '../utils/idService.js';
 import { nowMs } from '../utils/timeService.js';
 import * as purchaseRepository from '../repositories/purchaseRepository.js';
 import * as userRepository from '../repositories/userRepository.js';
-import * as syncRepository from '../repositories/syncRepository.js';
 import * as localRepo from '../repositories/localRepository.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { useUserStore } from '../stores/userStore.js';
@@ -54,8 +53,12 @@ export async function buyProp(opts) {
 
   if (canPurchaseOnline()) {
     try {
-      await purchaseRemote({ propCode, gameCode });
-      toastService.push(`已购买 1 张${item?.name || '道具'}`, 'success');
+      const walletRefreshed = await purchaseRemote({ propCode, gameCode });
+      const message = `已购买 1 张${item?.name || '道具'}`;
+      toastService.push(
+        walletRefreshed ? message : `${message}，积分暂未刷新，请稍后刷新积分记录`,
+        walletRefreshed ? 'success' : 'warning'
+      );
     } catch (e) {
       toastService.push(e.message || '购买失败', 'warning');
     }
@@ -77,8 +80,9 @@ export async function buyProp(opts) {
 }
 
 /**
- * 在线购买。
+ * 在线购买后刷新原用户的完整钱包和背包；刷新失败不把已完成购买报告为失败。
  * @param {{ propCode: string; gameCode: string }} p
+ * @returns {Promise<boolean>} 是否已完成钱包事实刷新。
  */
 async function purchaseRemote(p) {
   const serverId = userRepository.resolveServerUserId();
@@ -96,7 +100,11 @@ async function purchaseRemote(p) {
     createdAt: t,
     updatedAt: t
   });
-  await inventoryService.refreshGameBag(p.gameCode);
+  const [walletRefresh] = await Promise.allSettled([
+    walletService.refreshRemote(serverId),
+    inventoryService.refreshRemote(serverId, p.gameCode)
+  ]);
+  return walletRefresh.status === 'fulfilled';
 }
 
 /**

@@ -361,21 +361,6 @@ function drawDrawTwoSymbol(buf, width, cx, cy, scale, rgba) {
 
 /**
  * @param {number[]} borderRgb
- * @param {number} numberValue
- * @returns {Uint8Array}
- */
-function renderNumberCard(borderRgb, numberValue) {
-  const buf = createBuffer(W, H);
-  fillRect(buf, W, 0, 0, W - 1, H - 1, [...borderRgb, 255]);
-  fillRect(buf, W, 8, 8, W - 9, H - 9, [...PALETTE.white, 255]);
-  drawDigit(buf, W, 52, 78, 6, numberValue, [...borderRgb, 255]);
-  drawDigit(buf, W, 18, 18, 3, numberValue, [...borderRgb, 255]);
-  drawDigit(buf, W, W - 18 - 15, H - 18 - 21, 3, numberValue, [...borderRgb, 255]);
-  return buf;
-}
-
-/**
- * @param {number[]} borderRgb
  * @param {(buf: Uint8Array, width: number, cx: number, cy: number, size: number, rgba: number[]) => void} drawSymbol
  * @returns {Uint8Array}
  */
@@ -460,22 +445,6 @@ function renderWildDraw4Card() {
     fillRect(buf, W, left, top, left + cardW, top + cardH, [...color, 255]);
     fillRect(buf, W, left + 2, top + 2, left + cardW - 2, top + cardH - 2, [255, 255, 255, 130]);
   });
-  return buf;
-}
-
-/**
- * @returns {Uint8Array}
- */
-function renderCardBack() {
-  const buf = createBuffer(W, H);
-  fillRect(buf, W, 0, 0, W - 1, H - 1, [...PALETTE.back, 255]);
-  for (let y = 12; y < H - 12; y += 16) {
-    for (let x = 12; x < W - 12; x += 16) {
-      fillCircle(buf, W, x + 8, y + 8, 5, [...PALETTE.backAccent, 255]);
-    }
-  }
-  fillRect(buf, W, 24, 78, W - 25, 122, [...PALETTE.backAccent, 255]);
-  drawText(buf, W, 38, 88, 4, 'UNO', [...PALETTE.white, 255]);
   return buf;
 }
 

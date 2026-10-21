@@ -33,7 +33,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import * as Svc from './minesweeperService.js';
+import * as Svc from './minesweeperEngine.js';
 import { computeCellPx } from './minesweeperBoardLayout.js';
 
 const props = defineProps({

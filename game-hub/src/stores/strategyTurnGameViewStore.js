@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { shareUnchangedStructure } from '../utils/structuralShare.js';
 
 const EMPTY_SNAPSHOT = Object.freeze({
   roomId: '',
@@ -8,13 +9,33 @@ const EMPTY_SNAPSHOT = Object.freeze({
   viewerPlayerId: '',
   currentPlayerId: '',
   isGameOver: false,
+  terminalMetadata: null,
   publicState: {},
   privateState: {},
-  legalActions: [],
+  actionOffers: [],
   frameEvents: [],
-  animationHint: '',
-  playbackBusy: false
+  playbackBusy: false,
+  syncStatus: 'IDLE',
+  syncError: ''
 });
+
+/**
+ * 将无效对象归一为稳定的空对象。
+ * @param {unknown} value
+ * @returns {object}
+ */
+function normalizeObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+/**
+ * 将无效数组归一为稳定的空数组。
+ * @param {unknown} value
+ * @returns {object[]}
+ */
+function normalizeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
 
 export const useStrategyTurnGameViewStore = defineStore('strategyTurnGameView', {
   state: () => ({
@@ -25,12 +46,14 @@ export const useStrategyTurnGameViewStore = defineStore('strategyTurnGameView', 
     viewerPlayerId: '',
     currentPlayerId: '',
     isGameOver: false,
+    terminalMetadata: null,
     publicState: {},
     privateState: {},
-    legalActions: [],
+    actionOffers: [],
     frameEvents: [],
-    animationHint: '',
-    playbackBusy: false
+    playbackBusy: false,
+    syncStatus: 'IDLE',
+    syncError: ''
   }),
   actions: {
     /**
@@ -46,14 +69,32 @@ export const useStrategyTurnGameViewStore = defineStore('strategyTurnGameView', 
       this.viewerPlayerId = String(payload.viewerPlayerId || '');
       this.currentPlayerId = String(payload.currentPlayerId || '');
       this.isGameOver = Boolean(payload.isGameOver);
-      this.publicState =
-        payload.publicState && typeof payload.publicState === 'object' ? payload.publicState : {};
-      this.privateState =
-        payload.privateState && typeof payload.privateState === 'object' ? payload.privateState : {};
-      this.legalActions = Array.isArray(payload.legalActions) ? payload.legalActions : [];
-      this.frameEvents = Array.isArray(payload.frameEvents) ? payload.frameEvents : [];
-      this.animationHint = String(payload.animationHint || '');
+      const terminalMetadata =
+        payload.terminalMetadata && typeof payload.terminalMetadata === 'object'
+          ? payload.terminalMetadata
+          : null;
+      this.terminalMetadata = terminalMetadata
+        ? shareUnchangedStructure(this.terminalMetadata, terminalMetadata)
+        : null;
+      this.publicState = shareUnchangedStructure(
+        this.publicState,
+        normalizeObject(payload.publicState)
+      );
+      this.privateState = shareUnchangedStructure(
+        this.privateState,
+        normalizeObject(payload.privateState)
+      );
+      this.actionOffers = shareUnchangedStructure(
+        this.actionOffers,
+        normalizeArray(payload.actionOffers)
+      );
+      this.frameEvents = shareUnchangedStructure(
+        this.frameEvents,
+        normalizeArray(payload.frameEvents)
+      );
       this.playbackBusy = Boolean(payload.playbackBusy);
+      this.syncStatus = String(payload.syncStatus || 'IDLE');
+      this.syncError = String(payload.syncError || '');
     },
     /**
      * 重置为初始展示态。

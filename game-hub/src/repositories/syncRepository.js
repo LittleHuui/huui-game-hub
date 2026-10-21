@@ -1,6 +1,5 @@
 import { createClientId } from '../utils/idService.js';
 import { nowMs } from '../utils/timeService.js';
-import { groupByUserId } from '../mappers/sharedMapper.js';
 import { mapPurchaseRecord } from '../mappers/purchaseMapper.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useWalletStore } from '../stores/walletStore.js';
@@ -12,8 +11,9 @@ import { persistAllLocal } from './localPersistRepository.js';
 import * as userRepository from './userRepository.js';
 import * as walletRepository from './walletRepository.js';
 import * as inventoryRepository from './inventoryRepository.js';
-import * as purchaseRepository from './purchaseRepository.js';
 import * as historyRepository from './historyRepository.js';
+import { captureUserDataIdentity, mapRecordsToIdentity } from './userDataIdentity.js';
+import { mergeRecordsByClientId } from './recordMerge.js';
 
 /**
  * 规范化待同步事件。
@@ -43,6 +43,7 @@ export function appendPendingEvent(event) {
   const historyStore = useHistoryStore();
   const t = event.createdAt ?? nowMs();
   historyStore.pendingEvents.push({
+    ownerUserId: event.ownerUserId || event.payload?.userId || useUserStore().auth.currentUserId,
     clientId: event.clientId || createClientId('evt'),
     eventType: event.eventType,
     createdAt: t,
@@ -53,49 +54,44 @@ export function appendPendingEvent(event) {
 }
 
 /**
- * 清空已同步 pending。
+ * 仅在整批成功时确认发送快照；并发新增或修改的事件继续保留。
  */
-export function clearSyncedPending() {
+export function clearSyncedPending(sentEvents, syncResult, identity) {
+  const count = sentEvents.length;
+  if (
+    syncResult?.failCount !== 0 || syncResult.receivedCount !== count ||
+    syncResult.successCount + syncResult.duplicateCount !== count
+  ) return;
   const historyStore = useHistoryStore();
-  historyStore.setPending([]);
-  localRepo.writePendingEvents([]);
+  const confirmed = new Set(sentEvents.map((event) => JSON.stringify(event)));
+  historyStore.setPending(historyStore.pendingEvents.filter((event) =>
+    !eventBelongsToIdentity(event, identity) ||
+    !confirmed.has(JSON.stringify(normalizePendingEvents([event])[0]))
+  ));
+  localRepo.writePendingEvents(historyStore.pendingEvents);
 }
 
-/**
- * 从待同步事件中取最新的数据模式（云响应可能仍含先前写入的 dataMode）。
- * @param {object[]} events
- * @returns {'auto'|'local'|'remote'|null}
- */
-function resolvePendingDataMode(events) {
-  if (!Array.isArray(events)) {
-    return null;
-  }
-  for (let i = events.length - 1; i >= 0; i -= 1) {
-    const evt = events[i];
-    if (evt?.eventType !== 'user_system_setting_update') {
-      continue;
-    }
-    const mode = evt.payload?.setting?.dataMode;
-    if (mode === 'local' || mode === 'auto' || mode === 'remote') {
-      return mode;
-    }
-  }
-  return null;
+function eventBelongsToIdentity(event, identity) {
+  const owner = event.ownerUserId || event.payload?.userId;
+  return Boolean(owner) && (owner === identity.localUserId || owner === identity.serverUserId);
+}
+
+export function pendingEventsForIdentity(identity) {
+  return useHistoryStore().pendingEvents.filter((event) => eventBelongsToIdentity(event, identity));
 }
 
 /**
  * 构建云同步请求体。
  * @param {number} [clientSnapshotVersion]
  */
-export function buildSyncPayload(clientSnapshotVersion) {
-  const historyStore = useHistoryStore();
+export function buildSyncPayload(clientSnapshotVersion, identity = captureUserDataIdentity(useUserStore())) {
   const snap = localRepo.readCloudSnapshot() || {};
   return {
-    userId: userRepository.resolveServerUserId() || '',
+    userId: identity.serverUserId,
     deviceId: localRepo.getDeviceId(),
     clientSnapshotVersion: clientSnapshotVersion ?? snap.clientSnapshotVersion ?? 0,
     clientTime: nowMs(),
-    pendingEvents: normalizePendingEvents(historyStore.pendingEvents)
+    pendingEvents: JSON.parse(JSON.stringify(normalizePendingEvents(pendingEventsForIdentity(identity))))
   };
 }
 
@@ -103,7 +99,7 @@ export function buildSyncPayload(clientSnapshotVersion) {
  * 将云端合并结果写入 store 与本地。
  * @param {object} cloud
  */
-export function applyCloudSnapshot(cloud) {
+export function applyCloudSnapshot(cloud, identity = captureUserDataIdentity(useUserStore())) {
   const userStore = useUserStore();
   const walletStore = useWalletStore();
   const inventoryStore = useInventoryStore();
@@ -111,25 +107,28 @@ export function applyCloudSnapshot(cloud) {
   const settingStore = useSettingStore();
 
   if (cloud.user) {
-    userRepository.mergeCloudUser(cloud.user, cloud.wallet, cloud.inventory);
+    userRepository.mergeCloudUser(cloud.user, cloud.wallet, null, identity.localUserId);
   }
 
-  walletRepository.applyCloudWallet(cloud.walletLedgers, cloud.wallet, userStore.auth.currentUserId);
-  inventoryRepository.applyCloudPropUsage(cloud.propUsageRecords);
+  walletRepository.applyCloudWallet(cloud.walletLedgers, cloud.wallet, identity.localUserId);
+  inventoryRepository.applyCloudPropUsage(cloud.propUsageRecords, identity);
 
   if (Array.isArray(cloud.purchaseRecords) && cloud.purchaseRecords.length) {
-    historyStore.replacePurchases(groupByUserId(cloud.purchaseRecords.map(mapPurchaseRecord)));
+    const uid = identity.localUserId;
+    const purchases = mapRecordsToIdentity(cloud.purchaseRecords, mapPurchaseRecord, identity);
+    historyStore.purchaseRecordsByUser[uid] = mergeRecordsByClientId(historyStore.purchaseRecordsByUser[uid], purchases);
+    const confirmedIds = new Set(purchases.map((row) => row.clientId));
+    for (const row of inventoryStore.listForUser(uid)) {
+      if (row.type === 'gain' && confirmedIds.has(row.clientId)) row.syncStatus = 'synced';
+    }
   }
 
-  historyRepository.applyCloudMatches(cloud.matchRecords);
-  historyRepository.applyCloudScores(cloud.scoreRecords);
+  historyRepository.applyCloudMatches(cloud.matchRecords, identity);
+  historyRepository.applyCloudScores(cloud.scoreRecords, identity);
 
-  const pendingDataMode = resolvePendingDataMode(historyStore.pendingEvents);
+  const pending = pendingEventsForIdentity(identity);
   if (cloud.systemSetting?.setting) {
     userRepository.applySystemSettingToLocal(cloud.systemSetting.setting);
-  }
-  if (pendingDataMode) {
-    settingStore.setRepositoryMode(pendingDataMode);
   }
 
   if (Array.isArray(cloud.userGameSettings)) {
@@ -142,7 +141,15 @@ export function applyCloudSnapshot(cloud) {
     }
   }
 
-  const uid = userStore.auth.currentUserId;
+  for (const event of pending) {
+    if (event.eventType === 'user_system_setting_update') {
+      userRepository.applySystemSettingToLocal(event.payload.setting);
+    } else if (event.eventType === 'user_game_setting_update') {
+      userRepository.applyGameSettingToLocal(event.payload.gameCode, event.payload.setting);
+    }
+  }
+
+  const uid = identity.localUserId;
   if (uid && cloud.inventory) {
     inventoryRepository.applyCloudInventory(cloud.inventory, uid);
   }

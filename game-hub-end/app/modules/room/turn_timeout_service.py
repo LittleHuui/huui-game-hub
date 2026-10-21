@@ -4,36 +4,43 @@ import asyncio
 import logging
 from typing import Awaitable, Callable, Dict, List, Optional
 
-from app.core.time_utils import now_ms
+from app.core.clock import Clock, Sleeper
+from app.modules.room.game_state_reader import GameRuntimeNotFoundException, GameStateReader
 from app.modules.room.repository import RoomRepository
 
 logger = logging.getLogger(__name__)
 
 SCAN_INTERVAL_MS = 1000
-ACTIVE_MANAGED_REASONS = frozenset({"turnTimeout"})
+
+MarkMemberActiveManagedHandler = Callable[[str, str, str], Awaitable[bool]]
 
 
 class TurnTimeoutService(object):
     """扫描 playing 房间 runtime 回合截止时间并触发 active 托管。"""
 
-    def __init__(self) -> None:
-        """初始化回合超时扫描服务。"""
-        self._repository = RoomRepository()
-        self._mark_member_active_managed_handler = None  # type: Optional[Callable[[str, str, str], Awaitable[bool]]]
-        self._running = False
-        self._task = None  # type: Optional[asyncio.Task]
-
-    def bind_mark_member_active_managed_handler(
+    def __init__(
         self,
-        handler: Callable[[str, str, str], Awaitable[bool]],
+        repository: RoomRepository,
+        state_reader: GameStateReader,
+        clock: Clock,
+        sleeper: Sleeper,
+        mark_member_active_managed: MarkMemberActiveManagedHandler,
     ) -> None:
         """
-        绑定成员 active 托管处理函数。
+        初始化回合超时扫描服务。
 
-        :param handler: ``mark_member_active_managed(room_id, player_id, reason) -> bool``。
-        :return: 无。
+        :param repository: 房间 Redis 仓库。
+        :param state_reader: 对局状态读取器。
+        :param clock: 可注入时钟。
+        :param sleeper: 可注入异步等待器。
         """
-        self._mark_member_active_managed_handler = handler
+        self._repository = repository
+        self._state_reader = state_reader
+        self._clock = clock
+        self._sleeper = sleeper
+        self._mark_member_active_managed = mark_member_active_managed
+        self._running = False
+        self._task = None  # type: Optional[asyncio.Task]
 
     async def start(self) -> None:
         """
@@ -72,7 +79,7 @@ class TurnTimeoutService(object):
                 await self._tick_once()
             except Exception:
                 logger.exception("turn timeout tick failed")
-            await asyncio.sleep(SCAN_INTERVAL_MS / 1000.0)
+            await self._sleeper.sleep_ms(SCAN_INTERVAL_MS)
 
     async def _tick_once(self) -> None:
         """
@@ -82,7 +89,10 @@ class TurnTimeoutService(object):
         """
         room_ids = await self._list_playing_room_ids()
         for room_id in room_ids:
-            await self._tick_room(room_id)
+            try:
+                await self._tick_room(room_id)
+            except Exception:
+                logger.exception("turn timeout room tick failed, roomId=%s", room_id)
 
     async def _list_playing_room_ids(self) -> List[str]:
         """
@@ -110,12 +120,22 @@ class TurnTimeoutService(object):
         meta = await self._repository.get_meta(room_id)
         if meta is None or str(meta.get("status", "")).strip() != "playing":
             return
-        runtime_data = await self._repository.get_runtime(room_id)
-        if runtime_data is None:
+        try:
+            consistent = await self._state_reader.load_consistent(room_id)
+            snapshot = consistent.snapshot
+        except GameRuntimeNotFoundException:
+            logger.info("turn timeout runtime missing, roomId=%s", room_id)
             return
-        if bool(runtime_data.get("isGameOver", False)):
+        except Exception as exc:
+            logger.exception(
+                "turn timeout state read failed, roomId=%s errorType=%s",
+                room_id,
+                type(exc).__name__,
+            )
             return
-        runtime_state = runtime_data.get("runtimeState")
+        if snapshot.isGameOver:
+            return
+        runtime_state = snapshot.state
         if not isinstance(runtime_state, dict):
             return
         current_player_id = str(runtime_state.get("currentPlayerId", "")).strip()
@@ -130,7 +150,7 @@ class TurnTimeoutService(object):
             return
         if deadline_at <= 0:
             return
-        current_time = now_ms()
+        current_time = self._clock.now_ms()
         if current_time < deadline_at:
             return
         members = await self._repository.list_players(room_id)
@@ -141,7 +161,23 @@ class TurnTimeoutService(object):
             return
         if bool(target_member.get("isManaged")):
             return
-        marked = await self._notify_active_managed(room_id, current_player_id, "turnTimeout")
+        try:
+            marked = await self._mark_member_active_managed(
+                room_id,
+                current_player_id,
+                "turnTimeout",
+            )
+        except Exception as exc:
+            logger.exception(
+                "turn timeout active managed handler failed, roomId=%s expectedVersion=%s "
+                "phase=%s currentPlayerId=%s errorType=%s",
+                room_id,
+                getattr(consistent, "gameVersion", None),
+                str(runtime_state.get("phase", "")).strip(),
+                current_player_id,
+                type(exc).__name__,
+            )
+            return
         if not marked:
             logger.warning(
                 "turn timeout active managed mark failed, roomId=%s playerId=%s deadlineAt=%s",
@@ -149,28 +185,6 @@ class TurnTimeoutService(object):
                 current_player_id,
                 deadline_at,
             )
-
-    async def _notify_active_managed(self, room_id: str, player_id: str, reason: str) -> bool:
-        """
-        调用房间模块 active 托管处理函数。
-
-        :param room_id: 房间 ID。
-        :param player_id: 玩家 ID。
-        :param reason: 托管原因。
-        :return: 是否成功标记或房间已无需处理。
-        """
-        normalized_reason = str(reason or "").strip()
-        if normalized_reason not in ACTIVE_MANAGED_REASONS:
-            return True
-        handler = self._mark_member_active_managed_handler
-        if handler is None:
-            logger.warning(
-                "turn timeout active managed handler not bound, roomId=%s playerId=%s",
-                room_id,
-                player_id,
-            )
-            return False
-        return bool(await handler(room_id, player_id, normalized_reason))
 
     def _find_member(
         self,
@@ -188,6 +202,3 @@ class TurnTimeoutService(object):
             if str(member.get("playerId", "")).strip() == player_id:
                 return member
         return None
-
-
-turn_timeout_service = TurnTimeoutService()

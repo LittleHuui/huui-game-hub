@@ -8,6 +8,11 @@ export const useRoomStore = defineStore('room', {
     rooms: [],
     roomsLoading: false,
     roomsError: '',
+    /** 服务端成员归属查询快照，不能由房间详情推断。 */
+    activeRoom: null,
+    activeRoomError: '',
+    activeRoomScope: '',
+    activeRoomQueryStatus: 'idle',
     /** @type {object|null} */
     currentRoom: null,
     currentRoomLoading: false,
@@ -20,6 +25,44 @@ export const useRoomStore = defineStore('room', {
     pendingInvite: null
   }),
   actions: {
+    /**
+     * 切换查询快照上下文，仅在身份、服务或数据模式变化时清空。
+     * @param {string} scope 当前成员查询上下文。
+     * @returns {void} 不修改服务端成员资格。
+     */
+    setActiveRoomScope(scope) {
+      this.activeRoomScope = scope;
+      this.activeRoom = null;
+      this.activeRoomError = '';
+      this.activeRoomQueryStatus = 'idle';
+    },
+    /**
+     * 保存服务端查询的当前成员房间。
+     * @param {object|null} room 服务端查询结果。
+     * @returns {void} 只更新快照，不写入详情或对局。
+     */
+    setActiveRoom(room) {
+      this.activeRoom = room;
+      this.activeRoomError = '';
+      this.activeRoomQueryStatus = 'ready';
+    },
+    /**
+     * 记录成员查询错误，保留最后一次已知房间。
+     * @param {string} message 查询错误。
+     * @returns {void}
+     */
+    setActiveRoomError(message) {
+      this.activeRoomError = message;
+      this.activeRoomQueryStatus = 'error';
+    },
+    /**
+     * 标记归属查询进度；取消或命令开始后，旧快照不能被当作本次对账结果。
+     * @param {'idle'|'loading'} status 查询进度。
+     * @returns {void} 保留已有快照与错误。
+     */
+    setActiveRoomQueryStatus(status) {
+      this.activeRoomQueryStatus = status;
+    },
     setActiveGameCode(gameCode) {
       this.activeGameCode = gameCode || '';
     },
@@ -63,7 +106,7 @@ export const useRoomStore = defineStore('room', {
       this.pendingInvite = null;
     },
     /**
-     * 按 version 合并房间详情；未推进时忽略。
+     * 按 roomVersion 合并房间详情；未推进时忽略。
      * @param {object} room
      * @returns {boolean} 是否已写入
      */
@@ -71,9 +114,9 @@ export const useRoomStore = defineStore('room', {
       if (!room || typeof room !== 'object') {
         return false;
       }
-      const incomingVersion = Number(room.version) || 0;
+      const incomingVersion = Number(room.roomVersion) || 0;
       const current = this.currentRoom;
-      if (current && current.roomId === room.roomId && incomingVersion <= (Number(current.version) || 0)) {
+      if (current && current.roomId === room.roomId && incomingVersion <= (Number(current.roomVersion) || 0)) {
         return false;
       }
       if (!current || current.roomId === room.roomId) {

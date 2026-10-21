@@ -24,7 +24,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY game-hub-end/requirements.txt ./game-hub-end/requirements.txt
+COPY game-hub-end/requirements.txt game-hub-end/requirements.in game-hub-end/constraints.txt ./game-hub-end/
 
 RUN pip install --no-cache-dir -r game-hub-end/requirements.txt
 

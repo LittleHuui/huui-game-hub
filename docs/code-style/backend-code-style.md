@@ -98,6 +98,7 @@ app/
 |------|------|
 | `api.py` | HTTP 路由与入参出参声明 |
 | `schemas.py` | Pydantic 请求/响应模型 |
+| `response_schemas.py` | 领域对外响应模型；其他模块可依赖，不借用启动模块承载模型 |
 | `models.py` | SQLAlchemy ORM 模型 |
 | `repository.py` | 数据库查询与持久化 |
 | `entity_service.py` | 单实体 CRUD 与基础校验 |
@@ -304,15 +305,15 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 
 | 模块 | 职责 | 边界 |
 |------|------|------|
-| `sync` | 云同步编排：合并 pendingEvents、生成快照 | 不实现排行榜 SQL；HTTP 路由挂在 `boot` |
-| `boot` | 健康检查、启动上下文、`POST /sync/cloud-save` | 不直接写业务表 |
+| `sync` | CloudSaveService 逐事件事务与批次审计；CloudSnapshotService 重建资产与完整快照 | HTTP 路由挂在 `boot`，合同归 sync；不实现排行榜 SQL |
+| `boot` | 启动用户/设备/设置与游戏摘要；独立 HealthService 依赖探测 | 健康路由不装配用户资产/同步链，不直接写业务表 |
 | `wallet` | 钱包余额与流水 | 余额由流水重算，不直接 patch balance 跳过流水 |
 | `inventory` | 背包数量、使用记录查询 | 数量由购买+使用事件重算 |
 | `purchase` | 购买扣款与写购买记录 | 不内嵌排行榜逻辑 |
 | `prop` | 道具定义与游戏规则 | 不含对局结算 |
 | `match` | 对局记录 CRUD / 查询 | 不计算排行榜 |
-| `score` | 成绩实体、排行榜规则解析 | 供 `ranking` 调用 |
-| `ranking` | 排行榜 HTTP 与查询编排 | 只读 `score_record`，排序规则来自 `game_definition.config` |
+| `score` | 成绩实体与确定条件的数据查询 | 仓储不加载游戏配置或选择业务排序路径 |
+| `ranking` | 排行榜规则解析、候选查询与最终排序 | 只读 `score_record`，排序规则来自 `game_definition.config` |
 
 ### 12.1 依赖原则
 
@@ -326,6 +327,8 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 - ORM 字段 snake_case；**出参**经 Pydantic 转为 camelCase。
 - JSON 业务字段（`prop_uses_json`、`payload_json` 等）入库为 TEXT，出库反序列化为 `list` / `dict`。
 - 事务边界放在 `module_service`；`repository` 不提交跨模块事务。
+- 多事件部分成功使用 `core.database.isolated_write`：事实、派生重建、幂等写入整体位于事件 SAVEPOINT 内，计数只在成功退出后增加。SQLite 必须先建立真实外层 BEGIN，防止首个 SAVEPOINT RELEASE 提前提交；响应/审计失败仍由请求边界整体回滚。
+- 后台结算的事务边界由显式 `GameSettlementTransaction` 拥有，Runtime/CAS/Finalize Outbox 交给 `GameSettlementCommitService`，编排服务不重复实现这些能力。
 
 ### 12.3 同步事件（event）
 
@@ -358,13 +361,15 @@ raise BizException(ErrorCode.PARAM_ERROR, message="gameCode 不能为空")
 - 查询 key 必须使用 `scan_keys(pattern)`，禁止使用 `keys`。
 - Redis 工具层只封装缓存数据结构操作，不写业务规则。
 - Redis 连接检查日志只允许打印 host、port、db 等非敏感连接信息，不得打印密码。
+- Lua 读取持久化 JSON 必须保护 decode，并校验外层类型后再索引字段。`cjson.null` 在 Lua 中为真：可空字段须显式归一，不能用 `or` 作为 null 回退；计数和时间字段须验证非负整数。
+- 损坏 Outbox 保留原文失败审计，调度索引与其 owner 租约在同一 Lua 收敛。KEYS/ARGV 的实际绑定与脚本一起验证；解释器加内存端口不能替代真实 Redis 并发验收。
 
 ### 14.2 WebSocket
 
 - 平台只保留 `/ws/game-hub/realtime` 一条实时通道。
 - 消息类型必须集中定义在 `app.core.websocket.message_types.MessageType`。
 - WebSocket 工具层只负责连接管理、发送、广播、分发、ping/pong，不写在线业务逻辑。
-- WebSocket 建连不得直接信任前端传入的 `serviceId`，必须先校验用户存在且可用，再登记连接。
+- WebSocket 建连使用 HTTP Bearer 认证签发的 Redis 单次 Realtime Ticket，通过 `ticket` 查询参数原子消费票据并取得认证用户后登记连接；不得传递 Access Token 或信任客户端声明的用户身份。
 - WebSocket 断开或异常退出时必须在 `finally` 或等价逻辑中清理连接管理器。
 - 在线用户列表以 Redis TTL 为准，WebSocket 断开不直接等同于离线。
 

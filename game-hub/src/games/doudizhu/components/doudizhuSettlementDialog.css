@@ -1,0 +1,256 @@
+.doudizhu-settlement-modal :deep(.modal) {
+  width: min(600px, 100%);
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  border: 1px solid #526781;
+  border-radius: 13px;
+  background: #1e293b;
+}
+
+.doudizhu-settlement-modal :deep(.modal-header) {
+  position: absolute;
+  z-index: 1;
+  top: 11px;
+  right: 13px;
+  padding: 0;
+}
+
+.doudizhu-settlement-modal :deep(.modal-header__title) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.doudizhu-settlement-modal :deep(.modal-close-btn) {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  font-size: 23px;
+}
+
+.doudizhu-settlement-modal :deep(.modal-body) {
+  padding: 14px 16px 0;
+}
+
+.doudizhu-settlement-modal :deep(.modal-footer) {
+  padding: 17px 16px 14px;
+}
+
+.doudizhu-settlement__banner {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 7px;
+}
+
+.doudizhu-settlement__banner img {
+  display: block;
+  width: min(560px, 100%);
+  height: auto;
+  aspect-ratio: 65 / 14;
+  object-fit: cover;
+}
+
+.doudizhu-settlement__winner {
+  margin: 20px 0;
+  color: #f6cf72;
+  text-align: center;
+  font-size: 24px;
+}
+
+.doudizhu-settlement__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.doudizhu-settlement__item {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-height: 70px;
+  padding: 9px 17px;
+  border: 1px solid transparent;
+  border-bottom-color: #34445b;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.doudizhu-settlement__item--viewer {
+  border-color: #b99647;
+  background: rgba(189, 150, 64, 0.1);
+}
+
+.doudizhu-settlement__avatar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 50px;
+  height: 50px;
+  overflow: hidden;
+  border: 2px solid #526781;
+  border-radius: 50%;
+  color: #f8fafc;
+  background: #17243a;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.doudizhu-settlement__item--viewer .doudizhu-settlement__avatar {
+  border-color: #f6cf72;
+}
+
+.doudizhu-settlement__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.doudizhu-settlement__avatar--bot img {
+  padding: 3px;
+  object-fit: contain;
+}
+
+.doudizhu-settlement__identity {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.doudizhu-settlement__name {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 18px;
+  line-height: 21px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doudizhu-settlement__role {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 19px;
+}
+
+.doudizhu-settlement__role-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  background: #e9bd61;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+
+.doudizhu-settlement__role-icon--farmer {
+  mask-image: url('../../../assets/games/doudizhu/icons/wheat.svg');
+}
+
+.doudizhu-settlement__role-icon--landlord {
+  mask-image: url('../../../assets/games/doudizhu/icons/crown.svg');
+}
+
+.doudizhu-settlement__score {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.doudizhu-settlement__score-label {
+  font-size: 17px;
+}
+
+.doudizhu-settlement__score--positive {
+  color: #00d391;
+}
+
+.doudizhu-settlement__score--negative {
+  color: #dc2626;
+}
+
+.doudizhu-settlement__waiting {
+  padding: 20px 0;
+  color: #cbd5e1;
+  text-align: center;
+  font-size: 14px;
+}
+
+.doudizhu-settlement__actions {
+  display: flex;
+  justify-content: center;
+}
+
+.doudizhu-settlement__actions .game-action-btn {
+  min-width: 156px;
+  min-height: 46px;
+  border-radius: 11px;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .doudizhu-settlement-modal :deep(.modal-body) {
+    padding: 42px 12px 0;
+  }
+
+  .doudizhu-settlement-modal :deep(.modal-footer) {
+    padding: 16px 12px;
+  }
+
+  .doudizhu-settlement__item {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 10px;
+    min-height: 64px;
+    padding: 8px;
+  }
+
+  .doudizhu-settlement__avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+
+  .doudizhu-settlement__name {
+    font-size: 16px;
+    line-height: 20px;
+  }
+
+  .doudizhu-settlement__role {
+    gap: 4px;
+    font-size: 14px;
+    line-height: 18px;
+  }
+
+  .doudizhu-settlement__role-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .doudizhu-settlement__score {
+    gap: 6px;
+    font-size: 22px;
+  }
+
+  .doudizhu-settlement__score-label {
+    font-size: 14px;
+  }
+}

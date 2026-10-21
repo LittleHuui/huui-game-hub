@@ -1,46 +1,91 @@
 """房间后台组件启动协调。"""
 
+import asyncio
 import logging
+from typing import Optional
 
-from app.core.lock.distributed_lock import distributed_lock
-from app.modules.room.deps import get_managed_action_selector
+from app.realtime.realtime_bootstrap import initialize_realtime_handlers
+from app.modules.room.auto_advance_task_service import room_auto_advance_task_service
 from app.modules.room.managed_task_service import managed_turn_task_service
-from app.modules.room.module_service import RoomModuleService
-from app.modules.room.presence_service import room_presence_service
-from app.modules.room.repository import RoomRepository
-from app.modules.room.turn_timeout_service import turn_timeout_service
-from app.modules.strategy_turn.runtime_service import StrategyTurnRuntimeService
+from app.modules.room.post_commit_outbox_worker import PostCommitOutboxWorker
+from app.modules.room.room_core_components import (
+    RoomApplicationServices,
+    RoomCoreComponents,
+    build_room_application_services,
+    get_room_core_components,
+)
 
 logger = logging.getLogger(__name__)
+BACKGROUND_STOP_TIMEOUT_SECONDS = 5
 
 _initialized = False
-_background_module_service = None  # type: RoomModuleService
+_background_services = None  # type: Optional[RoomApplicationServices]
+_post_commit_outbox_worker = None  # type: Optional[PostCommitOutboxWorker]
 
 
-def get_background_room_module_service():
+def get_background_room_services() -> Optional[RoomApplicationServices]:
     """
-    获取后台房间模块服务实例。
+    获取后台房间应用服务实例。
 
-    :return: 后台 ``RoomModuleService`` 实例；未初始化时返回 ``None``。
+    :return: 后台应用服务容器；未初始化时返回 ``None``。
     """
-    return _background_module_service
+    return _background_services
 
 
-def _build_room_module_service() -> RoomModuleService:
+def get_post_commit_outbox_worker() -> PostCommitOutboxWorker:
     """
-    构造后台房间模块服务。
+    获取后台 Outbox Worker 实例。
 
-    :return: ``RoomModuleService`` 实例。
+    :return: ``PostCommitOutboxWorker`` 实例；未初始化时返回 ``None``。
     """
-    return RoomModuleService(
-        RoomRepository(),
-        distributed_lock,
-        None,
-        StrategyTurnRuntimeService(),
-        None,
-        managed_turn_task_service,
-        get_managed_action_selector(),
+    return _post_commit_outbox_worker
+
+
+def is_room_background_ready() -> bool:
+    """判断房间后台组件是否已经完成初始化。"""
+    return bool(
+        _initialized
+        and _background_services is not None
+        and _post_commit_outbox_worker is not None
     )
+
+
+def _build_background_room_services(
+    core: RoomCoreComponents,
+) -> RoomApplicationServices:
+    """
+    基于统一核心组件构造后台房间应用服务。
+
+    :param core: 房间核心组件。
+    :return: 房间应用服务容器。
+    """
+    return build_room_application_services(core, None, None)
+
+
+async def start_presence_worker() -> None:
+    """
+    启动 Presence 后台 Worker。
+
+    :return: 无。
+    """
+    core = get_room_core_components()
+    try:
+        rebuilt = await core.repository.rebuild_member_derived_indexes()
+        if rebuilt > 0:
+            logger.info("presence worker startup rebuilt derived indexes, count=%s", rebuilt)
+    except Exception:
+        logger.exception("presence worker startup derived index rebuild failed")
+    await core.presence_service.start()
+
+
+async def stop_presence_worker() -> None:
+    """
+    停止 Presence 后台 Worker。
+
+    :return: 无。
+    """
+    core = get_room_core_components()
+    await core.presence_service.stop()
 
 
 async def initialize_room_background() -> None:
@@ -49,21 +94,35 @@ async def initialize_room_background() -> None:
 
     :return: 无。
     """
-    global _initialized, _background_module_service
+    global _initialized, _background_services, _post_commit_outbox_worker
     if _initialized:
         return
-    module_service = _build_room_module_service()
-    _background_module_service = module_service
-    managed_turn_task_service.bind_submit_handler(module_service.submit_managed_action)
-    room_presence_service.bind_mark_member_shell_managed_handler(
-        module_service.mark_member_shell_managed,
+    core = get_room_core_components()
+    services = _build_background_room_services(core)
+    _background_services = services
+    managed_turn_task_service.bind_submit_handler(
+        core.managed_action_executor.execute,
     )
-    turn_timeout_service.bind_mark_member_active_managed_handler(
-        module_service.mark_member_active_managed,
+    managed_turn_task_service.bind_recovery_validator(
+        core.task_scheduling_service.validate_managed_turn_task_for_recovery,
     )
+    _post_commit_outbox_worker = PostCommitOutboxWorker(
+        core.post_turn_outbox_repository,
+        core.post_turn_outbox_dispatcher,
+        core.repository,
+    )
+    room_auto_advance_task_service.bind_submit_handler(
+        core.auto_advance_execution_service.submit_auto_advance_task,
+    )
+    room_auto_advance_task_service.bind_recovery_validator(
+        core.task_scheduling_service.validate_auto_advance_task_for_recovery,
+    )
+    initialize_realtime_handlers(core.repository, core.presence_service)
+    await _post_commit_outbox_worker.start()
     await managed_turn_task_service.start()
-    await room_presence_service.start()
-    await turn_timeout_service.start()
+    await room_auto_advance_task_service.start()
+    await start_presence_worker()
+    await core.turn_timeout_service.start()
     _initialized = True
     logger.info("room background components initialized")
 
@@ -74,9 +133,20 @@ async def shutdown_room_background() -> None:
 
     :return: 无。
     """
-    global _initialized, _background_module_service
-    await managed_turn_task_service.stop()
-    await room_presence_service.stop()
-    await turn_timeout_service.stop()
+    global _initialized, _background_services, _post_commit_outbox_worker
+    if not _initialized and _background_services is None and _post_commit_outbox_worker is None:
+        return
     _initialized = False
-    _background_module_service = None
+    core = get_room_core_components()
+    stops = [core.turn_timeout_service.stop, stop_presence_worker,
+             room_auto_advance_task_service.stop, managed_turn_task_service.stop]
+    if _post_commit_outbox_worker is not None:
+        stops.append(_post_commit_outbox_worker.stop)
+    for stop in stops:
+        try:
+            await asyncio.wait_for(stop(), BACKGROUND_STOP_TIMEOUT_SECONDS)
+        except Exception:
+            logger.exception("room background component shutdown failed: %s", stop.__name__)
+    _background_services = None
+    _post_commit_outbox_worker = None
+    logger.info("room background components shutdown")

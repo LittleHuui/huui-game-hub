@@ -13,8 +13,8 @@ import * as onlineService from './onlineService.js';
 import * as realtimeService from './realtimeService.js';
 import { canFetchRemote } from './remoteGate.js';
 import { getDefaultDifficultyCode, isDifficultyEnabled } from './gameDifficultyService.js';
-import { getGameConfig } from '../constants/gameRegistry.js';
-import { resolvePlatformGameCode } from '../utils/requireGameCode.js';
+import { getGameDisplayMetadata } from '../games/gameModuleRegistry.js';
+import { resolvePlatformGameCode } from './platformContextService.js';
 
 /**
  * 按数据模式更新 platform.networkMode。
@@ -46,7 +46,7 @@ function applyNetworkModeForRepository(mode, remoteAvailable) {
  */
 async function probeRemoteAvailable() {
   try {
-    await remoteRepository.healthCheck();
+    await remoteRepository.readinessCheck();
     return true;
   } catch {
     return false;
@@ -54,14 +54,14 @@ async function probeRemoteAvailable() {
 }
 
 /**
- * 构建当前游戏的 activateGame 参数（难度来自 registry 默认，mode 来自 platform/registry）。
+ * 构建当前游戏的 activateGame 参数。
  * @param {string} gameCode
  * @returns {import('./gameLifecycleService.js').ActivateGameOptions}
  */
 function buildActivateOptions(gameCode) {
   const platform = usePlatformStore();
-  const reg = getGameConfig(gameCode);
-  const mode = platform.currentGameMode || reg?.modes?.[0];
+  const metadata = getGameDisplayMetadata(gameCode);
+  const mode = platform.currentGameMode || metadata?.modes?.[0];
   if (!mode) {
     throw new Error(`游戏 ${gameCode} 缺少 mode`);
   }

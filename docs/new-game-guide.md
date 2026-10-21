@@ -1,572 +1,108 @@
 # 新游戏接入指南
 
-目标：**按模板在 `games/` 下新增模块，不修改平台公共组件的业务分支**。
+目标：新增游戏时只扩展游戏目录、种子和注册入口，不在公共层加入游戏特判。
 
-参考已接入游戏：
+## 前端接入
 
-- **轻量单人**（`runtimeType: light-single`）：`minesweeper`、`match3`、`2048`、`sudoku`
-- **策略回合制多人**（`runtimeType: strategy-turn-multiplayer`）：`uno`（房间、AI、托管、`GameView`、`legalActions`、Action Matcher、完整 UNO 规则）
+1. 在 `game-hub/src/games/{gameCode}/` 新增游戏目录。
+2. 导出 `gameModule.js`，声明 `gameCode`、路由、能力、配置处理器和页面 loader。
+3. 在 `src/games/gameModuleRegistry.js` 聚合根注册该模块。
+4. 平台业务种子写入 `src/constants/gameSeedConfig.js`。
+5. 用户可配置项写入 `src/constants/gameSettingDefinitions.js`，页面通过 service 读取，不直接操作 `localStorage`。
+6. 页面不得直接 `fetch`；必须走 service / repository / api 层。
+7. Store 只保存状态快照，不调 API。
+8. 公共组件、模板和公共 service 不写 `gameCode === 'xxx'` 特判。
+9. 在线游戏如需固定房间字段顺序，在 gameModule 声明 `roomConfigFieldOrder`；公共表单只读取 schema.displayOrder，不列举游戏私有字段。
 
----
+前端注册入口是各游戏 `gameModule.js` 与 `games/gameModuleRegistry.js`。
 
-## 0. 运行时类型与配置分轨
+## 后端接入
 
-接入前先确定 `GAME_REGISTRY.runtimeType`：
+轻量单人游戏通常只需要平台种子和前端实现。在线策略回合制游戏需要新增：
 
-| runtimeType | 适用 | 前端配置 | 后端规则种子 | 房间 |
-|-------------|------|----------|------------|------|
-| `light-single` | 单人轻量（扫雷、三消等） | `gameConfigService` 加载 `GAME_SEED_CONFIG` / `GET .../config` | 不需要 `rule-definition` | 不需要 |
-| `strategy-turn-multiplayer` | 策略回合制多人（UNO、斗地主等）；**非卡牌专用类型** | 同上，基础种子仍经 `gameConfigService` | `supportOnline: true` 时须在 `strategy_turn` 注册并暴露 `GET .../rule-definition` | `room` 模块 |
+| 位置 | 职责 |
+| --- | --- |
+| `app/modules/game_seed/{gameCode}_seed.py` | 规则种子、房间配置 schema、牌/棋子定义 |
+| `app/modules/game_impls/{gameCode}/` | 具体规则实现 |
+| `app/game_runtime.py` | 注册 `GameModule` |
 
-**`supportOnline`**
+`StrategyTurnGameModule` 至少提供：
 
-- `true`：**强制在线才能游玩**；`capabilities.offline` 为 `false`。
-- `false`：允许 `repositoryMode: local` 离线游玩。
+- `GameLifecycleEngine`：开局、动作应用、阶段推进、终局指令。
+- `GameStateProjector`：只投影公共/私有游戏状态、阶段与当前玩家，不生成 actionOffers。
+- `interactionBindings`：每个 actionType 显式提供 `ActionInteractionBinding`，声明 `ENUMERATED` / `COMPOSED` 和对应 OfferProvider/Resolver。平台 `ActionInteractionGateway` 统一路由，`GameViewService` 组合状态投影与查看者 actionOffers。
 
-**配置职责**
+按需提供：
 
-- **基础配置种子**（难度、道具、排行榜、`featureFlags` 等）：源码在 `GAME_SEED_CONFIG`，运行时由 **`gameConfigService` 统一加载并落地**到各游戏 `*Config.js`；禁止在 Page 内散落种子片段。
-- **规则种子**（`roomRule`、`roomConfigSchema`、`cardDefinitions` 等）：仅强制在线游戏；在 `app/modules/game_seed/` 注册并经 **`GET /games/{gameCode}/rule-definition`** 对外提供；规则引擎在 `strategy_turn.rule_definition_registry` 注册；与 `config` 接口语义独立。
+- `CandidateScorer` / selector / fallback：托管和 AI。
+- preview provider：只读动作预览。
+- hint / suggestion provider：只读候选提示。
 
-`strategy_turn` 为通用多人回合制运行时；斗地主、德州扑克、飞行棋、五子棋等可基于 `strategy-turn-multiplayer` 模板与同一套 `room` / `GameView` 协议接入。
+在线规则种子加入 `online_game_seed_registry` 的启动期内置集合；重复 gameCode 拒绝，注册映射只读，查询返回独立深副本。游戏自动候选、提示和解析应共用本游戏合法动作目录，不得穿透目录私有成员或维护跨请求可变候选缓存。
 
----
+## 动作模型
 
-## 1. 接入清单
+每个 `actionType` 必须明确交互模式：
 
-### 1.1 前端
+- `ENUMERATED`：服务端列出 actionId，客户端选择提交。
+- `COMPOSED`：客户端按 capability 构造 selection，服务端解析校验。
 
-| 步骤 | 位置 | 说明 |
-|------|------|------|
-| 1 | `src/games/your-game/` | 创建游戏目录 |
-| 2 | `constants/gameRegistry.js` | 注册 `code`、`modes`、`capabilities` |
-| 3 | `constants/gameSeedConfig.js` | 种子：difficulties、propRules、items 等 |
-| 4 | `router/index.js` | 路由指向 `YourGamePage.vue` |
-| 5 | `YourGamePage.vue` | 轻量单人优先 `LightSingleGameLayout`；其它结构用 `GamePlayLayout` + 平台 `Game*Panel` |
-| 6 | `yourGameConfig.js` | 解析/合并配置；在 `gameConfigService.js` 注册 handler，与其它游戏一样经 Service 落地基础种子 |
-| 7 | `yourGameEngine.js` | 纯算法 |
-| 8 | `components/YourGameHud.vue` 等 | HUD、棋盘、弹窗 |
-| 9 | `gameLifecycleService.activateGame` | `onMounted` 与模式/难度变化后按需调用（`mode`、`difficultyCode`、`includeInventory`）；排行榜仅由布局中的 `GameRankingPanel` 负责展示与请求（见第 4 节） |
-| 10 | `createGameSession`（`gameSessionService.js`） | `sessionId`、结算、钱包/背包流水、对局与成绩入队、同步刷新 |
-| 11 | 可选 `useYourGameSession.js` | 仅封装本游戏 UI/动画状态；**不得**虚构 `startMatch`/`settleMatch` 等模块级 API |
-| 12 | `constants/gameSettingDefinitions.js` | 若有用户可切换偏好：注册 `gameCode` + `settings[]`；读写走 `userService` / 游戏 `*Service`（见第 9 节） |
+两者最终都必须解析成 `ResolvedGameAction`。Lifecycle 只执行 `ResolvedGameAction`，不能直接执行客户端 payload。
 
-### 1.2 后端
+`requestId` 属于房间命令顶层，不属于 `ActionSubmission`、不属于 `ResolvedGameAction`。客户端重试必须复用同一个 `requestId` 和请求正文。
 
-| 步骤 | 说明 |
-|------|------|
-| 1 | 在 `constants/gameSeedConfig.js` 的 `GAME_SEED_CONFIG` 中增加 `games[]` 项（含 `supportOnline`、`config`、`difficulties`、`propRules`） |
-| 2 | `props[]` 中增加本游戏道具定义 |
-| 3 | `config.ranking.modes` 为每个上榜 `mode` 配置 `primaryMetric`、`orderDirection`、`tieBreakers`（服务端强校验） |
-| 4 | 在 `game-hub` 目录执行 `npm run export:seed`，生成与 `GAME_SEED_CONFIG` 一致的 `dist/game-seed.json`（可选，便于 curl 导入） |
-| 5 | `POST /admin/config/import-game-seed` 导入（运维/开发环境；新库必须执行） |
-| 6 | 同步 payload：`eventType: "match_record"` 的字段符合 [api.md §1.9](api.md#19-对局记录业务字段match_record) |
-| 7 | **`supportOnline: true` 时**：在 `game_seed` 注册在线规则种子；在 `strategy_turn.rule_definition_registry` 注册 `StrategyTurnRuleDefinition` 与 `StrategyTurnRuleEngine` 实现类 |
-| 8 | 在 `app/modules/games/{gameCode}/` 实现规则引擎（参考 `games/uno/uno_rule_engine.py`） |
+## Runtime 和提交边界
 
-无需为单个游戏新增独立 HTTP 模块；平台 `room` + `strategy_turn` + 种子注册表驱动对局。
+游戏实现只读写 `RuntimeSnapshot` 语义，不直接操作 Redis key。房间提交由 `RoomGameCommit` 负责：
 
-### 1.3 策略回合制多人（`strategy-turn-multiplayer`）附加项
+- 版本检查。
+- requestId 幂等。
+- 快照写入。
+- 事件追加。
+- 响应缓存。
+- PostTurn Outbox 入队。
 
-| 步骤 | 位置 | 说明 |
-|------|------|------|
-| 1 | `gameRegistry.js` | `runtimeType` / `viewTemplate` 均为 `strategy-turn-multiplayer`；`supportOnline: true`；`capabilities.offline: false` |
-| 2 | `game-templates/strategy-turn-multiplayer/` | 页面模板：房间区 + 对局区 slot，不写 `gameCode` 特判 |
-| 3 | `gameConfigService.js` | 增加该 `gameCode` 的 handler，与其它游戏一样经 Service 落地基础种子 |
-| 4 | 后端 `strategy_turn` | 注册 `rule-definition` 种子（人数、`defaultExpireSeconds`、`actionSubmitMode` 等） |
-| 5 | 前端 `roomService` | 创建/加入/离开房间；须在线且已登录；**不**在 Page 内直接 `fetch` `/rooms` |
-| 6 | `onlineService` | 进入游戏前保持在线态；Service 层组合调用 `roomService` |
-| 7 | `strategyTurnGameViewService` / `strategyTurnGameViewStore` | 订阅 `gameViewUpdated`、缓存 `GameView`、版本去重 |
-| 8 | `strategyTurnActionMatcher.js` | 根据 `legalActions[].selection` 匹配手牌选牌与 `actionId`（游戏可封装薄包装，如 `games/uno/`） |
-| 9 | `games/{gameCode}/*Page.vue` | 对局页：拉取/展示 `GameView`、提交 `actionId`、播放 `events` |
+不要新增绕过提交边界的状态写入器或大而全的 Room 服务。
 
-`room` 为独立后端模块；`online` 与 `room` 平级，由业务 Service 按需串联。
+## 自动推进和托管
 
-### 1.4 策略回合制：GameView 与 Action Matcher
+非玩家阶段使用 `RoomAutoAdvanceTask`，例如发牌展示、叫抢地主展示、结算展示和 Finalize。
 
-**GameView（服务端 `strategy_turn.schemas.GameView`）**
+玩家回合使用 `ManagedTurnTask`，例如 AI、真人托管、超时自动操作。
 
-| 字段 | 用途 |
-|------|------|
-| `roomId` / `version` | 房间与对局版本；提交操作时传 `baseVersion` |
-| `viewerPlayerId` / `currentPlayerId` | 视角玩家与当前回合玩家 |
-| `publicState` / `privateState` | 公开/私有状态（如 UNO 手牌仅在 `privateState`） |
-| `legalActions` | 可提交的合法操作（含 `actionId`、`actionType`、`selection`） |
-| `events` | 本帧动画事件；`GET .../view` 查询时为 `[]`，开局/提交操作后携带增量 |
-| `isGameOver` | 对局是否结束 |
+两者并列，不要用托管任务模拟阶段展示。
 
-前端经 `strategyTurnGameViewService` 拉取 `GET /rooms/{roomId}/view` 或消费 WebSocket `gameViewUpdated`；禁止 Page 直接拼 HTTP。
+## 终局接入
 
-**提交操作**
+在线游戏终局应输出理论零和结算和 `TerminalDirective`。平台负责钱包实际扣加、余额不足补差、系统补差、GameView 推送和 Finalize。结算失败达到上限也必须收敛回 waiting。
 
-```json
-{
-  "actionId": "从 legalActions 选取",
-  "baseVersion": 12,
-  "clientSeq": 1
-}
-```
+## 前端策略回合页面
 
-`POST /rooms/{roomId}/actions`；服务端根据 `actionId` 解析 `actionType` 与 `payload`，请求体不传 `actionType`。
+页面消费：
 
-**Action Matcher（`strategyTurnActionMatcher.js`）**
+- `roomQueryService`：房间查询与版本守卫；`roomService`：创建、成员和配置命令。
+- `roomGameService`：开局、对局视图、动作/预览/提示与上下文接纳；`roomRealtimeService`：房间订阅、Presence 和邀请。
+- `strategyTurnGameViewService`：权威视图、WebSocket 增量、断层恢复。
+- `action-interaction` adapter：把 UI 交互转成 `ActionSubmission`。
 
-- 输入：手牌列表、`legalActions`（含 `selection.candidates`）、当前选中牌 ID。
-- 输出：`determinedAction`（唯一 `actionId`）、可选/禁选牌 ID、提示选牌等。
-- UNO 示例：`games/uno/` 内封装选牌与万能牌选色，再调用 `roomService.submitRoomAction`。
+页面不直接请求 `/rooms`、不直接请求 `/rule-definition`，不直接读写认证 Token。
 
-**后端规则引擎**
+页面在路由/模式变化或卸载时取消所属异步上下文；await 后先检查代次，再回写、发下一条命令或导航。重拉与动画取消均须结束调用方等待 Promise。
 
-1. `game_seed`：暴露 `rule-definition`（房间参数、牌型定义等）。
-2. `register_rule_engine(StrategyTurnRuleDefinition, YourRuleEngine)`：实现 `build_initial_state`、`apply_action`、`build_legal_actions`、`build_view` 等。
-3. `room.module_service` 在 `start` / `actions` 时调用 `StrategyTurnRuntimeService`。
+当前五子棋正式合同为 15×15，悔棋请求默认 30 秒、允许 10–120 秒；早期 10 秒说明不作为当前默认。UNO `FIRST_FINISH` 表示“首位真人完成结束”，AI 首位出完不触发该模式终局。
 
-手动联调见 [dev-test/uno-api-test.md](dev-test/uno-api-test.md)。
+## 斗地主参考
 
----
+斗地主可作为复杂牌类参考：叫地主/抢地主、明牌、加倍、癞子、`PLAY_CARDS` 的 `COMPOSED` 交互、候选提示、阶段展示、结算和 Finalize。完整规则见 [doudizhu-rules.md](doudizhu-rules.md)。以当前 `game_impls/doudizhu/` 模块为参考。
 
-## 2. 推荐目录结构
+## 自检
 
-```
-src/games/your-game/
-├── YourGamePage.vue          # 路由入口：布局、编排、动画
-├── yourGameConfig.js         # 从种子/服务端解析 rows、道具、奖励等
-├── yourGameEngine.js         # 纯函数：棋盘逻辑、animationSteps
-├── yourGame.css              # 可选：scoped 样式补充
-├── composables/
-│   └── useYourGameSession.js # 可选：仅本游戏 UI/动画状态
-└── components/
-    ├── YourGameBoard.vue     # 棋盘交互（棋盘旁可放 chainHint 等专用提示）
-```
-
-### 文件职责
-
-| 文件 | 职责 |
-|------|------|
-| `YourGamePage.vue` | 组装 `LightSingleGameLayout`；计算 `controlFields` / `actionItems` / `matchStats` / `matchQuotas`；调用 service；播放动画；**不** fetch / localStorage |
-| `yourGameEngine.js` | 规则与 `animationSteps`；**不** Vue、DOM、网络 |
-| `yourGameConfig.js` | `resolveXxx(config)` 合并服务端与 `GAME_SEED_CONFIG` |
-| `useYourGameSession.js`（可选） | 棋盘/动画相关 `ref`/`computed`；结算仍由 Page 调用 `session.settleWin` 等 |
-
-数独 `games/sudoku/` 示例：`sudokuEngine.js`（终盘生成、挖空、冲突与完成判定）、`sudokuService.js`（开局棋盘）、`sudokuConfig.js`（种子合并）、`components/SudokuBoard.vue` + `SudokuNumberPopup.vue`（私有填数 UI，不进 `components/game/`）、`styles/sudoku.css`；固定 `mode: classic`，页面仅展示难度下拉。
-
----
-
-## 3. 游戏页布局
-
-### 3.0 策略回合制多人模板 `strategy-turn-multiplayer`
-
-**适用**：`runtimeType === 'strategy-turn-multiplayer'` 的强制在线多人游戏（当前为 `uno`；斗地主等同类游戏复用本模板）。
-
-**目录**：`src/game-templates/strategy-turn-multiplayer/`（如 `StrategyTurnMultiplayerView.vue`）。
-
-| 允许 | 禁止 |
-|------|------|
-| 左右分栏、房间列表/对局区 slot、`emit` 事件 | 写死 UNO/斗地主等 `gameCode` 分支 |
-| Page 注入房间 ID、成员列表、对局棋盘组件 | 模板内 `fetch`、`roomRepository`、规则引擎 |
-| 调用 `roomService` / `onlineService`（在 Page 或游戏 Service） | 在模板内实现出牌、回合判定 |
-
-玩法逻辑放在 `games/{gameCode}/` 的 Engine、Service 与对局 Page；房间元数据来自 `GET/POST /rooms`；规则参数来自 `GET .../rule-definition`；对局状态与合法操作来自 `GameView` / `legalActions`。
-
----
-
-### 3.1 轻量单人可选模板 `light-single`
-
-**适用**：扫雷、消消乐、2048、数独、记忆翻牌等简单单人游戏（棋盘/HUD 不复杂）。
-
-**不适用**：五子棋在线对战、飞行棋多人在线、飞机大战、PixiJS/Canvas 重渲染、需要非常规页面结构的游戏。
-
-**目录**：`src/game-templates/light-single/`
-
-| 组件 | 职责 |
-|------|------|
-| `LightSingleGameLayout` | 左右分栏；props/slots/`@action`（模板层，不含业务） |
-| `LightSingleGameSidePanel` | 左侧容器；内部使用 `GameControlPanel`（含 `GameActionBar` 操作区，`components/game/controls/`） |
-| `LightSingleGameBoardFrame` | 右侧棋盘**外层视觉容器**（slot 放入具体棋盘；可承载 `GamePauseOverlay`） |
-| `GamePauseOverlay` | `components/game/panels/` — 对局区暂停遮罩（纯展示，`emit('resume')`） |
-
-**底层组件（模板内复用，页面也可直接用）**
-
-| 组件 | 目录 | 职责 |
-|------|------|------|
-| `GameControlPanel` | `controls/` | 游戏信息 + 配置 fields + 操作 actions；只展示与 emit |
-| `GameMatchStatsPanel` | `stats/` | 对局统计区；传入 `stats`/`quotas` 数组即可 |
-| `GameShopPanel` 等 | `panels/` | 商城 / 榜 / 背包（与 `GamePlayLayout` 相同） |
-
-**统一 import**：从 `@/components/game`（或 `src/components/game/index.js`）引入组件与枚举：
-
-```js
-import {
-  GameShopPanel,
-  GameRankingPanel,
-  GameInventoryPanel,
-  GameResultModal,
-  GameMatchStatsPanel,
-  GAME_ACTION_TYPE,
-  GAME_ACTION_SIZE,
-  GAME_CONTROL_TYPE,
-  GAME_STAT_TONE
-} from '../../components/game/index.js';
-```
-
-**Registry（仅前端，不进 seed）**：
-
-```js
-// constants/gameRegistry.js
-yourGame: {
-  code: 'your_game',
-  viewTemplate: 'light-single', // 可选；未配置则页面自选布局
-  // ...
-}
-```
-
-**为何不进 seed**：seed 是业务数据（难度、道具、排行榜规则）；页面模板是前端渲染策略，与后端无关。
-
-**为何不是平台强制规范**：命名刻意使用 `light-single` / `LightSingleGame*`，避免 `GameTemplate`、`Universal*` 等暗示「所有游戏必须用」。特殊游戏可完全自定义 `YourGamePage.vue`。
-
-**布局结构**：
-
-```
-左侧：游戏信息 + actionItems + GameShopPanel + GameRankingPanel
-右侧：对局信息(match-stats) + LightSingleGameBoardFrame(board) + GameInventoryPanel
-```
-
-**轻量单人推荐组合**：`LightSingleGameLayout` + 左侧 `GameControlPanel`（经模板 `controlFields` / `actionItems`）+ 右侧 `GameMatchStatsPanel`（`match-stats` slot）。业务页负责把本局状态适配为 `fields` / `actions` / `stats` / `quotas`，底层组件不写 `gameCode` 分支。
-
-**接入示例（扫雷 / 2048 / match3 / 数独 参考 `MinesweeperPage.vue`、`Game2048Page.vue`、`Match3Page.vue`、`SudokuPage.vue`）**：
-
-```vue
-<template>
-  <LightSingleGameLayout
-    :game-title="registry.name"
-    :game-subtitle="registry.subName"
-    :game-description="'经典模式 · 标准难度'"
-    :game-status-text="statusText"
-    :control-fields="controlFields"
-    :action-items="actionItems"
-    :game-code="gameCode"
-    :mode="mode"
-    :difficulty-code="difficultyCode"
-    board-title="对局信息"
-    board-frame-title="对局区域"
-    board-subtitle="操作提示文案"
-    @field-change="onControlFieldChange"
-    @action="onLayoutAction"
-  >
-    <template #shop>
-      <GameShopPanel :game-code="gameCode" :session-id="matchSessionId" />
-    </template>
-    <template #ranking>
-      <GameRankingPanel :game-code="gameCode" :mode="mode" :difficulty-code="difficultyCode" />
-    </template>
-    <template #match-stats>
-      <GameMatchStatsPanel :stats="matchStats" :quotas="matchQuotas" :message="hudMessage" theme-seed="your_game" />
-    </template>
-    <template #board>
-      <YourGameBoard @action="onBoard" />
-    </template>
-    <template #inventory>
-      <GameInventoryPanel :game-code="gameCode" @use-prop="onUseProp" />
-    </template>
-  </LightSingleGameLayout>
-</template>
-```
-
-**`controlFields` 与 `@field-change`**：模式、难度等由 Page 计算 `controlFields`（`type` 用 `GAME_CONTROL_TYPE`），经 `LightSingleGameLayout` → `GameControlPanel` 渲染；`@field-change` 在 Page 的 `handleControlChange` 内更新（如 match3 模式 radio、扫雷难度 `select`）。
-
-扫雷示例：`controlFields` 仅一项难度下拉；`actionItems` 按对局状态展示 `pause` / `resume` / `restart` / `playAgain` / `safeStart` / `end`（**不**使用 `pauseOrResume` 混合 key）；积分规则说明放在 `#game-info-extra` slot，不占平台组件特判。
-
-**`actionItems` 与 `@action`**：Page 用 computed 组装 `actionItems`（`GAME_ACTION_TYPE` / `GAME_ACTION_SIZE`），含 `key` / `label` / `type` / `size` / `visible` / `disabled`；模板只 `emit('action', key)`，业务在 Page 的 `handleControlAction` 内分支处理。
-
-**轻量单人操作按钮（2048 / match3 / 扫雷 / 数独 已统一）**
-
-| 对局状态 | 展示按钮 |
-|----------|----------|
-| `idle` 未开始 | 无开始/暂停/继续/结束/重新开始（**首次有效棋盘操作**自动开局并计时） |
-| `playing` 进行中 | `pause` 暂停、`restart` 重新开始、`end` 结束对局 |
-| 已暂停（`playing` + `isPaused`） | `resume` 继续、`restart`、`end`（**不**显示 `pause`） |
-| `ended` 已结束 | `playAgain` 再来一局（`PRIMARY`） |
-| `settling` 结算中（如 2048） | 保留上一态可见按钮，全部 `disabled` |
-
-- **不要**在 idle 放「开始游戏」：刷新后用户直接操作棋盘更自然。
-- **ended** 用「再来一局」而非「开始游戏」/「重新开始」。
-- 暂停/继续使用独立 key 与 `GAME_ACTION_TYPE.PAUSE` / `RESUME`（蓝紫 / 青绿），**不要**用 `WARNING`。
-- 进行中「重新开始」用 `SECONDARY`；「结束对局」用 `DANGER`。
-- 扫雷 `safeStart` 仍按原规则（通常 idle / ended 且未用过安全开局时展示），不受 idle 无开始按钮影响。
-
-**暂停遮罩（推荐）**
-
-- 业务页维护 `const isPaused = ref(false)`，实现 `pauseGame()` / `resumeGame()`；暂停期间停止计时（interval 内判断 `!isPaused` 或暂停时 `stopTimer`），`durationMs` 不含暂停时长。
-- `LightSingleGameLayout` 传入 `:paused="isPaused"`、`@resume="resumeGame"`，由 `LightSingleGameBoardFrame` 在棋盘 slot 上叠加 `GamePauseOverlay`。
-- `GamePauseOverlay` 只负责展示与 `emit('resume')`；不写 `gameCode` 分支、不调 API/store、不改 `gameStatus`。
-- 恢复途径：左侧「继续游戏」按钮（`resume`）或点击遮罩空白/继续按钮；暂停时禁止棋盘操作与道具，**允许**主动结束对局（`end`）。
-
-**浏览器切页自动暂停（推荐）**
-
-- 使用 `src/composables/usePageVisibilityPause.js`：`document.hidden === true` 时按 `shouldPause()` 决定是否调用业务页传入的 `pause()`（通常为 `pauseGame()`）。
-- Composable **仅**监听隐藏并触发暂停，**不**在标签页重新可见时调用 `resume`；**不**改 `gameStatus`、**不**处理计时、**不** import 具体游戏。
-- 继续对局只能由用户主动点击左侧「继续游戏」或棋盘 `GamePauseOverlay`（`@resume` → `resumeGame()`）。
-- 业务页负责：`isPaused`、`pauseGame` / `resumeGame`、计时 interval 内判断 `!isPaused`（或暂停时 `stopTimer`）。
-- `shouldPause` 示例：对局 `playing` 且未暂停；match3 等还需排除动画/结算中（`canPauseGame`），避免切页时强行打断棋盘动画。
-
-```js
-import { usePageVisibilityPause } from '../../composables/usePageVisibilityPause.js';
-
-usePageVisibilityPause({
-  shouldPause: () => gameStatus.value === 'playing' && !isPaused.value,
-  pause: pauseGame
-});
-```
-
-**对局数据 `match-stats`**：在 slot 内使用 `GameMatchStatsPanel`；Page 传入 `matchStats`（含 `GAME_STAT_TONE`）与 `matchQuotas`。勿在平台 `GameMatchStatsPanel` 内写游戏分支；游戏专用 HUD 仅保留棋盘旁提示等非通用 UI。
-
-**数据适配**：`controlFields`、`actionItems`、`matchStats`、`matchQuotas`、`gameStatusText` 均由 Page 从本局 `ref`/`computed` 映射；**模板层与 `controls/`/`stats/` 组件均不写游戏特判**。
-
-**slots**：`left-extra`、`game-info-extra`、`shop`、`ranking`、`match-stats`、`board`、`inventory`、`right-extra`。
-
-**对局外框**：`LightSingleGameBoardFrame` 与上下 `game-card` 统一圆角/边框/背景，解决棋盘区与 HUD、背包视觉割裂；内部棋盘样式仍由游戏 CSS 控制。`props`：`paused`、`pauseTitle`、`pauseDescription`、`pauseActionText`（后三项可省略，使用 `GamePauseOverlay` 默认文案）；`emit`：`resume`。
-
-```vue
-<LightSingleGameLayout
-  :paused="isPaused"
-  @resume="resumeGame"
-  ...
->
-```
-
-**新游戏建议**：轻量单人优先 `light-single`；模式切换/复活/复杂配置留在 `game-info-extra` 或继续用 `GamePlayLayout`。
-
----
-
-### 3.2 GamePlayLayout 用法
-
-```vue
-<template>
-  <GamePlayLayout>
-    <template #config>
-      <GameConfigPanel>
-        <YourGameBattlePanel v-model:difficulty="difficultyCode" v-model:mode="mode" />
-      </GameConfigPanel>
-    </template>
-    <template #shop>
-      <GameShopPanel :game-code="gameCode" :session-id="matchSessionId" @purchased="onPurchased" />
-    </template>
-    <template #ranking>
-      <GameRankingPanel
-        :game-code="gameCode"
-        :mode="mode"
-        :difficulty-code="difficultyCode"
-        value-metric="score"
-        :subtitle="rankingSubtitle"
-      />
-    </template>
-    <template #hud>
-      <GameHudPanel>
-        <YourGameHud :stats="hudStats" />
-      </GameHudPanel>
-    </template>
-    <template #board>
-      <YourGameBoard @action="onBoardAction" />
-    </template>
-    <template #inventory>
-      <GameInventoryPanel
-        :game-code="gameCode"
-        :usable-props="usableProps"
-        @use-prop="onUseProp"
-      />
-    </template>
-  </GamePlayLayout>
-</template>
-```
-
-- `GameRankingPanel` 的 `value-metric` 为 `'score'` 或 `'durationMs'`（扫雷等按用时展示用后者）。
-- 样式：`import '@/assets/game-layout.css'`。
-
----
-
-## 4. 排行榜接入
-
-1. `GAME_REGISTRY` 中 `capabilities.leaderboard: true`  
-2. 后端 `config.ranking.modes[yourMode]` 配置 `primaryMetric`、`orderDirection`、`tieBreakers`（见 [api.md §11.1](api.md#111-查询排行榜)）  
-3. **游戏页只维护** `mode`、`difficultyCode`（及常量 `gameCode`），通过模板把三者传入布局中的 **`GameRankingPanel`**。该组件在挂载与 props 变化时自行完成排行榜 HTTP 请求与 store 写入；游戏页 **不要** 在生命周期或难度切换里再直调 ranking 层 API。  
-4. 进入游戏页时在 `onMounted` 调用 `activateGame` 加载配置 / 商城 / 背包（与当前 `match3`、`minesweeper` 一致），示例：
-
-```js
-import { activateGame } from '@/services/gameLifecycleService.js';
-
-await activateGame(gameCode, {
-  mode,
-  difficultyCode,
-  includeInventory: true
-});
-```
-
-5. **切换玩法 `mode` 后**：再次 `activateGame(...)`（传入新 `mode`），与 `match3` 的 `changeMode` 一致；榜单随 `GameRankingPanel` 的 `mode` prop 更新。  
-6. **仅切换难度**：更新 `difficultyCode` 即可；`GameRankingPanel` 会随 props 刷新当前难度榜。  
-7. **禁止** 一次请求所有难度或所有游戏的榜。
-
-> 胜利结算后，`session.settleWin` 会通过 `syncService.refreshRemoteAfterSettle({ includeRanking: true })` 在结算链路中刷新远端榜数据，属于 **session/sync 编排**；侧栏展示仍以 `GameRankingPanel` 的 props 为准。
-
----
-
-## 5. 道具接入
-
-1. 种子 / 服务端：`propRules`（`propCode`、`sortNo`、`price`、`maxUsePerMatch`、`effectType`、`rule` 等；`sortNo` 必填并写入 `game_prop_rule.sort_no`）  
-2. `GameShopPanel` + `purchaseService.buyProp` 负责购买  
-3. `GameInventoryPanel` 只展示数量；`@use-prop` 在 Page 中处理；局内使用通过 `session.trackPropUsage` / `session.recordInventoryUse` 记入本局与背包流水  
-4. 局内明细收集为数组，结算时作为 `propUses` 传入 `session.settleWin` / `settleFail` / `settleEnd`，随 `match_record` 入队同步  
-
----
-
-## 6. Session 与结算（`createGameSession`）
-
-平台提供工厂函数 **`createGameSession`**，返回本游戏页内复用的 **`session` 对象**（不存在 `gameSessionService.startMatch` / `settleMatch` 等模块级函数）。
-
-```js
-import { createGameSession } from '@/services/gameSessionService.js';
-
-const session = createGameSession({ gameCode: 'your_game' });
-```
-
-### 6.1 开局与 `sessionId`
-
-- 对局开始时：`matchSessionId.value = session.newMatchSessionId()`（与 `match3`、`minesweeper` 一致）。  
-- 局内道具使用：`session.trackPropUsage(currentMatchPropUses, { propCode, label, timerSec, sessionId })`，同时写入背包使用流水。
-
-### 6.2 结算（内部会 `appendMatchRecord`、`flushPendingIfOnline`、`refreshRemoteAfterSettle`）
-
-| 方法 | 场景 | 排行榜 |
-|------|------|--------|
-| `await session.settleWin({ score, rewardScore?, difficultyCode, durationMs, propUses, sessionId, mode, matchPayload?, scorePayload? })` | 胜利并上成绩榜 | 结算链 `refreshRemoteAfterSettle` 可能刷新远端榜；非游戏页生命周期内拉榜 |
-| `await session.settleFail({ score, difficultyCode, durationMs, propUses, sessionId, mode })` | 失败 | 不刷新榜 |
-| `await session.settleEnd({ score, difficultyCode, durationMs, propUses, sessionId, mode, payload? })` | 主动结束等 | 不刷新榜 |
-
-- `difficultyCode`：当前实现下写入对局为**必填**非空字符串；无难度概念的游戏请使用种子中的默认难度编码。  
-- `durationMs`：毫秒。  
-- `propUses`：数组，无使用传 `[]`。  
-- 对局 `result` 与上表对应为 **`win` / `fail` / `end`**（与现有前端及同步 payload 一致）。
-
-### 6.3 其它
-
-- `session.ledgerGain` / `session.ledgerCost`、`session.persistLocal` 按需使用。  
-- `session.setAutoRevive` 仅扫雷使用；新游戏若无该设置可忽略。
-
----
-
-## 7. Mode / Difficulty 接入
-
-| 概念 | 前端 | 后端 |
-|------|------|------|
-| `mode` | `GAME_REGISTRY.modes`、用户可选 | `match_record.mode`、排行榜 Query、`ranking.modes[mode]` |
-| `difficultyCode` | `gameSeedConfig` / `GET .../config` 的 `difficulties[]` | 对局与榜过滤；写入对局时与前端 `createGameSession` 校验一致 |
-
-切换难度：更新选中值 → 由 `GameRankingPanel` 随 props 自动拉榜 → 按需重载本游戏 config。
-
----
-
-## 8. 允许修改的范围
-
-| 允许 | 位置 |
-|------|------|
-| 新增 `src/games/your-game/**` | 游戏专用 |
-| 扩展 `GAME_REGISTRY`（含可选 `viewTemplate`）、`GAME_SEED_CONFIG` | 常量 |
-| 注册路由 | `router/index.js` |
-| 种子 import Body | 运维调用 admin API |
-| 游戏内 composable / css | 游戏目录 |
-
----
-
-## 9. 新增游戏设置
-
-用户可切换的游戏偏好（开关、选项等）纳入**统一游戏设置体系**，由顶栏设置面板集中展示，游戏页只消费。
-
-### 9.1 接入步骤
-
-1. 在 `game-hub/src/constants/gameSettingDefinitions.js` 的 `GAME_SETTING_DEFINITIONS` 中增加一组：
-
-```js
-Object.freeze({
-  gameCode: 'your_game',
-  gameName: '你的游戏名',
-  settings: Object.freeze([
-    Object.freeze({
-      key: 'yourSettingKey',       // settingKey，camelCase
-      label: '设置项标题',
-      type: 'switch',              // 顶栏当前仅渲染 type === 'switch'
-      defaultValue: false,
-      description: '可选说明文案'
-    })
-  ])
-})
-```
-
-2. 在游戏目录增加 `yourGamePageSettings.js`（可选）：用 `findGameSettingDefinition('your_game', 'yourSettingKey')` 引用 label/description，**不**重复写死文案。
-3. 在 `yourGameService.js` 提供读写薄封装，内部调用：
-   - 读：`userService.readGameSettingBoolean(gameCode, key, defaultValue)`
-   - 写：`userService.updateGameSetting(gameCode, { [key]: value })`
-4. 游戏 `Page` / 组件只调用上述 Service 方法，**不**直接 `fetch`、`localStorage`，**不**在左侧 `GameControlPanel` 再挂同名开关。
-
-### 9.2 约束
-
-| 要求 | 说明 |
-|------|------|
-| 顶栏统一展示 | `GameHubPage` 经 `gameSettingService.buildHubGameSettingGroups()` 展示**所有**已注册游戏设置，与当前路由游戏无关 |
-| `gameCode` + `settingKey` 隔离 | 同一 `settingKey` 在不同 `gameCode` 下互不影响 |
-| 同步链路 | `updateGameSetting` → `userRepository` → 本地持久化 → `user_game_setting_update` 入队 → `POST /sync/cloud-save` |
-| 禁止公共组件特判 | 不在 `components/game/`、`game-templates/` 按游戏写设置 UI 或分支 |
-| 禁止双结构配置 | 不与 `gameSettingDefinitions` 并行维护第二套键名或存储 |
-| 禁止把 `roomRule` 写入 `GAME_SEED_CONFIG` | 房间与回合规则走 `rule-definition` |
-| 禁止在 Page 直调 `/rooms` 或 `/rule-definition` | 走 `roomService` 与专用 repository |
-
-### 9.3 示例：数独 `filterUnavailableNumbers`
-
-| 项 | 值 |
-|---|---|
-| gameCode | `sudoku` |
-| settingKey | `filterUnavailableNumbers` |
-| defaultValue | `false` |
-| 顶栏 | 「过滤不可选数字」开关，与其它游戏设置同列展示 |
-| 游戏页 | `sudokuService.isFilterUnavailableNumbersEnabled()` / `setFilterUnavailableNumbers()` → `userService` |
-
-扫雷 `minesweeper` + `highlightAroundCells`（`defaultValue: true`）结构相同，见 `minesweeperService.js` 与 `gameSettingDefinitions.js`。
-
----
-
-## 10. 禁止事项
-
-| 禁止 | 原因 |
-|------|------|
-| 在 `GameShopPanel` / `GameRankingPanel` 等写 `if (gameCode === 'xxx')` | 平台组件保持通用 |
-| 仅在当前游戏页展示设置、不注册 `gameSettingDefinitions` | 破坏顶栏统一入口与 `gameCode` 隔离 |
-| 页面直接 `fetch` `/users/.../games/.../setting` 或写 `localStorage` 存游戏偏好 | 须走 `userService` → `userRepository` 链路 |
-| 在 `game-hub/src/services` 写死某游戏算法 | 算法归 Engine |
-| Page 内 `fetch` / `localStorage` | 走 repository + service |
-| Store 内调 API | Store 只存状态 |
-| Engine 操作 DOM / 定时器驱动规则 | 动画在 Page |
-| 复制其它游戏 Page 达数百行仅改名 | 用 `light-single` 或 `GamePlayLayout` + 小组件 |
-| 把 `viewTemplate` 写入 seed | 页面模板仅 `GAME_REGISTRY` |
-| 平台层 import 具体游戏 Page | 仅路由动态引用 |
-
----
-
-## 11. 验收自检
-
-**通用**
-
-- [ ] `npm run build` 通过  
-- [ ] 未修改平台组件的游戏特判  
-- [ ] 用户偏好（若有）已注册 `gameSettingDefinitions`，顶栏可见，页面经 Service 读取  
-
-**`light-single` 且 `supportOnline: false`**
-
-- [ ] `repositoryMode: local` 可完整游玩  
-- [ ] 在线：购买、背包、排行榜、对局同步正常（按 `capabilities`）  
-- [ ] 对局 JSON 含 `durationMs`、`propUses[]`、`payload{}`，字段均为 camelCase（见 [api.md](api.md)）  
-
-**`strategy-turn-multiplayer` 且 `supportOnline: true`**
-
-- [ ] 仅在线模式可进入；`roomService` / `strategyTurnGameViewService` 链路正常  
-- [ ] `rule-definition`、建房、`start`、`view`、`actions` 与 WebSocket `gameViewUpdated` 一致  
-- [ ] AI、托管（`active` / `shell`）、`rejoin` 行为与 [api.md §14](api.md#14-room-房间) 一致  
-
-更多分层细节见 [code-style/frontend-code-style.md](code-style/frontend-code-style.md) 与 [architecture.md](architecture.md)。
+- `game_impls` 不 import `room`。
+- `strategy_turn` 不 import 具体游戏。
+- `room` 不 import 具体游戏。
+- `core/websocket` 不 import Room/User 业务实现。
+- Repository 不 import Store。
+- Store 不调 API。
+- Page 不直接 `fetch` / `localStorage`。
+- 公共层不写 `gameCode` 特判。
+- 不新增 `StableFirstFallbackPolicy`、`GameView.legalActions`、`lastActionEvents` 等不符合当前模型的符号或字段。

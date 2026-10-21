@@ -7,12 +7,21 @@
       :rooms="rooms"
       :room-config-schema="roomConfigSchema"
       :loading="loading || roomsLoading"
-      :disabled="onlineBlocked || loading"
+      :disabled="onlineBlocked || listBusy"
       :error-message="roomListErrorMessage"
       @refresh="onRefreshRooms"
       @create="openCreateDialog"
       @select-room="onSelectListRoom"
-    />
+    >
+      <RoomActiveNotice
+        :room="activeRoom"
+        :game-name="activeRoomGameName"
+        :disabled="onlineBlocked || listBusy"
+        :error-message="activeRoomError"
+        @return="onReturnActiveRoom"
+        @leave="onRequestLeaveActiveRoom"
+      />
+    </RoomListPage>
 
     <CreateRoomDialog
       :visible="createDialogVisible"
@@ -21,6 +30,31 @@
       :error-message="createError"
       @close="closeCreateDialog"
       @submit="onCreateRoom"
+    >
+      <template #error-action>
+        <RoomActiveNotice
+          v-if="createError"
+          :room="activeRoom"
+          :game-name="activeRoomGameName"
+          :disabled="onlineBlocked || listBusy"
+          :error-message="activeRoomError"
+          @return="onReturnActiveRoom"
+          @leave="onRequestLeaveActiveRoom"
+        />
+      </template>
+    </CreateRoomDialog>
+
+    <RoomResumePlayingDialog
+      :visible="activeRoomLeaveVisible"
+      title="退出房间"
+      :message="activeRoomLeaveMessage"
+      confirm-text="退出房间"
+      cancel-text="取消"
+      :submitting="activeRoomLeaving"
+      :error-message="activeRoomLeaveError"
+      @confirm="onConfirmLeaveActiveRoom"
+      @secondary-action="onCancelLeaveActiveRoom"
+      @dismiss="onCancelLeaveActiveRoom"
     />
 
     <RoomDetailDialog
@@ -41,7 +75,8 @@
       :submitting="activePlayingConfirmSubmitting"
       :error-message="activePlayingConfirmError"
       @confirm="onConfirmActivePlaying"
-      @cancel="onDeclineActivePlaying"
+      @secondary-action="onDeclineActivePlaying"
+      @dismiss="onDismissActivePlaying"
     />
 
     <RoomResumePlayingDialog
@@ -53,7 +88,8 @@
       :submitting="listResumeConfirmSubmitting"
       :error-message="listResumeConfirmError"
       @confirm="onConfirmListResumePlaying"
-      @cancel="onCancelListResumePlaying"
+      @secondary-action="onCancelListResumePlaying"
+      @dismiss="onCancelListResumePlaying"
     />
 
     <RoomResumePlayingDialog
@@ -65,7 +101,8 @@
       :submitting="managedShellConfirmSubmitting"
       :error-message="managedShellConfirmError"
       @confirm="onConfirmManagedShellResume"
-      @cancel="onCancelManagedShellResume"
+      @secondary-action="onCancelManagedShellResume"
+      @dismiss="onCancelManagedShellResume"
     />
 
     <RoomResumePlayingDialog
@@ -77,7 +114,8 @@
       :submitting="switchRoomConfirmSubmitting"
       :error-message="switchRoomConfirmError"
       @confirm="onConfirmSwitchRoom"
-      @cancel="onCancelSwitchRoom"
+      @secondary-action="onCancelSwitchRoom"
+      @dismiss="onCancelSwitchRoom"
     />
 
     <RoomResumePlayingDialog
@@ -89,25 +127,34 @@
       :submitting="managedShellSwitchConfirmSubmitting"
       :error-message="managedShellSwitchConfirmError"
       @confirm="onConfirmManagedShellSwitch"
-      @cancel="onCancelManagedShellSwitch"
+      @secondary-action="onCancelManagedShellSwitch"
+      @dismiss="onCancelManagedShellSwitch"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoomLobbyDialogs } from '../composables/useRoomLobbyDialogs.js';
+import { computed, onActivated, ref, watch } from 'vue';
+import { useAsyncContext } from '../composables/useAsyncContext.js';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import RoomListPage from '../components/game-hub/room/RoomListPage.vue';
 import RoomDetailDialog from '../components/game-hub/room/RoomDetailDialog.vue';
 import CreateRoomDialog from '../components/game-hub/room/CreateRoomDialog.vue';
 import RoomResumePlayingDialog from '../components/game-hub/room/RoomResumePlayingDialog.vue';
+import RoomActiveNotice from '../components/game-hub/room/RoomActiveNotice.vue';
 import { usePlatformStore } from '../stores/platformStore.js';
-import * as roomService from '../services/roomService.js';
+import * as roomQueryService from '../services/roomQueryService.js';
+import * as roomRealtimeService from '../services/roomRealtimeService.js';
 import { canFetchRemote } from '../services/remoteGate.js';
 import { useRoomStore } from '../stores/roomStore.js';
-import { loadOnlineRuleDefinition, resolveOnlineRoomMode } from '../services/onlineRoomService.js';
+import { loadOnlineRuleDefinition } from '../services/onlineRoomService.js';
+import { resolveGamePlayRoute } from '../games/gameModuleRegistry.js';
+import { resolveGameDisplayName } from '../services/gameCatalogService.js';
+import { getRoomMembershipScope } from '../services/roomAccessService.js';
 
+const context = useAsyncContext();
 const route = useRoute();
 const router = useRouter();
 const platform = usePlatformStore();
@@ -116,50 +163,6 @@ const { rooms, roomsLoading, roomsError, roomConfigSchema } = storeToRefs(roomSt
 
 const loading = ref(false);
 const loadError = ref('');
-const createDialogVisible = ref(false);
-const createSubmitting = ref(false);
-const createError = ref('');
-const listDetailVisible = ref(false);
-const listDetailLoading = ref(false);
-const listDetailJoining = ref(false);
-/** @type {import('vue').Ref<object|null>} */
-const selectedListRoom = ref(null);
-/** @type {import('vue').Ref<object|null>} */
-const activeRoom = ref(null);
-
-const activePlayingConfirmVisible = ref(false);
-const activePlayingConfirmSubmitting = ref(false);
-const activePlayingConfirmError = ref('');
-
-const listResumeConfirmVisible = ref(false);
-const listResumeConfirmSubmitting = ref(false);
-const listResumeConfirmError = ref('');
-/** @type {import('vue').Ref<string>} */
-const listResumeRoomId = ref('');
-
-const managedShellConfirmVisible = ref(false);
-const managedShellConfirmSubmitting = ref(false);
-const managedShellConfirmError = ref('');
-/** @type {import('vue').Ref<object|null>} */
-const managedShellRoom = ref(null);
-const switchRoomConfirmVisible = ref(false);
-const switchRoomConfirmSubmitting = ref(false);
-const switchRoomConfirmError = ref('');
-/** @type {import('vue').Ref<string>} */
-const pendingJoinRoomId = ref('');
-/** @type {import('vue').Ref<object|null>} */
-const pendingLeaveActiveRoom = ref(null);
-const managedShellSwitchConfirmVisible = ref(false);
-const managedShellSwitchConfirmSubmitting = ref(false);
-const managedShellSwitchConfirmError = ref('');
-/** @type {import('vue').Ref<string>} */
-const pendingManagedShellRoomId = ref('');
-/** @type {import('vue').Ref<object|null>} */
-const pendingManagedShellActiveRoom = ref(null);
-
-/** @type {(() => void)|null} */
-let releaseRoomRealtime = null;
-
 const onlineBlocked = computed(() => !canFetchRemote());
 const gameCode = computed(() => String(route.params.gameCode || '').trim());
 const pageTitle = computed(() => '房间列表');
@@ -174,371 +177,105 @@ const roomListErrorMessage = computed(() => {
   return roomsError.value;
 });
 
-const currentPlayerId = computed(() => roomService.getCurrentPlayerId());
-
 /**
- * @param {object|null|undefined} room
- * @returns {boolean}
+ * 按目标房间的游戏进入等待页；未知或不支持在线对战的游戏明确报错。
+ * @param {string} roomId 房间标识。
+ * @param {string} [targetGameCode] 房间实际游戏编码，当前大厅仅用于普通列表操作。
+ * @returns {Promise<void>} 执行路由跳转，不改变房间成员资格。
  */
-function isUserInRoom(room) {
-  const playerId = currentPlayerId.value;
-  if (!playerId || !room?.members) {
-    return false;
-  }
-  return room.members.some((item) => {
-    const samePlayer = String(item?.playerId || '').trim() === playerId;
-    return samePlayer && String(item?.managedMode || '').trim() !== 'shell';
-  });
-}
-
-const selectedRoomIsMember = computed(() => isUserInRoom(selectedListRoom.value));
-const selectedRoomIsManagedShell = computed(() => {
-  const playerId = currentPlayerId.value;
-  const room = selectedListRoom.value;
-  if (!playerId || !room?.members) {
-    return false;
-  }
-  return room.members.some((item) => {
-    const samePlayer = String(item?.playerId || '').trim() === playerId;
-    return samePlayer && String(item?.managedMode || '').trim() === 'shell';
-  });
-});
-
-const selectedRoomStatus = computed(() => String(selectedListRoom.value?.status || '').trim());
-
-const selectedRoomPrimaryAction = computed(() => {
-  const room = selectedListRoom.value;
-  if (!room || listDetailLoading.value) {
-    return { text: '加入房间', disabled: true };
-  }
-  const status = selectedRoomStatus.value;
-  if (selectedRoomIsMember.value) {
-    if (status === 'waiting') {
-      return { text: '进入房间', disabled: false };
-    }
-    if (status === 'playing') {
-      return { text: '回到对局', disabled: false };
-    }
-    return { text: '进入房间', disabled: true };
-  }
-  if (selectedRoomIsManagedShell.value) {
-    return { text: '恢复对局', disabled: status !== 'playing' };
-  }
-  if (status === 'playing') {
-    return { text: '', disabled: true };
-  }
-  const memberCount = Number(room.memberCount) || 0;
-  const maxPlayers = Number(room.maxPlayers) || 0;
-  const canJoin = status === 'waiting' && maxPlayers > 0 && memberCount < maxPlayers;
-  return { text: '加入房间', disabled: !canJoin };
-});
-
-/**
- * @param {string} roomId
- */
-async function navigateToRoom(roomId) {
+async function navigateToRoom(roomId, targetGameCode = gameCode.value) {
   const normalized = String(roomId || '').trim();
-  if (!normalized || !gameCode.value) {
-    return;
+  const roomGameCode = String(targetGameCode || '').trim();
+  if (!normalized || !resolveGamePlayRoute(roomGameCode, normalized)) {
+    throw new Error('该房间所属游戏暂不支持在线进入');
   }
   await router.push({
     name: 'online-room-waiting',
-    params: { gameCode: gameCode.value, roomId: normalized }
+    params: { gameCode: roomGameCode, roomId: normalized }
   });
 }
 
 /**
- * @param {string} roomId
+ * 按目标房间的游戏进入对战页，不把跨游戏房间送入当前游戏。
+ * @param {string} roomId 房间标识。
+ * @param {string} [targetGameCode] 房间实际游戏编码。
+ * @returns {Promise<void>} 解析通用注册表后执行路由跳转。
  */
-async function navigateToPlay(roomId) {
+async function navigateToPlay(roomId, targetGameCode = gameCode.value) {
   const normalized = String(roomId || '').trim();
-  if (!normalized || !gameCode.value) {
-    return;
+  const playRoute = resolveGamePlayRoute(String(targetGameCode || '').trim(), normalized);
+  if (!playRoute) {
+    throw new Error('该房间所属游戏暂不支持在线进入');
   }
-  await router.push({
-    name: 'online-play-entry',
-    params: { gameCode: gameCode.value, roomId: normalized }
-  });
+  await router.push(playRoute);
 }
+
+const {
+  createDialogVisible,
+  createSubmitting,
+  createError,
+  listDetailVisible,
+  listDetailLoading,
+  listDetailJoining,
+  selectedListRoom,
+  activeRoom,
+  activeRoomError,
+  activeRoomLeaving,
+  activeRoomLeaveVisible,
+  activeRoomLeaveError,
+  activeRoomLeaveMessage,
+  onRequestLeaveActiveRoom,
+  onCancelLeaveActiveRoom,
+  onConfirmLeaveActiveRoom,
+  refreshActiveRoom,
+  onReturnActiveRoom,
+  activePlayingConfirmVisible,
+  activePlayingConfirmSubmitting,
+  activePlayingConfirmError,
+  listResumeConfirmVisible,
+  listResumeConfirmSubmitting,
+  listResumeConfirmError,
+  managedShellConfirmVisible,
+  managedShellConfirmSubmitting,
+  managedShellConfirmError,
+  managedShellRoom,
+  switchRoomConfirmVisible,
+  switchRoomConfirmSubmitting,
+  switchRoomConfirmError,
+  managedShellSwitchConfirmVisible,
+  managedShellSwitchConfirmSubmitting,
+  managedShellSwitchConfirmError,
+  selectedRoomPrimaryAction,
+  listBusy,
+  resetDialogs,
+  onSelectListRoom,
+  closeListDetailDialog,
+  onListDetailPrimaryAction,
+  onConfirmActivePlaying,
+  onDeclineActivePlaying,
+  onDismissActivePlaying,
+  onConfirmListResumePlaying,
+  onCancelListResumePlaying,
+  onConfirmManagedShellResume,
+  onConfirmSwitchRoom,
+  onCancelSwitchRoom,
+  onConfirmManagedShellSwitch,
+  onCancelManagedShellResume,
+  onCancelManagedShellSwitch,
+  openCreateDialog,
+  closeCreateDialog,
+  onCreateRoom
+} = useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading, loadError, navigateToRoom, navigateToPlay });
+
+const activeRoomGameName = computed(() => resolveGameDisplayName(activeRoom.value?.gameCode || ''));
 
 /**
- * @param {object} room
+ * 初始化当前大厅；先独立查询活跃房间，避免列表或规则失败隐藏恢复入口。
+ * @returns {Promise<void>} 更新展示并订阅大厅，过期页面不再写回。
  */
-async function onSelectListRoom(room) {
-  const roomId = String(room?.roomId || '').trim();
-  if (!roomId) {
-    return;
-  }
-  selectedListRoom.value = null;
-  listDetailVisible.value = true;
-  listDetailLoading.value = true;
-  loadError.value = '';
-  try {
-    const detail = await roomService.loadRoomDetail(roomId);
-    selectedListRoom.value = detail;
-  } catch (err) {
-    loadError.value = err?.message || '加载房间详情失败';
-    listDetailVisible.value = false;
-  } finally {
-    listDetailLoading.value = false;
-  }
-}
-
-function closeListDetailDialog() {
-  if (listDetailJoining.value || listDetailLoading.value) {
-    return;
-  }
-  listDetailVisible.value = false;
-  selectedListRoom.value = null;
-}
-
-async function onListDetailPrimaryAction() {
-  const room = selectedListRoom.value;
-  const roomId = String(room?.roomId || '').trim();
-  const action = selectedRoomPrimaryAction.value;
-  if (!roomId || action.disabled) {
-    return;
-  }
-
-  if (selectedRoomIsMember.value) {
-    if (selectedRoomStatus.value === 'waiting') {
-      listDetailVisible.value = false;
-      selectedListRoom.value = null;
-      await navigateToRoom(roomId);
-      return;
-    }
-    if (selectedRoomStatus.value === 'playing') {
-      listResumeRoomId.value = roomId;
-      listResumeConfirmVisible.value = true;
-      listResumeConfirmError.value = '';
-      return;
-    }
-    return;
-  }
-  if (selectedRoomIsManagedShell.value) {
-    managedShellRoom.value = room;
-    managedShellConfirmVisible.value = true;
-    managedShellConfirmError.value = '';
-    return;
-  }
-
-  listDetailJoining.value = true;
-  loadError.value = '';
-  try {
-    const currentActiveRoom = await roomService.loadMyActiveRoom();
-    if (currentActiveRoom && currentActiveRoom.roomId !== roomId) {
-      pendingJoinRoomId.value = roomId;
-      pendingLeaveActiveRoom.value = currentActiveRoom;
-      switchRoomConfirmVisible.value = true;
-      switchRoomConfirmError.value = '';
-      return;
-    }
-    if (currentActiveRoom && currentActiveRoom.roomId === roomId) {
-      if (String(currentActiveRoom.status || '').trim() === 'playing') {
-        listResumeRoomId.value = roomId;
-        listResumeConfirmVisible.value = true;
-        listResumeConfirmError.value = '';
-        return;
-      }
-      listDetailVisible.value = false;
-      selectedListRoom.value = null;
-      await navigateToRoom(roomId);
-      return;
-    }
-    const joinedRoom = await roomService.joinRoom(roomId);
-    listDetailVisible.value = false;
-    selectedListRoom.value = null;
-    await navigateToRoom(joinedRoom.roomId);
-  } catch (err) {
-    loadError.value = err?.message || '加入房间失败';
-  } finally {
-    listDetailJoining.value = false;
-  }
-}
-
-async function onConfirmActivePlaying() {
-  const roomId = String(activeRoom.value?.roomId || '').trim();
-  if (!roomId) {
-    activePlayingConfirmVisible.value = false;
-    return;
-  }
-  activePlayingConfirmSubmitting.value = true;
-  activePlayingConfirmError.value = '';
-  try {
-    activePlayingConfirmVisible.value = false;
-    await navigateToPlay(roomId);
-  } catch (err) {
-    activePlayingConfirmError.value = err?.message || '进入对局失败';
-    activePlayingConfirmVisible.value = true;
-  } finally {
-    activePlayingConfirmSubmitting.value = false;
-  }
-}
-
-async function onDeclineActivePlaying() {
-  const roomId = String(activeRoom.value?.roomId || '').trim();
-  if (!roomId) {
-    activePlayingConfirmVisible.value = false;
-    activeRoom.value = null;
-    return;
-  }
-  activePlayingConfirmSubmitting.value = true;
-  activePlayingConfirmError.value = '';
-  try {
-    await roomService.leaveRoom(roomId);
-    activeRoom.value = null;
-    activePlayingConfirmVisible.value = false;
-    await roomService.refreshRoomList(gameCode.value);
-  } catch (err) {
-    activePlayingConfirmError.value = err?.message || '退出房间失败';
-  } finally {
-    activePlayingConfirmSubmitting.value = false;
-  }
-}
-
-async function onConfirmListResumePlaying() {
-  const roomId = listResumeRoomId.value;
-  if (!roomId) {
-    return;
-  }
-  listResumeConfirmSubmitting.value = true;
-  listResumeConfirmError.value = '';
-  try {
-    listResumeConfirmVisible.value = false;
-    listDetailVisible.value = false;
-    selectedListRoom.value = null;
-    await navigateToPlay(roomId);
-  } catch (err) {
-    listResumeConfirmError.value = err?.message || '进入对局失败';
-    listResumeConfirmVisible.value = true;
-  } finally {
-    listResumeConfirmSubmitting.value = false;
-  }
-}
-
-function onCancelListResumePlaying() {
-  if (listResumeConfirmSubmitting.value) {
-    return;
-  }
-  listResumeConfirmVisible.value = false;
-  listResumeRoomId.value = '';
-  listResumeConfirmError.value = '';
-}
-
-async function onConfirmManagedShellResume() {
-  const roomId = String(managedShellRoom.value?.roomId || '').trim();
-  if (!roomId) {
-    managedShellConfirmVisible.value = false;
-    return;
-  }
-  managedShellConfirmSubmitting.value = true;
-  managedShellConfirmError.value = '';
-  try {
-    const currentActiveRoom = await roomService.loadMyActiveRoom();
-    if (!currentActiveRoom) {
-      const room = await roomService.rejoinManagedRoom(roomId);
-      managedShellConfirmVisible.value = false;
-      managedShellRoom.value = null;
-      await navigateToPlay(room.roomId);
-      return;
-    }
-    if (String(currentActiveRoom.roomId || '').trim() === roomId) {
-      managedShellConfirmVisible.value = false;
-      managedShellRoom.value = null;
-      await navigateToPlay(roomId);
-      return;
-    }
-    pendingManagedShellRoomId.value = roomId;
-    pendingManagedShellActiveRoom.value = currentActiveRoom;
-    managedShellConfirmVisible.value = false;
-    managedShellSwitchConfirmVisible.value = true;
-    managedShellSwitchConfirmError.value = '';
-  } catch (err) {
-    managedShellConfirmError.value = err?.message || '恢复对局失败';
-  } finally {
-    managedShellConfirmSubmitting.value = false;
-  }
-}
-
-async function onConfirmSwitchRoom() {
-  const targetRoomId = String(pendingJoinRoomId.value || '').trim();
-  const activeRoomId = String(pendingLeaveActiveRoom.value?.roomId || '').trim();
-  if (!targetRoomId || !activeRoomId) {
-    switchRoomConfirmVisible.value = false;
-    return;
-  }
-  switchRoomConfirmSubmitting.value = true;
-  switchRoomConfirmError.value = '';
-  try {
-    await roomService.leaveRoom(activeRoomId);
-    const joinedRoom = await roomService.joinRoom(targetRoomId);
-    switchRoomConfirmVisible.value = false;
-    pendingJoinRoomId.value = '';
-    pendingLeaveActiveRoom.value = null;
-    listDetailVisible.value = false;
-    selectedListRoom.value = null;
-    await navigateToRoom(joinedRoom.roomId);
-  } catch (err) {
-    switchRoomConfirmError.value = err?.message || '切换房间失败';
-  } finally {
-    switchRoomConfirmSubmitting.value = false;
-  }
-}
-
-function onCancelSwitchRoom() {
-  if (switchRoomConfirmSubmitting.value) {
-    return;
-  }
-  switchRoomConfirmVisible.value = false;
-  switchRoomConfirmError.value = '';
-  pendingJoinRoomId.value = '';
-  pendingLeaveActiveRoom.value = null;
-}
-
-async function onConfirmManagedShellSwitch() {
-  const managedRoomId = String(pendingManagedShellRoomId.value || '').trim();
-  const activeRoomId = String(pendingManagedShellActiveRoom.value?.roomId || '').trim();
-  if (!managedRoomId || !activeRoomId) {
-    managedShellSwitchConfirmVisible.value = false;
-    return;
-  }
-  managedShellSwitchConfirmSubmitting.value = true;
-  managedShellSwitchConfirmError.value = '';
-  try {
-    await roomService.leaveRoom(activeRoomId);
-    const room = await roomService.rejoinManagedRoom(managedRoomId);
-    managedShellSwitchConfirmVisible.value = false;
-    pendingManagedShellRoomId.value = '';
-    pendingManagedShellActiveRoom.value = null;
-    managedShellConfirmVisible.value = false;
-    managedShellRoom.value = null;
-    await navigateToPlay(room.roomId);
-  } catch (err) {
-    managedShellSwitchConfirmError.value = err?.message || '恢复对局失败';
-  } finally {
-    managedShellSwitchConfirmSubmitting.value = false;
-  }
-}
-
-function onCancelManagedShellResume() {
-  if (managedShellConfirmSubmitting.value) {
-    return;
-  }
-  managedShellConfirmVisible.value = false;
-  managedShellConfirmError.value = '';
-}
-
-function onCancelManagedShellSwitch() {
-  if (managedShellSwitchConfirmSubmitting.value) {
-    return;
-  }
-  managedShellSwitchConfirmVisible.value = false;
-  managedShellSwitchConfirmError.value = '';
-  pendingManagedShellRoomId.value = '';
-  pendingManagedShellActiveRoom.value = null;
-}
-
 async function initPage() {
+  const operation = context.capture();
+  if (!operation.isCurrent()) return;
   if (!gameCode.value) {
     loadError.value = '缺少 gameCode';
     return;
@@ -550,9 +287,12 @@ async function initPage() {
   loading.value = true;
   loadError.value = '';
   try {
-    await loadOnlineRuleDefinition(gameCode.value);
-    await roomService.refreshRoomList(gameCode.value);
-    activeRoom.value = await roomService.loadMyActiveRoom();
+    await refreshActiveRoom();
+    if (!operation.isCurrent()) return;
+    await loadOnlineRuleDefinition(gameCode.value, { signal: operation.signal });
+    if (!operation.isCurrent()) return;
+    await roomQueryService.refreshRoomList(gameCode.value, { signal: operation.signal });
+    if (!operation.isCurrent()) return;
     if (
       activeRoom.value?.status === 'playing' &&
       String(activeRoom.value?.gameCode || '').trim() === gameCode.value
@@ -560,102 +300,49 @@ async function initPage() {
       activePlayingConfirmVisible.value = true;
       activePlayingConfirmError.value = '';
     }
-    managedShellRoom.value = await roomService.loadMyManagedShell(gameCode.value);
+    const loadedShellRoom = await roomQueryService.loadMyManagedShell(gameCode.value);
+    if (!operation.isCurrent()) return;
+    managedShellRoom.value = loadedShellRoom;
     if (managedShellRoom.value?.roomId) {
       managedShellConfirmVisible.value = true;
       managedShellConfirmError.value = '';
     }
-    releaseRoomRealtime = roomService.bindRoomRealtime(`__lobby__:${gameCode.value}`);
+    operation.own(roomRealtimeService.bindRoomRealtime(`__lobby__:${gameCode.value}`));
   } catch (err) {
+    if (!operation.isCurrent()) return;
     loadError.value = err?.message || '加载失败';
   } finally {
-    loading.value = false;
+    if (operation.isCurrent()) loading.value = false;
   }
 }
 
+/**
+ * 同时刷新列表与跨游戏活跃房间；其中一条查询失败不阻止另一条完成。
+ * @returns {Promise<void>} 各查询服务维护其错误展示，页面取消后不写回。
+ */
 async function onRefreshRooms() {
+  const operation = context.capture();
+  if (!operation.isCurrent()) return;
   if (onlineBlocked.value || !gameCode.value) {
     return;
   }
   try {
-    await roomService.refreshRoomList(gameCode.value);
+    await Promise.allSettled([
+      roomQueryService.refreshRoomList(gameCode.value, { signal: operation.signal }),
+      refreshActiveRoom()
+    ]);
+    if (!operation.isCurrent()) return;
   } catch {
     // 错误信息已由 service 写入 store
   }
 }
 
-function openCreateDialog() {
-  createError.value = '';
-  createDialogVisible.value = true;
-}
+watch([gameCode, onlineBlocked, getRoomMembershipScope], () => {
+  context.reset();
+  resetDialogs();
+  loading.value = false;
+  void initPage();
+}, { immediate: true, flush: 'sync' });
 
-function closeCreateDialog() {
-  if (createSubmitting.value) {
-    return;
-  }
-  createDialogVisible.value = false;
-  createError.value = '';
-}
-
-/**
- * @param {{ roomName?: string; roomConfig?: object }} payload
- */
-async function onCreateRoom(payload) {
-  if (!gameCode.value) {
-    createError.value = '缺少 gameCode';
-    return;
-  }
-  createSubmitting.value = true;
-  createError.value = '';
-  try {
-    const room = await roomService.createRoom({
-      gameCode: gameCode.value,
-      mode: resolveOnlineRoomMode(gameCode.value),
-      roomName: payload?.roomName,
-      roomConfig: payload?.roomConfig
-    });
-    createDialogVisible.value = false;
-    await navigateToRoom(room.roomId);
-  } catch (err) {
-    createError.value = err?.message || '创建房间失败';
-  } finally {
-    createSubmitting.value = false;
-  }
-}
-
-onMounted(() => {
-  initPage();
-});
-
-onActivated(() => {
-  if (onlineBlocked.value || !gameCode.value) {
-    return;
-  }
-  void roomService.refreshRoomList(gameCode.value);
-});
-
-watch(
-  () => route.params.gameCode,
-  async (next, prev) => {
-    if (String(next || '').trim() === String(prev || '').trim()) {
-      return;
-    }
-    if (releaseRoomRealtime) {
-      releaseRoomRealtime();
-      releaseRoomRealtime = null;
-    }
-    activePlayingConfirmVisible.value = false;
-    activeRoom.value = null;
-    managedShellConfirmVisible.value = false;
-    managedShellRoom.value = null;
-    await initPage();
-  }
-);
-
-onUnmounted(() => {
-  if (releaseRoomRealtime) {
-    releaseRoomRealtime();
-    releaseRoomRealtime = null;
-  }
-});
+onActivated(() => { void onRefreshRooms(); });
 </script>

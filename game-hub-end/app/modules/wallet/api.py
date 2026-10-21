@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, Path, Query
 
 from app.common.page_response import PageResponse
 from app.common.response import ApiResponse, success
-from app.modules.boot.schemas import UserWalletResponse, WalletLedgerResponse
+from app.modules.auth.deps import get_authenticated_account
+from app.modules.wallet.response_schemas import UserWalletResponse
+from app.modules.wallet.response_schemas import WalletLedgerResponse
+from app.modules.user.models import UserAccount
 from app.modules.wallet.deps import get_wallet_module_service
 from app.modules.wallet.module_service import WalletModuleService
 
@@ -18,6 +21,7 @@ router = APIRouter(prefix="/users", tags=["wallet"])
 )
 def get_user_wallet(
     userId: str = Path(..., min_length=1),
+    _current_user: UserAccount = Depends(get_authenticated_account),
     service: WalletModuleService = Depends(get_wallet_module_service),
 ):
     """
@@ -40,6 +44,7 @@ def list_user_wallet_ledgers(
     userId: str = Path(..., min_length=1),
     page_num: int = Query(default=1, ge=1, alias="pageNum"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    _current_user: UserAccount = Depends(get_authenticated_account),
     service: WalletModuleService = Depends(get_wallet_module_service),
 ):
     """

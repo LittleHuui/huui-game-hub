@@ -1,168 +1,150 @@
 """平台 WebSocket 消息分发。"""
 
 import logging
-from typing import Any, Dict, Optional
+import uuid
+from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.common.exceptions import BizException
+from app.core.auth.schemas import AuthenticatedUser
 from app.core.time_utils import now_ms
-from app.core.websocket.connection_manager import connection_manager
+from app.core.websocket.connection_manager import WS_CLOSE_AUTH_EXPIRED, WS_CLOSE_AUTH_INVALID, connection_manager
+from app.core.websocket.handler_registry import get_realtime_handlers
 from app.core.websocket.message_types import MessageType
-from app.core.websocket.schemas import RealtimeMessage
-from app.modules.user.entity_service import UserAccountEntityService
-from app.modules.user.repository import UserAccountRepository
-from app.modules.room.presence_service import room_presence_service
+from app.core.websocket.protocols import AuthenticationPort
+from app.core.websocket.schemas import RealtimeHandlerResult, RealtimeMessage
 
-realtime_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@realtime_router.websocket("/ws/game-hub/realtime")
-async def realtime_websocket(websocket: WebSocket, db: Session = Depends(get_db)) -> None:
-    """
-    平台唯一实时通道。
+def _extract_realtime_ticket(websocket: WebSocket) -> Optional[str]:
+    """从 WebSocket 查询参数读取一次性 Ticket。"""
+    ticket = websocket.query_params.get("ticket")
+    if ticket and str(ticket).strip():
+        return str(ticket).strip()
+    return None
 
-    :param websocket: WebSocket 连接。
-    :param db: 请求级数据库会话。
-    :return: 无。
-    """
-    service_id = websocket.query_params.get("serviceId")
-    if not service_id:
-        await websocket.close(code=1008)
+
+async def handle_realtime_connection(websocket: WebSocket, auth_port: AuthenticationPort) -> None:
+    """处理平台实时 WebSocket 连接生命周期。"""
+    ticket = _extract_realtime_ticket(websocket)
+    if not ticket:
+        await websocket.close(code=WS_CLOSE_AUTH_INVALID)
         return
-    if not _is_valid_service_id(service_id, db):
-        await websocket.close(code=1008)
+    auth_user = await auth_port.authenticate_ticket(ticket)
+    if auth_user is None:
+        await websocket.close(code=WS_CLOSE_AUTH_INVALID)
         return
+    if auth_user.expiresAt <= now_ms():
+        await websocket.close(code=WS_CLOSE_AUTH_EXPIRED)
+        return
+
+    service_id = auth_user.serviceId
+    connection_id = "conn_{0}".format(uuid.uuid4().hex)
     connected = False
     try:
-        await connection_manager.connect(service_id, websocket)
+        await connection_manager.connect(service_id, websocket, connection_id=connection_id)
         connected = True
         while True:
+            if not await connection_manager.is_active_connection(service_id, websocket, connection_id=connection_id):
+                break
             data = await websocket.receive_json()
-            await dispatch_message(service_id, websocket, data)
+            if not await connection_manager.is_active_connection(service_id, websocket, connection_id=connection_id):
+                break
+            await dispatch_message(auth_user, websocket, data)
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected, service_id=%s", service_id)
     except Exception:
         logger.exception("WebSocket realtime error, service_id=%s", service_id)
     finally:
         if connected:
-            connection_manager.disconnect(service_id, websocket)
+            await connection_manager.disconnect(service_id, websocket, connection_id=connection_id)
 
 
-def _is_valid_service_id(service_id: str, db: Session) -> bool:
-    """
-    校验实时通道 serviceId 是否对应可用用户。
-
-    :param service_id: 用户服务端 ID。
-    :param db: 请求级数据库会话。
-    :return: 是否允许建立 WebSocket 业务连接。
-    """
-    account_service = UserAccountEntityService(UserAccountRepository(db))
-    account = account_service.get_by_server_id(service_id, active_only=True)
-    if account is None:
-        return False
-    return account.status == "normal"
-
-
-async def dispatch_message(service_id: str, websocket: WebSocket, data: Dict[str, Any]) -> None:
-    """
-    分发平台实时通道消息。
-
-    :param service_id: 用户服务端 ID。
-    :param websocket: WebSocket 连接。
-    :param data: 原始消息对象。
-    :return: 无。
-    """
+async def dispatch_message(auth_user: AuthenticatedUser, websocket: WebSocket, data: Dict[str, object]) -> None:
+    """分发平台实时通道消息，身份始终来自连接上下文。"""
+    service_id = auth_user.serviceId
     try:
         message = RealtimeMessage.model_validate(data)
     except ValidationError:
         await send_error(websocket, None, "消息格式无效")
         return
     if message.type == MessageType.ONLINE_PING.value:
-        await websocket.send_json(
-            {
-                "type": MessageType.ONLINE_PONG.value,
-                "requestId": message.requestId,
-                "payload": {"serviceId": service_id},
-                "timestamp": now_ms(),
-            }
-        )
+        await connection_manager.refresh_connection(auth_user.serviceId, connection_id=None)
+        await websocket.send_json({"type": MessageType.ONLINE_PONG.value, "requestId": message.requestId, "payload": {"serviceId": service_id}, "timestamp": now_ms()})
         return
     if message.type == MessageType.ROOM_INVITE.value:
-        await _forward_room_invite(service_id, message.payload)
+        await _dispatch_room_invite(auth_user, websocket, message)
         return
     if message.type == MessageType.ROOM_PRESENCE_PONG.value:
-        await room_presence_service.accept_pong(service_id, message.payload)
+        await _dispatch_presence_pong(service_id, message.payload)
         return
     await send_error(websocket, message.requestId, "不支持的消息类型")
 
 
-async def _forward_room_invite(sender_service_id: str, payload: Dict[str, Any]) -> None:
-    """
-    将房间邀请转发给目标用户。
-
-    :param sender_service_id: 邀请方用户 ID。
-    :param payload: 原始载荷。
-    :return: 无。
-    """
-    if not isinstance(payload, dict):
+async def _dispatch_room_invite(auth_user: AuthenticatedUser, websocket: WebSocket, message: RealtimeMessage) -> None:
+    """路由房间邀请消息。"""
+    sender_service_id = auth_user.serviceId
+    registry = get_realtime_handlers()
+    handler = registry.room_invitation_handler
+    if handler is None:
+        await send_error(websocket, message.requestId, "邀请服务不可用")
         return
-    target_service_id = str(payload.get("targetServiceId", "")).strip()
-    if not target_service_id or target_service_id == sender_service_id:
+    if not isinstance(message.payload, dict):
+        await send_error(websocket, message.requestId, "邀请参数无效")
         return
-    room_id = str(payload.get("roomId", "")).strip()
-    if not room_id:
+    payload_sender = message.payload.get("senderServiceId") or message.payload.get("senderUserId")
+    if payload_sender is not None and str(payload_sender).strip() and str(payload_sender).strip() != sender_service_id:
+        await send_error(websocket, message.requestId, "邀请参数无效")
         return
-    forward_payload = {
-        "roomId": room_id,
-        "roomName": str(payload.get("roomName", "")).strip(),
-        "gameCode": str(payload.get("gameCode", "")).strip(),
-        "inviterPlayerId": sender_service_id,
-        "inviterNickname": str(payload.get("inviterNickname", "")).strip() or sender_service_id,
-    }
-    await send_to_user(target_service_id, MessageType.ROOM_INVITE, forward_payload)
+    try:
+        result = await handler.handle(sender_service_id, message.payload, message.requestId)
+    except BizException as exc:
+        await send_error(websocket, message.requestId, exc.message)
+        return
+    except Exception:
+        logger.exception("room invite handler failed, sender=%s", sender_service_id)
+        await send_error(websocket, message.requestId, "邀请发送失败")
+        return
+    await _send_handler_result(websocket, message.requestId, result)
 
 
-async def send_to_user(service_id: str, message_type: MessageType, payload: Dict[str, Any]) -> bool:
-    """
-    向指定用户发送实时消息。
+async def _dispatch_presence_pong(service_id: str, payload: Dict[str, object]) -> None:
+    """路由房间探活 pong 消息。"""
+    registry = get_realtime_handlers()
+    handler = registry.presence_handler
+    if handler is None or not isinstance(payload, dict):
+        return
+    try:
+        await handler.handle(service_id, payload)
+    except Exception:
+        logger.exception("presence pong handler failed, serviceId=%s", service_id)
 
-    :param service_id: 用户服务端 ID。
-    :param message_type: 消息类型。
-    :param payload: 消息载荷。
-    :return: 是否发送成功。
-    """
+
+async def _send_handler_result(websocket: WebSocket, request_id: Optional[str], result: RealtimeHandlerResult) -> None:
+    """发送 Handler 处理结果。"""
+    if result.error_message:
+        await send_error(websocket, request_id, result.error_message)
+        return
+    if not result.forward_service_id:
+        return
+    sent = await send_to_user(result.forward_service_id, MessageType.ROOM_INVITE, result.forward_payload or {})
+    if not sent:
+        await send_error(websocket, request_id, result.offline_error_message or "被邀请用户不在线")
+
+
+async def send_to_user(service_id: str, message_type: MessageType, payload: Dict[str, object]) -> bool:
+    """向指定用户发送实时消息。"""
     return await connection_manager.send_to_user(service_id, message_type, payload)
 
 
-async def broadcast(message_type: MessageType, payload: Dict[str, Any]) -> None:
-    """
-    广播实时消息。
-
-    :param message_type: 消息类型。
-    :param payload: 消息载荷。
-    :return: 无。
-    """
+async def broadcast(message_type: MessageType, payload: Dict[str, object]) -> None:
+    """广播实时消息。"""
     await connection_manager.broadcast(message_type, payload)
 
 
 async def send_error(websocket: WebSocket, request_id: Optional[str], message: str) -> None:
-    """
-    发送错误消息。
-
-    :param websocket: WebSocket 连接。
-    :param request_id: 请求 ID。
-    :param message: 错误说明。
-    :return: 无。
-    """
-    await websocket.send_json(
-        {
-            "type": MessageType.ERROR.value,
-            "requestId": request_id,
-            "payload": {"message": message},
-            "timestamp": now_ms(),
-        }
-    )
+    """发送错误消息。"""
+    await websocket.send_json({"type": MessageType.ERROR.value, "requestId": request_id, "payload": {"message": message}, "timestamp": now_ms()})

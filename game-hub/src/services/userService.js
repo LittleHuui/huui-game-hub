@@ -14,7 +14,8 @@ import * as syncService from './syncService.js';
 import * as dataModeService from './dataModeService.js';
 import * as onlineService from './onlineService.js';
 import * as realtimeService from './realtimeService.js';
-import { resolvePlatformGameCode } from '../utils/requireGameCode.js';
+import { resetAuthenticationFailureState } from './onlineAuthenticationFailureService.js';
+import { resolvePlatformGameCode } from './platformContextService.js';
 
 /**
  * 当前是否可对已绑定服务端用户发起写操作。
@@ -53,6 +54,7 @@ export async function login(username) {
   platform.syncMessage = '正在登录...';
   try {
     await userRepository.loginUser(name);
+    resetAuthenticationFailureState();
     await bootService.continueAfterLogin();
     toastService.push('登录成功', 'success');
     return { success: true };
@@ -90,6 +92,8 @@ export async function createAndLogin(username, nickname) {
   platform.syncMessage = '正在创建用户...';
   try {
     await userRepository.createRemoteUser({ username: name, nickname: nick });
+    await userRepository.loginUser(name);
+    resetAuthenticationFailureState();
     await bootService.continueAfterLogin();
     toastService.push('用户已创建', 'success');
     return { success: true };
@@ -137,6 +141,7 @@ export async function createUser(form) {
   if (tryRemote) {
     try {
       await userRepository.createRemoteUser(form);
+      await userRepository.loginUser(form.username);
       toastService.push('云端用户已创建并切换', 'success');
       return true;
     } catch (e) {

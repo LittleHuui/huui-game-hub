@@ -4,7 +4,8 @@ import json
 from typing import Any, Dict, Optional
 
 from app.common.exceptions import ValidationException
-from app.modules.boot.schemas import UserWalletResponse, WalletLedgerResponse
+from app.modules.wallet.response_schemas import UserWalletResponse
+from app.modules.wallet.response_schemas import WalletLedgerResponse
 from app.modules.wallet.models import UserWallet, WalletLedger
 
 

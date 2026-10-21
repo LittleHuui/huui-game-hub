@@ -1,0 +1,196 @@
+/* Player panel */
+.doudizhu-player-panel__mini-card,
+.doudizhu-player-panel__terminal-card {
+  --doudizhu-laizi-rank-size: 11px;
+  --doudizhu-laizi-corner-star-size: 7px;
+  --doudizhu-laizi-center-star-size: 18px;
+  --doudizhu-laizi-source-rank-size: 9px;
+  --doudizhu-laizi-index-inset: 3px;
+}
+
+.doudizhu-player-panel__played-cards .doudizhu-card,
+.doudizhu-page__bottom-play-cards .doudizhu-card,
+.doudizhu-table__card-row .doudizhu-card {
+  --doudizhu-laizi-rank-size: 12px;
+  --doudizhu-laizi-corner-star-size: 8px;
+  --doudizhu-laizi-center-star-size: 22px;
+  --doudizhu-laizi-source-rank-size: 10px;
+  --doudizhu-laizi-index-inset: 4px;
+}
+
+.doudizhu-player-panel__operation-feedback {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.28rem;
+  max-width: min(290px, 34vw);
+  pointer-events: none;
+}
+
+.doudizhu-player-panel__played-cards {
+  display: flex;
+  align-items: flex-end;
+}
+
+.doudizhu-player-panel__played-cards .doudizhu-card {
+  position: relative;
+  width: 54px;
+  height: 76px;
+  flex: 0 0 auto;
+}
+
+.doudizhu-player-panel__played-cards .doudizhu-card + .doudizhu-card {
+  margin-left: -8px;
+}
+
+.doudizhu-player-panel__played-label,
+.doudizhu-page__bottom-play-label {
+  color: #fde68a;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.doudizhu-player-panel__operation-feedback--left {
+  top: 50%;
+  left: calc(100% + 0.65rem);
+  transform: translateY(-50%);
+}
+
+.doudizhu-player-panel__operation-feedback--right {
+  top: 50%;
+  right: calc(100% + 0.65rem);
+  align-items: flex-end;
+  transform: translateY(-50%);
+}
+
+.doudizhu-player-panel__action-feedback,
+.doudizhu-page__bottom-action-feedback {
+  position: relative;
+  isolation: isolate;
+  margin: 0;
+  padding: 0.14rem 0.38rem 0.18rem;
+  color: #f5e6c0;
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", serif;
+  font-size: clamp(1.15rem, 1.85vw, 1.72rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 8px rgba(15, 23, 42, 0.62);
+  white-space: nowrap;
+}
+
+.doudizhu-player-panel__action-feedback::before,
+.doudizhu-page__bottom-action-feedback::before {
+  position: absolute;
+  z-index: -1;
+  top: 53%;
+  left: -0.08rem;
+  width: calc(100% + 0.16rem);
+  height: 0.62rem;
+  border-radius: 70% 24% 64% 20%;
+  background: linear-gradient(90deg, transparent, rgba(215, 164, 72, 0.38) 16%, rgba(244, 211, 139, 0.5) 52%, rgba(215, 164, 72, 0.22) 86%, transparent);
+  content: '';
+  transform: rotate(-1.6deg);
+}
+
+.doudizhu-player-panel__action-feedback--declined,
+.doudizhu-page__bottom-action-feedback--declined {
+  color: #d5dde6;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 8px rgba(15, 23, 42, 0.66);
+}
+
+.doudizhu-player-panel__action-feedback--declined::before,
+.doudizhu-page__bottom-action-feedback--declined::before {
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.24) 16%, rgba(203, 213, 225, 0.42) 52%, rgba(148, 163, 184, 0.18) 86%, transparent);
+}
+
+.doudizhu-page__bottom-play {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 82px;
+  pointer-events: none;
+}
+
+.doudizhu-page__bottom-play-cards {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.doudizhu-page__bottom-play-cards .doudizhu-card {
+  position: relative;
+  width: 54px;
+  height: 76px;
+  flex: 0 0 auto;
+}
+
+.doudizhu-page__bottom-play-cards .doudizhu-card + .doudizhu-card {
+  margin-left: -8px;
+}
+
+.doudizhu-page__bottom-play-label {
+  align-self: flex-end;
+  margin-left: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+
+.doudizhu-player-panel__visible-cards {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.doudizhu-player-panel__mini-card {
+  width: 44px;
+  height: 62px;
+}
+
+.doudizhu-player-panel__terminal-hand {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  width: max-content;
+  max-width: none;
+  min-height: 62px;
+  pointer-events: none;
+}
+
+.doudizhu-player-panel__terminal-hand--left {
+  top: calc(100% + 0.45rem);
+  left: 0;
+}
+
+.doudizhu-player-panel__terminal-hand--right {
+  top: calc(100% + 0.45rem);
+  right: 0;
+}
+
+.doudizhu-player-panel__terminal-hand--top {
+  top: calc(100% + 0.45rem);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.doudizhu-player-panel__terminal-card {
+  position: relative;
+  width: 44px;
+  height: 62px;
+  flex: 0 0 auto;
+}
+
+.doudizhu-player-panel__terminal-card + .doudizhu-player-panel__terminal-card {
+  margin-left: -18px;
+}
+
+.doudizhu-player-panel__terminal-empty {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

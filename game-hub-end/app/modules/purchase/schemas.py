@@ -5,11 +5,9 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.common.camel_schema import CAMEL_MODEL_CONFIG
-from app.modules.boot.schemas import (
-    PropPurchaseRecordResponse,
-    UserPropBagResponse,
-    UserWalletResponse,
-)
+from app.modules.purchase.response_schemas import PropPurchaseRecordResponse
+from app.modules.inventory.response_schemas import UserPropBagResponse
+from app.modules.wallet.response_schemas import UserWalletResponse
 
 
 class CreatePropPurchaseRequest(BaseModel):

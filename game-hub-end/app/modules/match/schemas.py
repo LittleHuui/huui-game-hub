@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.boot.schemas import MatchRecordResponse
+from app.modules.match.response_schemas import MatchRecordResponse
 from app.modules.match.models import MatchRecord
 
 

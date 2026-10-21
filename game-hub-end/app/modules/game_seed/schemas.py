@@ -8,20 +8,22 @@ from app.common.camel_schema import CAMEL_MODEL_CONFIG
 
 
 class CardDefinition(BaseModel):
-    """单种牌的定义及在一套牌组中的数量。"""
+    """单种牌的通用定义及在一套牌组中的数量（跨游戏复用）。"""
 
     model_config = CAMEL_MODEL_CONFIG
 
     cardCode: str = Field(min_length=1, description="牌型唯一编码")
-    color: Optional[str] = Field(default=None, description="花色，万能牌为 null")
-    cardType: str = Field(
-        min_length=1,
-        description="牌型：NUMBER / DISABLE / REVERSE / DRAW_TWO / WILD / WILD_DRAW4",
-    )
-    numberValue: Optional[int] = Field(default=None, ge=0, le=9, description="数字牌点数")
+    category: str = Field(min_length=1, description="牌类：NUMBER / ACTION / WILD 等")
+    rankCode: Optional[str] = Field(default=None, description="点数或功能编码")
+    rankValue: Optional[int] = Field(default=None, description="可排序点数，非数字牌为 null")
+    suitCode: Optional[str] = Field(default=None, description="花色编码，无花色为 null")
+    suitLabel: Optional[str] = Field(default=None, description="花色展示文案")
+    displayLabel: str = Field(min_length=1, description="牌面展示标签")
     countPerDeckSet: int = Field(ge=1, description="每套牌组中该牌型的张数")
     image: str = Field(min_length=1, description="牌面图片资源路径或 URL")
     description: str = Field(min_length=1, description="牌型说明")
+    tags: List[str] = Field(default_factory=list, description="标签列表")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="游戏扩展元数据")
 
 
 class GameRuleInfo(BaseModel):

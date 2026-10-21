@@ -59,8 +59,8 @@ function dropCellMeta(from, to, id, isNew = false) {
  * @param {number} max
  * @returns {number}
  */
-function randomIndex(max) {
-  return Math.floor(Math.random() * max);
+function randomIndex(max, rng = Math.random) {
+  return Math.floor(rng() * max);
 }
 
 /**
@@ -163,25 +163,25 @@ function friendlinessForScore(config, score) {
  * @param {number} score
  * @returns {string}
  */
-function chooseControlledType(board, config, row, col, score) {
+function chooseControlledType(board, config, row, col, score, rng = Math.random) {
   const codes = itemCodes(config);
   const friendliness = friendlinessForScore(config, score);
   const safe = codes.filter((code) => dangerLevel(board, row, col, code) === 0);
   const maxTries = Math.max(8, codes.length * 3);
 
   for (let i = 0; i < maxTries; i++) {
-    const candidate = codes[randomIndex(codes.length)];
+    const candidate = codes[randomIndex(codes.length, rng)];
     const danger = dangerLevel(board, row, col, candidate);
     const acceptRate = 1 - danger * (1 - friendliness);
-    if (Math.random() <= acceptRate) {
+    if (rng() <= acceptRate) {
       return candidate;
     }
   }
 
   if (safe.length) {
-    return safe[randomIndex(safe.length)];
+    return safe[randomIndex(safe.length, rng)];
   }
-  return codes[randomIndex(codes.length)];
+  return codes[randomIndex(codes.length, rng)];
 }
 
 /**
@@ -201,7 +201,7 @@ function swapInPlace(board, a, b) {
  * @param {object} config
  * @returns {object[][]}
  */
-export function createBoard(config) {
+export function createBoard(config, rng = Math.random) {
   const rows = Number(config?.rows) || 9;
   const cols = Number(config?.cols) || 9;
   const codes = itemCodes(config);
@@ -213,7 +213,7 @@ export function createBoard(config) {
       for (let col = 0; col < cols; col++) {
         const safeCodes = codes.filter((code) => !createsMatchAt(board, row, col, code));
         const source = config?.allowInitialMatches === false && safeCodes.length ? safeCodes : codes;
-        board[row][col] = createCell(source[randomIndex(source.length)], row, col);
+        board[row][col] = createCell(source[randomIndex(source.length, rng)], row, col);
       }
     }
     const validMatches = config?.allowInitialMatches !== false || findMatches(board).length === 0;
@@ -226,7 +226,7 @@ export function createBoard(config) {
   const baselineBoard = Array.from({ length: rows }, (_, row) =>
     Array.from({ length: cols }, (_, col) => createCell(codes[(row + col) % codes.length], row, col))
   );
-  return shuffleBoard(baselineBoard, config).board;
+  return shuffleBoard(baselineBoard, config, rng).board;
 }
 
 /**
@@ -397,7 +397,7 @@ export function collapseBoard(board) {
  * @param {number} score
  * @returns {{ board: object[][]; spawns: object[]; animationSteps: object[] }}
  */
-export function fillBoardControlled(board, config, score) {
+export function fillBoardControlled(board, config, score, rng = Math.random) {
   const next = cloneBoard(board);
   const rows = next.length;
   const cols = next[0]?.length || 0;
@@ -413,8 +413,8 @@ export function fillBoardControlled(board, config, score) {
     emptyRows.forEach((row, index) => {
       const type =
         config?.controlledRandom?.enabled === false
-          ? itemCodes(config)[randomIndex(itemCodes(config).length)]
-          : chooseControlledType(next, config, row, col, score);
+          ? itemCodes(config)[randomIndex(itemCodes(config).length, rng)]
+          : chooseControlledType(next, config, row, col, score, rng);
       const cell = createCell(type, row, col);
       next[row][col] = cell;
       spawns.push(
@@ -465,7 +465,7 @@ export function scoreMatches(matches, config, combo) {
  * @param {number} score
  * @returns {{ board: object[][]; animationSteps: object[]; scoreDelta: number; comboCount: number; deadBoard: boolean }}
  */
-export function resolveBoard(board, config, score) {
+export function resolveBoard(board, config, score, rng = Math.random) {
   let current = cloneBoard(board);
   const animationSteps = [];
   let scoreDelta = 0;
@@ -488,7 +488,7 @@ export function resolveBoard(board, config, score) {
     current = collapsed.board;
     animationSteps.push(...collapsed.animationSteps);
 
-    const filled = fillBoardControlled(current, config, (Number(score) || 0) + scoreDelta);
+    const filled = fillBoardControlled(current, config, (Number(score) || 0) + scoreDelta, rng);
     current = filled.board;
     animationSteps.push(...filled.animationSteps);
   }
@@ -531,14 +531,14 @@ export function hasAvailableMove(board) {
  * @param {object} config
  * @returns {{ board: object[][]; animationSteps: object[] }}
  */
-export function shuffleBoard(board, config) {
+export function shuffleBoard(board, config, rng = Math.random) {
   const rows = board.length;
   const cols = board[0]?.length || 0;
   const cells = board.flat().filter(Boolean);
   const types = cells.map((cell) => cell.type);
 
   for (let attempt = 0; attempt < 300; attempt++) {
-    const shuffled = [...types].sort(() => Math.random() - 0.5);
+    const shuffled = [...types].sort(() => rng() - 0.5);
     const next = Array.from({ length: rows }, (_, row) =>
       Array.from({ length: cols }, (_, col) => {
         const source = cells[row * cols + col];

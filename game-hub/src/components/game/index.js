@@ -42,7 +42,7 @@ export {
 } from './controls/turnControlEnums.js';
 
 export {
-  hasStrategyTurnActionType,
-  filterStrategyTurnActionsByType,
+  hasActionOfferType,
+  getEnumeratedOptionsByActionType,
   resolveStrategyTurnActionLabel
 } from './controls/turnActionUtils.js';

@@ -1,3 +1,4 @@
+import { mergeDifficultyDefinitions } from '../../utils/mergeDifficultyDefinitions.js';
 import { GAME_SEED_CONFIG } from '../../constants/gameSeedConfig.js';
 import { getSeedGameConfig } from '../../mappers/gameConfigMapper.js';
 import { getEnabledDifficulties, setGameDifficulties } from '../../services/gameDifficultyService.js';
@@ -80,25 +81,7 @@ export function normalizeMatch3Config(raw) {
   };
   const seedDifficulties = Array.isArray(seedConfig.difficulties) ? seedConfig.difficulties : [];
   const remoteDifficulties = Array.isArray(base.difficulties) ? base.difficulties : [];
-  const seedFirst = seedDifficulties[0] || {};
-  const remoteFirst =
-    remoteDifficulties.find((d) => d?.enabled !== false) || remoteDifficulties[0] || {};
-  const mergedFirst = {
-    ...seedFirst,
-    ...remoteFirst,
-    config: mergeDifficultyConfig(seedFirst.config, remoteFirst.config)
-  };
-  const mergedDifficulties =
-    remoteDifficulties.length > 0
-      ? remoteDifficulties.map((d, index) => {
-          const seedDiff = seedDifficulties[index] || seedFirst;
-          return {
-            ...seedDiff,
-            ...d,
-            config: mergeDifficultyConfig(seedDiff.config, d.config)
-          };
-        })
-      : [{ ...mergedFirst }];
+  const mergedDifficulties = mergeDifficultyDefinitions(seedDifficulties, remoteDifficulties, mergeDifficultyConfig);
   setGameDifficulties(MATCH3, mergedDifficulties);
   const firstDifficulty = mergedDifficulties.find((d) => d?.enabled !== false) || mergedDifficulties[0] || {};
   return {

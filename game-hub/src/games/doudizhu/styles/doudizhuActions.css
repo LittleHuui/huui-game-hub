@@ -1,0 +1,33 @@
+/* Action panel */
+.doudizhu-action-panel {
+  --doudizhu-action-button-height: 2.85rem;
+}
+
+.doudizhu-action-panel__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: var(--doudizhu-action-button-height);
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.doudizhu-action-panel__buttons .game-action-btn {
+  min-width: 5.25rem;
+  height: var(--doudizhu-action-button-height);
+  min-height: var(--doudizhu-action-button-height);
+  padding-block: 0;
+  font-size: 1rem;
+}
+
+.doudizhu-action-panel__countdown {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 18px;
+  margin-top: 0.5rem;
+}
+
+.doudizhu-action-panel__countdown--hidden {
+  visibility: hidden;
+}

@@ -28,7 +28,7 @@ export function ensureRoomRealtimeHandlersBound() {
 }
 
 /**
- * 注册同 gameCode 房间列表变更时的刷新回调（由 roomService 注入）。
+ * 注册同 gameCode 房间列表变更时的刷新回调（由 roomQueryService 注入）。
  * @param {(gameCode: string) => void|null} handler
  */
 export function setRoomListRefreshHandler(handler) {
@@ -50,9 +50,10 @@ function handleGameViewUpdated(message) {
   }
   try {
     const gameView = mapStrategyTurnGameView(raw);
-    strategyTurnGameViewService.acceptGameView(gameView);
-  } catch {
-    // 忽略无效推送
+    strategyTurnGameViewService.acceptPushGameView(gameView);
+  } catch (error) {
+    const fingerprint = String(message?.requestId || message?.timestamp || JSON.stringify(raw));
+    void strategyTurnGameViewService.handlePushProtocolError(roomId, error, fingerprint);
   }
 }
 

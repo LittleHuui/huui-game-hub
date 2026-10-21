@@ -36,13 +36,14 @@ export function recordUse(p) {
  * @param {{ label: string; cost: number; sessionId?: string | null }} purchaseMeta
  */
 export function pushGain(ledgerPartial, purchaseMeta) {
+  const purchaseId = createClientId('purchase');
   inventoryRepository.pushInventoryLedger(
-    { ...ledgerPartial, type: 'gain', syncStatus: 'pending', payload: {} },
+    { ...ledgerPartial, clientId: purchaseId, type: 'gain', syncStatus: 'pending', payload: {} },
     (e) => syncRepository.appendPendingEvent(e)
   );
   purchaseRepository.pushPurchaseRecord(
     {
-      clientId: createClientId('purchase'),
+      clientId: purchaseId,
       serverId: null,
       userId: ledgerPartial.userId,
       deviceId: ledgerPartial.deviceId,

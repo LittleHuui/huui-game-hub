@@ -62,7 +62,7 @@ export function mapRoomDetail(raw) {
   const members = Array.isArray(raw.members) ? raw.members : [];
   return {
     ...base,
-    version: Number(raw.version) || 0,
+    roomVersion: Number(raw.roomVersion ?? raw.version) || 0,
     members: members.map((member) => ({
       playerId: String(member?.playerId || '').trim(),
       nickname: String(member?.nickname || '').trim() || '玩家',

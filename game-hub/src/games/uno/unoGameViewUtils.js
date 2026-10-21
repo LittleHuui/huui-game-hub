@@ -101,33 +101,3 @@ export function isWildRuleKey(ruleKey) {
   const normalized = String(ruleKey || '').trim();
   return UNO_WILD_RULE_KEYS.includes(normalized);
 }
-
-/**
- * 在合法操作中查找出牌动作。
- * @param {object[]} legalActions
- * @param {string} cardInstanceId
- * @param {string} [chooseColor]
- * @returns {object|null}
- */
-export function findPlayCardLegalAction(legalActions, cardInstanceId, chooseColor) {
-  const instanceId = String(cardInstanceId || '').trim();
-  if (!instanceId) {
-    return null;
-  }
-  const color = chooseColor != null ? String(chooseColor).trim().toLowerCase() : '';
-  return (
-    (legalActions || []).find((item) => {
-      if (!item || String(item.actionType || '').trim() !== 'PLAY_CARD') {
-        return false;
-      }
-      const payload = item.payload && typeof item.payload === 'object' ? item.payload : {};
-      if (String(payload.cardInstanceId || '').trim() !== instanceId) {
-        return false;
-      }
-      if (!color) {
-        return !payload.chooseColor;
-      }
-      return String(payload.chooseColor || '').trim().toLowerCase() === color;
-    }) || null
-  );
-}

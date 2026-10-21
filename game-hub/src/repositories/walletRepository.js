@@ -1,7 +1,7 @@
 import { createClientId } from '../utils/idService.js';
 import { nowMs } from '../utils/timeService.js';
 import { mapWalletLedger, mapRemoteWalletToLocal, mapLocalWalletLedgerToPayload } from '../mappers/walletMapper.js';
-import { pageItems, groupByUserId } from '../mappers/sharedMapper.js';
+import { pageItems } from '../mappers/sharedMapper.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useWalletStore } from '../stores/walletStore.js';
 import { remoteRepository } from './remoteRepository.js';
@@ -10,6 +10,9 @@ import { ensureUserBucket } from './helpers.js';
 import { resolveServerUserId } from './userRepository.js';
 import { persistAllLocal } from './localPersistRepository.js';
 import { requireGameCode } from '../utils/requireGameCode.js';
+
+import { captureUserDataIdentity, mapRecordsToIdentity } from './userDataIdentity.js';
+import { mergeRecordsByClientId } from './recordMerge.js';
 
 const PAGE = { pageNum: 1, pageSize: 20 };
 
@@ -88,30 +91,45 @@ export function pushWalletLedger(partial, onPending) {
  * @param {string} [currentUserId]
  */
 export function applyCloudWallet(walletLedgers, wallet, currentUserId) {
+  const identity = captureUserDataIdentity(useUserStore(), currentUserId);
   const walletStore = useWalletStore();
-  const userStore = useUserStore();
-  if (Array.isArray(walletLedgers) && walletLedgers.length) {
-    const mapped = walletLedgers.map(mapWalletLedger);
-    walletStore.replaceAll(groupByUserId(mapped));
-  }
-  const uid = currentUserId || userStore.auth.currentUserId;
-  if (uid && wallet) {
+  const uid = identity.localUserId;
+  const mapped = mapRecordsToIdentity(walletLedgers, mapWalletLedger, identity);
+  walletStore.walletLedgersByUser[uid] = mergeRecordsByClientId(walletStore.listForUser(uid), mapped);
+  if (Array.isArray(walletLedgers)) recomputeFromLedgers(uid);
+  else if (wallet) {
     const scores = mapRemoteWalletToLocal(wallet);
-    userStore.patchUserScores(uid, scores.score, scores.totalScore);
+    useUserStore().patchUserScores(uid, scores.score, scores.totalScore);
   }
 }
 
-/**
- * 远端刷新钱包。
- * @param {string} userId
- */
+/** 读取有界分页，确认完整后才合并事实；首屏缓存单独用于展示。 */
 export async function refreshWallet(userId) {
-  const wallet = await remoteRepository.getWallet(userId);
-  const ledgersPage = await remoteRepository.getWalletLedgers(userId, PAGE);
-  const userStore = useUserStore();
-  const walletStore = useWalletStore();
-  const scores = mapRemoteWalletToLocal(wallet);
-  userStore.patchUserScores(userId, scores.score, scores.totalScore);
-  walletStore.walletLedgersByUser[userId] = pageItems(ledgersPage).map(mapWalletLedger);
+  const identity = captureUserDataIdentity(useUserStore(), userId);
+  const firstPage = await remoteRepository.getWalletLedgers(userId, PAGE);
+  const total = Number(firstPage?.total);
+  if (!Number.isInteger(total) || total < 0) throw new Error('钱包流水分页总数无效');
+  const pageCount = Math.max(1, Math.ceil(total / PAGE.pageSize));
+  const pages = [firstPage];
+  for (let pageNum = 2; pageNum <= pageCount; pageNum += 1) {
+    pages.push(await remoteRepository.getWalletLedgers(userId, { ...PAGE, pageNum }));
+  }
+  const remoteRows = [];
+  for (let index = 0; index < pages.length; index += 1) {
+    const page = pages[index];
+    const expectedCount = Math.min(PAGE.pageSize, total - index * PAGE.pageSize);
+    if (Number(page?.total) !== total || !Array.isArray(page?.items) || page.items.length !== expectedCount) {
+      throw new Error('钱包流水在读取期间发生变化，请重试');
+    }
+    remoteRows.push(...page.items);
+  }
+  const mapped = mapRecordsToIdentity(remoteRows, mapWalletLedger, identity);
+  const keys = new Set(mapped.map((row) => row.clientId || row.serverId).filter(Boolean));
+  if (mapped.length !== total || keys.size !== total) throw new Error('钱包流水分页不完整，请重试');
+  const store = useWalletStore();
+  const uid = identity.localUserId;
+  store.walletLedgersByUser[uid] = mergeRecordsByClientId(store.listForUser(uid), mapped);
+  store.setDisplayPage(uid, mapRecordsToIdentity(pageItems(firstPage), mapWalletLedger, identity));
+  recomputeFromLedgers(uid);
   persistAllLocal();
 }

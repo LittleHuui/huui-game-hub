@@ -114,7 +114,7 @@
               type="button"
               class="game-action-btn game-action-btn--ghost game-action-btn--sm"
               :disabled="actionDisabled || hasPendingOwnUndoRequest"
-              @click="submitByActionType('REQUEST_UNDO')"
+              @click="requestUndo"
             >
               {{ hasPendingOwnUndoRequest ? '申请悔棋（已发送）' : '申请悔棋' }}
             </button>
@@ -123,7 +123,7 @@
               type="button"
               class="game-action-btn game-action-btn--ghost game-action-btn--sm"
               :disabled="actionDisabled"
-              @click="submitByActionType('RESIGN')"
+              @click="resign"
             >
               认输
             </button>
@@ -207,7 +207,7 @@
       @lobby="onSettlementLobby"
     />
     <AppModal
-      :visible="hasPendingIncomingUndoRequest"
+      :visible="hasActiveIncomingUndoRequest"
       title="悔棋请求"
       :closable="false"
       :mask-closable="false"
@@ -238,28 +238,29 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { storeToRefs } from 'pinia';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { TurnCountdown } from '../../components/game/index.js';
 import { usePlatformStore } from '../../stores/platformStore.js';
-import { useRoomStore } from '../../stores/roomStore.js';
 import { useStrategyTurnGameView } from '../../composables/useStrategyTurnGameView.js';
-import * as roomService from '../../services/roomService.js';
+import { useStrategyTurnRoomLifecycle } from '../../composables/useStrategyTurnRoomLifecycle.js';
+import { useStrategyTurnActionController } from '../../composables/useStrategyTurnActionController.js';
+import { useStrategyTurnManagedMode } from '../../composables/useStrategyTurnManagedMode.js';
+import { useStrategyTurnTerminalFlow } from '../../composables/useStrategyTurnTerminalFlow.js';
+import * as roomGameService from '../../services/roomGameService.js';
 import * as strategyTurnGameViewService from '../../services/strategyTurnGameViewService.js';
-import { canFetchRemote } from '../../services/remoteGate.js';
 import AppModal from '../../components/AppModal.vue';
 import GomokuBoard from './components/GomokuBoard.vue';
 import GomokuSettlementDialog from './components/GomokuSettlementDialog.vue';
+import { useGomokuInteraction } from './composables/useGomokuInteraction.js';
+import { useGomokuPlayViewModel } from './composables/useGomokuPlayViewModel.js';
+import { useGomokuUndoRequestExpiry } from './composables/useGomokuUndoRequestExpiry.js';
 import './gomokuPage.css';
 
 const GOMOKU_CODE = 'gomoku';
 
-const route = useRoute();
 const router = useRouter();
 const platform = usePlatformStore();
-const roomStore = useRoomStore();
-const { currentRoom } = storeToRefs(roomStore);
 
 const {
   version: gameViewVersion,
@@ -267,506 +268,160 @@ const {
   currentPlayerId,
   isGameOver: gameViewIsGameOver,
   publicState: gameViewPublicState,
-  legalActions: gameViewLegalActions,
+  actionOffers: gameViewActionOffers,
   playbackBusy: gameViewPlaybackBusy
 } = useStrategyTurnGameView();
 
-const loading = ref(false);
-const loadError = ref('');
-const gameViewLoadError = ref('');
-const gameViewActionBusy = ref(false);
-const shellRejoinOffered = ref(false);
-const rejoinBusy = ref(false);
-const settlementVisible = ref(false);
-const settlementDismissed = ref(false);
-
-/** @type {(() => void)|null} */
-let releaseRoomRealtime = null;
-/** @type {(() => void)|null} */
-let releaseRoomPresence = null;
-
-const activeRoomId = computed(() => String(route.params.roomId || '').trim());
-const activeGameCode = computed(() => String(route.params.gameCode || '').trim() || GOMOKU_CODE);
-const onlineBlocked = computed(() => !canFetchRemote());
-const currentPlayerIdLocal = computed(() => roomService.getCurrentPlayerId());
-
-const gameState = computed(() => gameViewPublicState.value?.gameState || {});
-const boardMatrix = computed(() => {
-  const board = gameState.value.board;
-  return Array.isArray(board) ? board : [];
-});
-const boardSize = computed(() => Number(gameState.value.boardSize) || 15);
-const lastPlaceRow = computed(() => gameState.value.lastPlaceRow);
-const lastPlaceCol = computed(() => gameState.value.lastPlaceCol);
-const turnDeadlineAtMs = computed(() => Number(gameState.value.currentTurnDeadlineAt) || null);
-const turnTimeoutSeconds = computed(() => {
-  const started = Number(gameState.value.currentTurnStartedAt) || 0;
-  const deadline = Number(gameState.value.currentTurnDeadlineAt) || 0;
-  if (!started || !deadline || deadline <= started) {
-    return 30;
-  }
-  return Math.max(1, Math.round((deadline - started) / 1000));
+const {
+  loading,
+  loadError,
+  gameViewLoadError,
+  shellRejoinOffered,
+  rejoinBusy,
+  activeRoomId,
+  activeGameCode,
+  currentRoom,
+  createCanShowGameView,
+  rejoin: onRejoinRoom,
+  exitWithShell: onExitRoomWithShell,
+  backToRoomOrLobby,
+  navigateToLobby: onBackToLobby
+} = useStrategyTurnRoomLifecycle({
+  defaultGameCode: GOMOKU_CODE,
+  defaultRoomLabel: '五子棋对局',
+  loadGameView: roomGameService.loadRoomGameView
 });
 
-const viewerRoomMember = computed(() => {
-  const viewerId = viewerPlayerId.value;
-  const members = currentRoom.value?.members;
-  if (!viewerId || !Array.isArray(members)) {
-    return null;
-  }
-  return (
-    members.find((item) => String(item?.playerId || '').trim() === String(viewerId).trim()) || null
-  );
+const {
+  visible: settlementVisible,
+  dismissed: settlementDismissed,
+  close: onSettlementClose,
+  navigateOnce: navigateTerminalOnce
+} = useStrategyTurnTerminalFlow({
+  isGameOverRef: gameViewIsGameOver,
+  versionRef: gameViewVersion,
+  playbackBusyRef: gameViewPlaybackBusy,
+  roomRef: currentRoom,
+  roomIdRef: activeRoomId,
+  resetGameView: roomGameService.resetRoomGameView,
+  navigate: (destination) =>
+    destination === 'home' ? router.push({ path: '/' }) : backToRoomOrLobby()
 });
-const viewerManagedActive = computed(
-  () => String(viewerRoomMember.value?.managedMode || '').trim() === 'active'
-);
 
-/**
- * @param {object|null|undefined} room
- * @returns {boolean}
- */
-function isUserInRoom(room) {
-  const playerId = currentPlayerIdLocal.value;
-  if (!playerId || !room?.members) {
-    return false;
-  }
-  return room.members.some((item) => {
-    const samePlayer = String(item?.playerId || '').trim() === playerId;
-    return samePlayer && String(item?.managedMode || '').trim() !== 'shell';
-  });
-}
-
-/**
- * @param {object|null|undefined} room
- * @returns {boolean}
- */
-function isUserShellInRoom(room) {
-  const playerId = currentPlayerIdLocal.value;
-  if (!playerId || !room?.members) {
-    return false;
-  }
-  return room.members.some((item) => {
-    const samePlayer = String(item?.playerId || '').trim() === playerId;
-    return samePlayer && String(item?.managedMode || '').trim() === 'shell';
-  });
-}
-
-const isRoomMember = computed(() => isUserInRoom(currentRoom.value));
-const canShowGameView = computed(() => {
-  if (onlineBlocked.value || loading.value) {
-    return false;
-  }
-  if (!currentRoom.value || !isRoomMember.value) {
-    return false;
-  }
-  const status = String(currentRoom.value.status || '').trim();
-  if (status === 'playing') {
-    return true;
-  }
-  return gameViewIsGameOver.value && !settlementDismissed.value;
+const {
+  busy: gameViewActionBusy,
+  submitAction,
+  reset: resetActionController
+} = useStrategyTurnActionController({
+  roomIdRef: activeRoomId,
+  readVersion: strategyTurnGameViewService.getCurrentGameViewVersion,
+  submit: roomGameService.applyRoomGameAction,
+  reload: roomGameService.loadRoomGameView,
+  errorRef: gameViewLoadError
 });
+
+const canShowGameView = createCanShowGameView(gameViewIsGameOver, settlementDismissed);
 
 const playRoomLabel = computed(() => {
   const name = String(currentRoom.value?.roomName || '').trim();
   return name || '五子棋对局';
 });
 
-/**
- * @param {string} playerId
- * @returns {string}
- */
-function resolvePlayerNickname(playerId) {
-  const members = currentRoom.value?.members;
-  if (!Array.isArray(members)) {
-    return playerId;
-  }
-  const matched = members.find((item) => String(item?.playerId || '').trim() === playerId);
-  return String(matched?.nickname || '').trim() || playerId;
-}
-
-/**
- * @param {object|null|undefined} member
- * @returns {string}
- */
-function resolveManagedLabel(member) {
-  const managedMode = String(member?.managedMode || '').trim();
-  if (managedMode === 'active') {
-    return '托管中';
-  }
-  if (managedMode === 'shell') {
-    return '离线托管';
-  }
-  return '';
-}
-
-/**
- * @param {object|null|undefined} member
- * @returns {string}
- */
-function resolveManagedClass(member) {
-  const managedMode = String(member?.managedMode || '').trim();
-  if (managedMode === 'active') {
-    return 'managed-active';
-  }
-  if (managedMode === 'shell') {
-    return 'managed-shell';
-  }
-  return '';
-}
-
-/**
- * @param {string} nickname
- * @returns {string}
- */
-function resolveAvatarInitial(nickname) {
-  const name = String(nickname || '').trim();
-  return name ? name.charAt(0) : '?';
-}
-
-/**
- * @param {string} stone
- * @returns {string}
- */
-function stoneToTone(stone) {
-  const normalized = String(stone || '').toUpperCase();
-  if (normalized === 'WHITE') {
-    return 'white';
-  }
-  if (normalized === 'BLACK') {
-    return 'black';
-  }
-  return '';
-}
-
-/**
- * @param {object} playerState
- * @param {string} playerId
- * @returns {object}
- */
-function buildPanel(playerState, playerId) {
-  const members = currentRoom.value?.members;
-  const member = Array.isArray(members)
-    ? members.find((item) => String(item?.playerId || '').trim() === playerId)
-    : null;
-  const nickname = resolvePlayerNickname(playerId);
-  const managedMode = String(member?.managedMode || '').trim();
-  const isManagedMode = ['active', 'shell'].includes(managedMode);
-  return {
-    playerId,
-    nickname,
-    avatar: String(member?.avatar || '').trim(),
-    avatarInitial: resolveAvatarInitial(nickname),
-    stoneTone: stoneToTone(playerState?.stone),
-    isAi: Boolean(member?.isAi),
-    isManaged: isManagedMode,
-    managedLabel: resolveManagedLabel(member),
-    managedBadgeClass: resolveManagedClass(member),
-    isCurrentTurn: playerId === String(currentPlayerId.value || '').trim()
-  };
-}
-
-const selfPanel = computed(() => {
-  const viewerId = String(viewerPlayerId.value || '').trim();
-  const players = gameViewPublicState.value?.players;
-  if (!viewerId || !Array.isArray(players)) {
-    return null;
-  }
-  const playerState = players.find((item) => String(item?.playerId || '').trim() === viewerId);
-  if (!playerState) {
-    return null;
-  }
-  return buildPanel(playerState, viewerId);
-});
-
-const opponentPanel = computed(() => {
-  const viewerId = String(viewerPlayerId.value || '').trim();
-  const players = gameViewPublicState.value?.players;
-  if (!viewerId || !Array.isArray(players)) {
-    return null;
-  }
-  const playerState = players.find((item) => String(item?.playerId || '').trim() !== viewerId);
-  if (!playerState) {
-    return null;
-  }
-  const playerId = String(playerState.playerId || '').trim();
-  return buildPanel(playerState, playerId);
-});
-
-const viewerStone = computed(() => {
-  const viewerId = String(viewerPlayerId.value || '').trim();
-  const players = gameViewPublicState.value?.players;
-  if (!viewerId || !Array.isArray(players)) {
-    return 'BLACK';
-  }
-  const matched = players.find((item) => String(item?.playerId || '').trim() === viewerId);
-  return String(matched?.stone || 'BLACK');
-});
-
-const viewerIsCurrentTurn = computed(
-  () => String(currentPlayerId.value || '').trim() === String(viewerPlayerId.value || '').trim()
-);
-
-const boardInteractive = computed(
-  () => viewerIsCurrentTurn.value && !viewerManagedActive.value && !gameViewIsGameOver.value
-);
-
-const boardDisabled = computed(
-  () =>
-    gameViewActionBusy.value ||
-    gameViewPlaybackBusy.value ||
-    !canShowGameView.value ||
-    gameViewIsGameOver.value
-);
-
-const actionDisabled = computed(
-  () => boardDisabled.value || viewerManagedActive.value
-);
-
-const hasRequestUndo = computed(() =>
-  (gameViewLegalActions.value || []).some((item) => item.actionType === 'REQUEST_UNDO')
-);
-
-const hasResign = computed(() =>
-  (gameViewLegalActions.value || []).some((item) => item.actionType === 'RESIGN')
-);
-
-const hasPendingOwnUndoRequest = computed(() => {
-  const undoRequest = gameState.value.undoRequest;
-  if (!undoRequest) {
-    return false;
-  }
-  return String(undoRequest.requesterPlayerId || '').trim() === String(viewerPlayerId.value || '').trim();
-});
-
-const hasPendingIncomingUndoRequest = computed(() => {
-  const undoRequest = gameState.value.undoRequest;
-  if (!undoRequest) {
-    return false;
-  }
-  return String(undoRequest.targetPlayerId || '').trim() === String(viewerPlayerId.value || '').trim();
+const {
+  gameState,
+  boardMatrix,
+  boardSize,
+  lastPlaceRow,
+  lastPlaceCol,
+  turnDeadlineAtMs,
+  turnTimeoutSeconds,
+  viewerManagedActive,
+  selfPanel,
+  opponentPanel,
+  viewerStone,
+  boardInteractive,
+  boardDisabled,
+  actionDisabled,
+  hasPendingOwnUndoRequest
+} = useGomokuPlayViewModel({
+  currentRoomRef: currentRoom,
+  publicStateRef: gameViewPublicState,
+  actionOffersRef: gameViewActionOffers,
+  viewerIdRef: viewerPlayerId,
+  currentPlayerIdRef: currentPlayerId,
+  isGameOverRef: gameViewIsGameOver,
+  playbackBusyRef: gameViewPlaybackBusy,
+  actionBusyRef: gameViewActionBusy,
+  canShowRef: canShowGameView
 });
 
 /**
- * @param {number} row
- * @param {number} col
- * @returns {object|undefined}
- */
-function findPlaceAction(row, col) {
-  return (gameViewLegalActions.value || []).find((action) => {
-    return (
-      action.actionType === 'PLACE_STONE' &&
-      action.selection?.type === 'BOARD_CELL' &&
-      Number(action.selection?.config?.row) === row &&
-      Number(action.selection?.config?.col) === col
-    );
-  });
-}
-
-/**
+ * 通过 Adapter Registry 提交五子棋动作。
  * @param {string} actionType
- * @returns {string}
- */
-function findActionIdByType(actionType) {
-  const action = (gameViewLegalActions.value || []).find(
-    (item) => item.actionType === actionType
-  );
-  return String(action?.actionId || '').trim();
-}
-
-/**
  * @param {string} actionId
+ * @returns {Promise<void>}
  */
-async function submitGameAction(actionId) {
-  const normalized = String(actionId || '').trim();
-  if (!normalized) {
-    return;
-  }
-  const roomId = activeRoomId.value;
-  if (!roomId || actionDisabled.value) {
-    return;
-  }
-  const baseVersion = strategyTurnGameViewService.getCurrentGameViewVersion();
-  if (!baseVersion) {
-    gameViewLoadError.value = '对局视图尚未就绪';
-    return;
-  }
-  gameViewActionBusy.value = true;
-  gameViewLoadError.value = '';
+async function submitGameAction(actionType, actionId) {
+  const type = String(actionType || '').trim();
+  const id = String(actionId || '').trim();
+  if (!type || !id || actionDisabled.value) return;
   try {
-    await roomService.applyRoomGameAction(roomId, {
-      actionId: normalized,
-      baseVersion,
-      clientSeq: Date.now()
-    });
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '操作失败';
-  } finally {
-    gameViewActionBusy.value = false;
+    await submitAction(gameViewActionOffers.value, type, id);
+  } catch {
+    // ActionController 已记录错误。
   }
 }
 
 /**
- * @param {string} actionType
+ * 在悔棋请求到期后读取权威 GameView，避免本地继续展示失效请求。
+ * @param {{ signal?: AbortSignal }} options
+ * @returns {Promise<void>}
  */
-async function submitByActionType(actionType) {
-  const actionId = findActionIdByType(actionType);
-  if (!actionId) {
-    return;
-  }
-  await submitGameAction(actionId);
-}
-
-async function acceptUndoRequest() {
-  await submitByActionType('ACCEPT_UNDO');
-}
-
-async function rejectUndoRequest() {
-  await submitByActionType('REJECT_UNDO');
-}
-
-/**
- * @param {number} row
- * @param {number} col
- */
-async function handleCellClick(row, col) {
-  const action = findPlaceAction(row, col);
-  if (!action) {
-    return;
-  }
-  await submitGameAction(action.actionId);
-}
-
-async function backToRoomOrLobby() {
-  const roomId = activeRoomId.value;
-  const gameCode = activeGameCode.value;
-  if (roomId) {
-    await router.push({ name: 'online-room-waiting', params: { gameCode, roomId } });
-    return;
-  }
-  await router.push({ name: 'online-room-list', params: { gameCode } });
-}
-
-async function onExitRoomWithShell() {
+async function reloadGameViewAfterUndoExpiry(options) {
   const roomId = activeRoomId.value;
   if (!roomId) {
-    await onBackToLobby();
     return;
   }
-  gameViewActionBusy.value = true;
-  try {
-    await roomService.leaveRoom(roomId);
-    roomService.resetRoomGameView();
-    await onBackToLobby();
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '退出房间失败';
-  } finally {
-    gameViewActionBusy.value = false;
-  }
+  await roomGameService.loadRoomGameView(roomId, options);
 }
 
-async function onRejoinRoom() {
-  const roomId = activeRoomId.value;
-  if (!roomId || rejoinBusy.value) {
-    return;
-  }
-  rejoinBusy.value = true;
-  gameViewLoadError.value = '';
-  try {
-    await roomService.rejoinManagedRoom(roomId);
-    shellRejoinOffered.value = false;
-    await roomService.loadRoomGameView(roomId);
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '重新加入失败';
-  } finally {
-    rejoinBusy.value = false;
-  }
-}
+const {
+  hasRequestUndo,
+  hasResign,
+  requestUndo,
+  placeStone: handleCellClick,
+  acceptUndo: acceptUndoRequest,
+  rejectUndo: rejectUndoRequest,
+  resign
+} = useGomokuInteraction({
+  actionOffersRef: gameViewActionOffers,
+  disabledRef: actionDisabled,
+  submit: submitGameAction
+});
 
-async function onBackToLobby() {
-  roomService.resetRoomGameView();
-  await router.push({ name: 'online-room-list', params: { gameCode: activeGameCode.value } });
-}
+const {
+  hasActiveIncomingUndoRequest,
+  reset: resetUndoRequestExpiry
+} = useGomokuUndoRequestExpiry({
+  undoRequestRef: computed(() => gameState.value.undoRequest),
+  viewerIdRef: viewerPlayerId,
+  reload: reloadGameViewAfterUndoExpiry
+});
 
-async function onStartManagedMode() {
-  const roomId = activeRoomId.value;
-  if (!roomId || viewerManagedActive.value) {
-    return;
-  }
-  gameViewActionBusy.value = true;
-  try {
-    await roomService.startManagedMode(roomId);
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '开启托管失败';
-  } finally {
-    gameViewActionBusy.value = false;
-  }
-}
+const { start: onStartManagedMode, stop: onStopManagedMode } = useStrategyTurnManagedMode({
+  roomIdRef: activeRoomId,
+  managedActiveRef: viewerManagedActive,
+  busyRef: gameViewActionBusy,
+  errorRef: gameViewLoadError,
+  clearErrorOnRequest: false
+});
 
-async function onStopManagedMode() {
-  const roomId = activeRoomId.value;
-  if (!roomId || !viewerManagedActive.value) {
-    return;
-  }
-  gameViewActionBusy.value = true;
-  try {
-    await roomService.stopManagedMode(roomId);
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '取消托管失败';
-  } finally {
-    gameViewActionBusy.value = false;
-  }
-}
-
-function onSettlementClose() {
-  settlementVisible.value = false;
-  settlementDismissed.value = true;
-  roomService.resetRoomGameView();
-  void backToRoomOrLobby();
-}
-
+/**
+ * 从终局弹窗返回首页，且保证只导航一次。
+ * @returns {Promise<void>}
+ */
 function onSettlementLobby() {
-  settlementVisible.value = false;
-  settlementDismissed.value = true;
-  roomService.resetRoomGameView();
-  void router.push({ path: '/' });
-}
-
-async function ensureRoomAndGameView() {
-  const roomId = activeRoomId.value;
-  if (!roomId || onlineBlocked.value) {
-    return;
-  }
-  loading.value = true;
-  loadError.value = '';
-  gameViewLoadError.value = '';
-  try {
-    await roomService.loadRoomDetail(roomId);
-    if (!currentRoom.value) {
-      loadError.value = '房间不存在或已被删除';
-      await backToRoomOrLobby();
-      return;
-    }
-    if (!isRoomMember.value) {
-      if (isUserShellInRoom(currentRoom.value)) {
-        shellRejoinOffered.value = true;
-        return;
-      }
-      loadError.value = '你尚未加入该房间';
-      await backToRoomOrLobby();
-      return;
-    }
-    shellRejoinOffered.value = false;
-    const status = String(currentRoom.value.status || '').trim();
-    strategyTurnGameViewService.setActiveRoom(roomId, GOMOKU_CODE);
-    if (status === 'playing' && !gameViewVersion.value) {
-      await roomService.loadRoomGameView(roomId);
-    }
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '加载对局失败';
-  } finally {
-    loading.value = false;
-  }
+  return navigateTerminalOnce('home');
 }
 
 watch(
@@ -779,34 +434,12 @@ watch(
   }
 );
 
-onMounted(async () => {
+onMounted(() => {
   platform.setCurrentGame(activeGameCode.value);
-  if (onlineBlocked.value) {
-    return;
-  }
-  const roomId = activeRoomId.value;
-  if (!roomId) {
-    await backToRoomOrLobby();
-    return;
-  }
-  releaseRoomRealtime = roomService.bindRoomRealtime(roomId);
-  releaseRoomPresence = roomService.bindRoomPresencePong(
-    roomId,
-    activeGameCode.value,
-    () => String(route.params.roomId || '').trim() === roomId
-  );
-  await ensureRoomAndGameView();
 });
 
 onUnmounted(() => {
-  if (releaseRoomRealtime) {
-    releaseRoomRealtime();
-    releaseRoomRealtime = null;
-  }
-  if (releaseRoomPresence) {
-    releaseRoomPresence();
-    releaseRoomPresence = null;
-  }
-  roomService.resetRoomGameView();
+  resetActionController();
+  resetUndoRequestExpiry();
 });
 </script>

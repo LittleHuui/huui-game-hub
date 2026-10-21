@@ -48,6 +48,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useOutsideClick } from '../../composables/useOutsideClick.js';
 import * as onlineService from '../../services/onlineService.js';
 import { usePlatformStore } from '../../stores/platformStore.js';
 import { useSettingStore } from '../../stores/settingStore.js';
@@ -64,6 +65,8 @@ const anchor = ref(null);
 const platformStore = usePlatformStore();
 const settingStore = useSettingStore();
 
+let requestGeneration = 0;
+let disposed = false;
 let displayTimer = null;
 let onlineUsersRefreshTimer = null;
 
@@ -106,19 +109,22 @@ async function refreshUsers() {
  * @returns {Promise<void>}
  */
 async function loadUsers() {
-  if (!canRefreshOnlineUsers.value || loading.value) {
+  if (disposed || !canRefreshOnlineUsers.value || loading.value) {
     return;
   }
+  const generation = ++requestGeneration;
+  const isCurrent = () => !disposed && generation === requestGeneration && canRefreshOnlineUsers.value;
   loading.value = true;
   errorMessage.value = '';
   try {
     const list = await onlineService.loadOnlineUsers({ silent: true, throwOnError: true });
+    if (!isCurrent()) return;
     users.value = list.map(toDisplayUser);
     nowTick.value = Date.now();
   } catch {
-    errorMessage.value = '在线用户加载失败，请稍后重试';
+    if (isCurrent()) errorMessage.value = '在线用户加载失败，请稍后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
@@ -200,29 +206,9 @@ function stopOnlineUsersRefresh() {
   }
 }
 
-/**
- * 处理外部点击关闭。
- * @param {MouseEvent} e
- */
-function onDocClick(e) {
-  const root = anchor.value;
-  if (root && root.contains(e.target)) {
-    return;
-  }
-  open.value = false;
-}
-
-watch(open, (value) => {
-  if (value) {
-    if (!canRefreshOnlineUsers.value) {
-      open.value = false;
-      return;
-    }
-    loadUsers();
-    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
-  } else {
-    document.removeEventListener('click', onDocClick, true);
-  }
+useOutsideClick(open, anchor, () => { open.value = false; });
+watch(open, (visible) => {
+  if (visible && canRefreshOnlineUsers.value) void loadUsers();
 });
 
 watch(canRefreshOnlineUsers, (value) => {
@@ -231,6 +217,8 @@ watch(canRefreshOnlineUsers, (value) => {
     startTimers();
     return;
   }
+  requestGeneration += 1;
+  loading.value = false;
   open.value = false;
   users.value = [];
   errorMessage.value = '';
@@ -245,8 +233,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
+  requestGeneration += 1;
   stopTimers();
-  document.removeEventListener('click', onDocClick, true);
 });
 </script>
 

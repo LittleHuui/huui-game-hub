@@ -13,10 +13,13 @@
       :class="{
         'selectable-item-hand__item--selected':
           !interactionBlocked && !isItemDisabled(item) && isSelected(item.id),
+        'selectable-item-hand__item--drag-selected':
+          !interactionBlocked && !isItemDisabled(item) && isDragSelected(item.id),
         'selectable-item-hand__item--disabled': isItemDisabled(item),
         'selectable-item-hand__item--shake':
           !interactionBlocked && !isItemDisabled(item) && shakeItemId === item.id
       }"
+      :style="stackItems ? { zIndex: resolveStackOrder(item, index) } : undefined"
       role="listitem"
       :aria-disabled="isItemDisabled(item)"
       @mousedown.prevent="onItemMouseDown(item, index, $event)"
@@ -28,7 +31,7 @@
         :item="item"
         :index="index"
         :selected="
-          !interactionBlocked && !isItemDisabled(item) && isSelected(item.id)
+          !interactionBlocked && !isItemDisabled(item) && isVisuallySelected(item.id)
         "
         :disabled="isItemDisabled(item)"
       />
@@ -37,35 +40,31 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
-import { matchStrategyTurnActions } from '../../../services/strategyTurnActionMatcher.js';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import './turnGame.css';
 
+const ILLEGAL_SELECTION_FEEDBACK_MS = 380;
+
 const props = defineProps({
-  /** @type {import('vue').PropType<Array<{ id: string; disabled?: boolean; illegal?: boolean }>>} */
+  /** @type {import('vue').PropType<Array<{ id: string; disabled?: boolean }>>} */
   items: {
     type: Array,
     default: () => []
   },
   /** @type {import('vue').PropType<string[]>} */
-  selectedIds: {
+  selectedItemIds: {
     type: Array,
     default: () => []
   },
-  /** 策略回合 matcher 用手牌（未传时回退为 items） */
-  handCards: {
+  /** @type {import('vue').PropType<string[]>} */
+  selectableItemIds: {
     type: Array,
     default: () => []
   },
-  /** @type {import('vue').PropType<{ selection?: object }|null>} */
-  legalActions: {
-    type: Object,
-    default: null
-  },
-  /** 提示按钮游标 */
-  hintCursor: {
-    type: Number,
-    default: 0
+  /** @type {import('vue').PropType<string[]>} */
+  disabledItemIds: {
+    type: Array,
+    default: () => []
   },
   disabled: {
     type: Boolean,
@@ -79,36 +78,20 @@ const props = defineProps({
   multiple: {
     type: Boolean,
     default: false
+  },
+  /** 是否按项目顺序建立可预期的层叠关系。 */
+  stackItems: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['select', 'illegal-click', 'match-change', 'selection-change']);
+const emit = defineEmits(['change', 'illegal-click']);
 
 const interactionBlocked = computed(() => props.disabled || props.busy);
 
-const matchResult = computed(() => {
-  if (!props.legalActions?.selection) {
-    return null;
-  }
-  const handCards = props.handCards.length > 0 ? props.handCards : props.items;
-  return matchStrategyTurnActions({
-    handCards,
-    selectedCardIds: props.selectedIds,
-    legalActions: props.legalActions,
-    hintCursor: props.hintCursor
-  });
-});
-
-watch(
-  matchResult,
-  (result) => {
-    if (!result) {
-      return;
-    }
-    emit('match-change', result);
-  },
-  { immediate: true }
-);
+const selectableSet = computed(() => new Set(normalizeIds(props.selectableItemIds)));
+const disabledSet = computed(() => new Set(normalizeIds(props.disabledItemIds)));
 
 const shakeItemId = ref('');
 /** @type {boolean} */
@@ -121,6 +104,11 @@ let dragBaselineSelection = [];
 let dragMoved = false;
 let shakeTimer = null;
 
+onBeforeUnmount(() => {
+  clearShake();
+  cancelDragSelection();
+});
+
 watch(
   () => props.items,
   () => {
@@ -129,14 +117,33 @@ watch(
   }
 );
 
-watch(
-  interactionBlocked,
-  (blocked) => {
-    if (blocked) {
-      cancelDragSelection();
-    }
+watch(interactionBlocked, (blocked) => {
+  if (blocked) {
+    cancelDragSelection();
   }
-);
+});
+
+/**
+ * 规范化 ID 列表。
+ * @param {string[]|null|undefined} ids
+ * @returns {string[]}
+ */
+function normalizeIds(ids) {
+  if (!Array.isArray(ids)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  ids.forEach((raw) => {
+    const id = String(raw || '').trim();
+    if (!id || seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    normalized.push(id);
+  });
+  return normalized;
+}
 
 /**
  * 清理震动状态。
@@ -168,45 +175,70 @@ function isSelected(id) {
   if (!normalized) {
     return false;
   }
-  return (props.selectedIds || []).some((item) => String(item || '').trim() === normalized);
+  return normalizeIds(props.selectedItemIds).includes(normalized);
 }
 
 /**
- * @param {{ id?: string; disabled?: boolean; illegal?: boolean }} item
+ * 判断牌是否位于当前拖动框选范围。
+ * @param {string} id
+ * @returns {boolean}
+ */
+function isDragSelected(id) {
+  if (!dragSelecting.value) {
+    return false;
+  }
+  const normalized = String(id || '').trim();
+  return Boolean(normalized) && dragSelectedIds.value.includes(normalized);
+}
+
+/**
+ * 计算操作过程中的可视选中状态。拖动尚未结束时也必须立即给出反馈。
+ * @param {string} id
+ * @returns {boolean}
+ */
+function isVisuallySelected(id) {
+  return isSelected(id) || isDragSelected(id);
+}
+
+/**
+ * 计算手牌层级。每张牌始终按从左到右的顺序覆盖，选中和悬停只改变垂直位置。
+ * @param {{ id?: string }} item
+ * @param {number} index
+ * @returns {number}
+ */
+function resolveStackOrder(item, index) {
+  void item;
+  return Math.max(0, Number(index) || 0) + 1;
+}
+
+/**
+ * @param {{ id?: string; disabled?: boolean }} item
  * @returns {boolean}
  */
 function isItemDisabled(item) {
   if (interactionBlocked.value || Boolean(item?.disabled)) {
     return true;
   }
-  const result = matchResult.value;
-  if (!result) {
-    return false;
-  }
   const id = String(item?.id || '').trim();
   if (!id) {
     return true;
   }
-  return result.disabledCardIds.includes(id);
+  return disabledSet.value.has(id);
 }
 
 /**
- * @param {{ id?: string; illegal?: boolean }} item
+ * @param {{ id?: string }} item
  * @returns {boolean}
  */
-function isItemIllegal(item) {
-  if (Boolean(item?.illegal)) {
+function isItemSelectable(item) {
+  const id = String(item?.id || '').trim();
+  if (!id || isItemDisabled(item)) {
+    return false;
+  }
+  if (!selectableSet.value.size) {
     return true;
   }
-  const result = matchResult.value;
-  if (!result) {
-    return false;
-  }
-  const id = String(item?.id || '').trim();
-  if (!id || isSelected(id) || isItemDisabled(item)) {
-    return false;
-  }
-  return !result.selectableCardIds.includes(id);
+  return selectableSet.value.has(id);
 }
 
 /**
@@ -219,7 +251,7 @@ function triggerShake(id) {
   shakeTimer = setTimeout(() => {
     shakeItemId.value = '';
     shakeTimer = null;
-  }, 380);
+  }, ILLEGAL_SELECTION_FEEDBACK_MS);
 }
 
 /**
@@ -228,7 +260,7 @@ function triggerShake(id) {
  */
 function trackDragItem(item) {
   const id = String(item?.id || '').trim();
-  if (!id || isItemDisabled(item)) {
+  if (!id || !isItemSelectable(item)) {
     return;
   }
   if (!dragSelectedIds.value.includes(id)) {
@@ -237,39 +269,32 @@ function trackDragItem(item) {
 }
 
 /**
- * 完成拖拽选牌并交给 matcher 解析。
+ * 完成拖拽选牌。
  */
 function finishDragSelection() {
   if (!dragSelecting.value || !dragMoved) {
     cancelDragSelection();
     return;
   }
-  const rawSelectedCardIds = [...dragSelectedIds.value];
-  const baselineSelection = [...dragBaselineSelection];
+  const nextSelection = normalizeIds(dragSelectedIds.value);
+  const baselineSelection = normalizeIds(dragBaselineSelection);
   cancelDragSelection();
-  if (!rawSelectedCardIds.length || !props.legalActions?.selection) {
+  if (!nextSelection.length) {
     return;
   }
-  const handCards = props.handCards.length > 0 ? props.handCards : props.items;
-  const result = matchStrategyTurnActions({
-    handCards,
-    selectedCardIds: rawSelectedCardIds,
-    legalActions: props.legalActions,
-    hintCursor: props.hintCursor
+  const allSelectable = nextSelection.every((id) => {
+    const item = (props.items || []).find((entry) => String(entry?.id || '').trim() === id);
+    return item && isItemSelectable(item);
   });
-  const suggested = Array.isArray(result.suggestedSelection) ? result.suggestedSelection : [];
-  const hasMatch = Boolean(result.determinedAction) || suggested.length > 0;
-  if (hasMatch) {
-    emit('selection-change', suggested.length > 0 ? suggested : rawSelectedCardIds);
+  if (allSelectable) {
+    emit('change', nextSelection);
     return;
   }
-  emit('selection-change', baselineSelection);
-  if (!interactionBlocked.value) {
-    const shakeId = rawSelectedCardIds[rawSelectedCardIds.length - 1] || '';
-    if (shakeId) {
-      triggerShake(shakeId);
-      emit('illegal-click', { id: shakeId, reason: 'drag-no-match' });
-    }
+  emit('change', baselineSelection);
+  const shakeId = nextSelection[nextSelection.length - 1] || '';
+  if (shakeId && !interactionBlocked.value) {
+    triggerShake(shakeId);
+    emit('illegal-click', { id: shakeId, reason: 'drag-not-selectable' });
   }
 }
 
@@ -278,20 +303,17 @@ function finishDragSelection() {
  * @param {number} index
  * @param {MouseEvent} event
  */
-function onItemMouseDown(item, index, event) {
+function onItemMouseDown(item, _index, event) {
   if (interactionBlocked.value || event.button !== 0) {
     return;
   }
   const id = String(item?.id || '').trim();
-  if (!id) {
+  if (!id || !isItemSelectable(item)) {
     return;
   }
-  if (isItemDisabled(item)) {
-    return;
-  }
-  dragBaselineSelection = [...(props.selectedIds || [])];
+  dragBaselineSelection = normalizeIds(props.selectedItemIds);
   dragSelecting.value = true;
-  dragSelectedIds.value = isSelected(id) ? [...props.selectedIds] : [id];
+  dragSelectedIds.value = isSelected(id) ? normalizeIds(props.selectedItemIds) : [id];
   trackDragItem(item);
 }
 
@@ -299,7 +321,7 @@ function onItemMouseDown(item, index, event) {
  * @param {{ id: string }} item
  * @param {number} index
  */
-function onItemMouseEnter(item, index) {
+function onItemMouseEnter(item, _index) {
   if (!dragSelecting.value || interactionBlocked.value) {
     return;
   }
@@ -330,10 +352,10 @@ function onHandMouseLeave() {
 }
 
 /**
- * @param {{ id: string; disabled?: boolean; illegal?: boolean }} item
+ * @param {{ id: string; disabled?: boolean }} item
  * @param {number} index
  */
-function onItemClick(item, index) {
+function onItemClick(item, _index) {
   if (dragSelecting.value) {
     cancelDragSelection();
   }
@@ -342,22 +364,26 @@ function onItemClick(item, index) {
     return;
   }
   const id = String(item?.id || '').trim();
-  if (!id) {
+  if (!id || interactionBlocked.value) {
     return;
   }
-  if (interactionBlocked.value) {
+  if (!isItemSelectable(item)) {
+    triggerShake(id);
+    emit('illegal-click', {
+      id,
+      reason: isItemDisabled(item) ? 'disabled' : 'not-selectable'
+    });
     return;
   }
-  if (isItemDisabled(item) || isItemIllegal(item)) {
-    if (!interactionBlocked.value) {
-      triggerShake(id);
-      emit('illegal-click', {
-        id,
-        reason: isItemDisabled(item) ? 'disabled' : 'illegal'
-      });
-    }
+  const current = normalizeIds(props.selectedItemIds);
+  if (current.includes(id)) {
+    emit('change', current.filter((itemId) => itemId !== id));
     return;
   }
-  emit('select', { id, item, index });
+  if (props.multiple) {
+    emit('change', [...current, id]);
+    return;
+  }
+  emit('change', [id]);
 }
 </script>

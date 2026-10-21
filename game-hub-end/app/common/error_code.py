@@ -25,6 +25,7 @@ class ErrorCode(object):
     COMMON_ERROR = ErrorCodeItem(10001, "通用错误")
     PARAM_ERROR = ErrorCodeItem(10002, "参数错误")
     SYSTEM_ERROR = ErrorCodeItem(10003, "系统错误")
+    AUTH_UNAUTHORIZED = ErrorCodeItem(10004, "认证失败")
 
     # 2000x 用户
     USER_NOT_FOUND = ErrorCodeItem(20001, "用户不存在")
@@ -63,6 +64,7 @@ class ErrorCode(object):
     PLAYER_ALREADY_IN_ROOM = ErrorCodeItem(90006, "玩家已在其他房间中")
     PLAYER_MANAGED = ErrorCodeItem(90007, "玩家处于托管状态")
     GAME_VIEW_VERSION_CONFLICT = ErrorCodeItem(90008, "房间版本已变更，请刷新后重试")
+    REQUEST_ID_CONFLICT = ErrorCodeItem(90009, "requestId 已被不同请求占用")
 
 
 def list_error_codes():

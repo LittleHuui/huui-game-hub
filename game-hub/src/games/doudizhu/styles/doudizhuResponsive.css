@@ -1,0 +1,31 @@
+@media (max-width: 768px) {
+  .doudizhu-card {
+    width: 58px;
+    height: 82px;
+  }
+
+  .doudizhu-hand {
+    --doudizhu-hand-card-width: 64px;
+    --doudizhu-hand-card-height: 90px;
+  }
+
+  .doudizhu-page__hand-row {
+    padding: 2rem 0.5rem 1rem;
+  }
+
+  .doudizhu-hand .selectable-item-hand {
+    gap: 0.4rem;
+  }
+
+  .doudizhu-table {
+    min-height: 0;
+    padding: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .doudizhu-hand {
+    --doudizhu-hand-card-width: 58px;
+    --doudizhu-hand-card-height: 82px;
+  }
+}

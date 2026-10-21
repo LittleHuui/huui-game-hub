@@ -5,19 +5,34 @@ from typing import List
 from fastapi import APIRouter, Depends, Query, Body
 
 from app.common.response import ApiResponse, success
-from app.modules.room.deps import get_current_room_user, get_room_module_service
-from app.modules.room.module_service import RoomModuleService
+from app.modules.room.deps import (
+    get_current_room_user,
+    get_room_game_action_command_service,
+    get_room_game_action_query_service,
+    get_room_lifecycle_service,
+    get_room_member_control_service,
+    get_room_membership_service,
+)
+from app.modules.room.game_action_command_service import RoomGameActionCommandService
+from app.modules.room.game_action_query_service import RoomGameActionQueryService
+from app.modules.room.room_lifecycle_service import RoomLifecycleService
+from app.modules.room.room_member_control_service import RoomMemberControlService
+from app.modules.room.room_membership_service import RoomMembershipService
 from app.modules.room.schemas import (
     CreateRoomRequest,
     MyActiveRoomResponse,
     RemoveRoomMemberRequest,
+    RoomActionPreviewRequest,
+    RoomActionPreviewResponse,
     RoomActionRequest,
+    RoomActionSuggestionsRequest,
     RoomGameViewResponse,
     RoomLeaveResponse,
     RoomListItemResponse,
     RoomResponse,
     UpdateRoomConfigRequest,
 )
+from app.modules.strategy_turn.schemas import HintSuggestionPage
 from app.modules.user.models import UserAccount
 
 room_router = APIRouter(prefix="/rooms", tags=["房间模块"])
@@ -30,13 +45,13 @@ room_router = APIRouter(prefix="/rooms", tags=["房间模块"])
 )
 async def list_rooms(
     gameCode: str = Query(min_length=1, description="游戏编码"),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomLifecycleService = Depends(get_room_lifecycle_service),
 ):
     """
     按游戏编码查询房间列表。
 
     :param gameCode: 游戏编码。
-    :param service: 房间模块服务。
+    :param service: 房间生命周期服务。
     :return: 统一成功响应。
     """
     return success(await service.list_rooms(gameCode))
@@ -50,14 +65,14 @@ async def list_rooms(
 async def create_room(
     request: CreateRoomRequest,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomLifecycleService = Depends(get_room_lifecycle_service),
 ):
     """
     创建房间并将当前用户写入成员列表。
 
     :param request: 创建房间请求。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间生命周期服务。
     :return: 统一成功响应。
     """
     return success(await service.create_room(current_user, request))
@@ -70,13 +85,13 @@ async def create_room(
 )
 async def get_my_active_room(
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomLifecycleService = Depends(get_room_lifecycle_service),
 ):
     """
     查询当前用户活跃房间（跨游戏）。
 
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间生命周期服务。
     :return: 统一成功响应。
     """
     return success(await service.get_my_active_room(current_user))
@@ -90,14 +105,14 @@ async def get_my_active_room(
 async def get_my_managed_shell_room(
     gameCode: str = Query(min_length=1, description="游戏编码"),
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomMembershipService = Depends(get_room_membership_service),
 ):
     """
     查询当前用户在指定游戏下可恢复的托管空壳房间。
 
     :param gameCode: 游戏编码。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间成员服务。
     :return: 统一成功响应。
     """
     return success(await service.get_my_managed_shell_room(current_user, gameCode))
@@ -110,13 +125,13 @@ async def get_my_managed_shell_room(
 )
 async def get_room(
     roomId: str,
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomLifecycleService = Depends(get_room_lifecycle_service),
 ):
     """
     查询房间元信息与成员列表。
 
     :param roomId: 房间 ID。
-    :param service: 房间模块服务。
+    :param service: 房间生命周期服务。
     :return: 统一成功响应。
     """
     return success(await service.get_room(roomId))
@@ -130,14 +145,14 @@ async def get_room(
 async def join_room(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomLifecycleService = Depends(get_room_lifecycle_service),
 ):
     """
     当前用户加入房间。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间生命周期服务。
     :return: 统一成功响应。
     """
     return success(await service.join_room(current_user, roomId))
@@ -151,14 +166,14 @@ async def join_room(
 async def rejoin_managed_room(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomMembershipService = Depends(get_room_membership_service),
 ):
     """
     在对局中恢复当前用户托管席位。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间成员服务。
     :return: 统一成功响应。
     """
     return success(await service.rejoin_managed_room(current_user, roomId))
@@ -172,14 +187,14 @@ async def rejoin_managed_room(
 async def start_managed_mode(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomMemberControlService = Depends(get_room_member_control_service),
 ):
     """
     当前用户在对局中开启在线托管。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间成员控制服务。
     :return: 统一成功响应。
     """
     return success(await service.start_managed_mode(current_user, roomId))
@@ -193,14 +208,14 @@ async def start_managed_mode(
 async def stop_managed_mode(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomMemberControlService = Depends(get_room_member_control_service),
 ):
     """
     当前用户在对局中取消在线托管。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间成员控制服务。
     :return: 统一成功响应。
     """
     return success(await service.stop_managed_mode(current_user, roomId))
@@ -215,7 +230,7 @@ async def remove_room_member(
     roomId: str,
     request: RemoveRoomMemberRequest,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomMemberControlService = Depends(get_room_member_control_service),
 ):
     """
     房主在等待中的房间内移除普通玩家或 AI。
@@ -223,7 +238,7 @@ async def remove_room_member(
     :param roomId: 房间 ID。
     :param request: 移除成员请求。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间成员控制服务。
     :return: 统一成功响应。
     """
     return success(await service.remove_room_member(current_user, roomId, request))
@@ -238,7 +253,7 @@ async def update_room_config(
     roomId: str,
     request: UpdateRoomConfigRequest = Body(...),
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomLifecycleService = Depends(get_room_lifecycle_service),
 ):
     """
     房主在等待中的房间内更新人数上限与玩法配置。
@@ -246,7 +261,7 @@ async def update_room_config(
     :param roomId: 房间 ID。
     :param request: 更新配置请求（maxPlayers、roomConfig）。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间生命周期服务。
     :return: 统一成功响应。
     """
     return success(await service.update_room_config(current_user, roomId, request))
@@ -260,14 +275,14 @@ async def update_room_config(
 async def add_room_ai(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomMemberControlService = Depends(get_room_member_control_service),
 ):
     """
     在 waiting 房间中添加一名平台代管 AI 玩家；AI 行动走托管动作链路。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间成员控制服务。
     :return: 统一成功响应。
     """
     return success(await service.add_room_ai(current_user, roomId))
@@ -281,14 +296,14 @@ async def add_room_ai(
 async def leave_room(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomMembershipService = Depends(get_room_membership_service),
 ):
     """
     当前用户离开房间。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间成员服务。
     :return: 统一成功响应。
     """
     return success(await service.leave_room(current_user, roomId))
@@ -302,14 +317,14 @@ async def leave_room(
 async def start_room_game(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomLifecycleService = Depends(get_room_lifecycle_service),
 ):
     """
     在房间内开始策略回合制对局。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间生命周期服务。
     :return: 统一成功响应。
     """
     return success(await service.start_room_game(current_user, roomId))
@@ -323,17 +338,17 @@ async def start_room_game(
 async def view_room_game(
     roomId: str,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomGameActionQueryService = Depends(get_room_game_action_query_service),
 ):
     """
     查询当前玩家在房间对局中的视图。
 
     :param roomId: 房间 ID。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间对局动作查询服务。
     :return: 统一成功响应。
     """
-    return success(await service.view_room_game(current_user, roomId))
+    return success(await service.view_room_game(roomId, current_user.server_id))
 
 
 @room_router.post(
@@ -345,7 +360,7 @@ async def apply_room_action(
     roomId: str,
     request: RoomActionRequest,
     current_user: UserAccount = Depends(get_current_room_user),
-    service: RoomModuleService = Depends(get_room_module_service),
+    service: RoomGameActionCommandService = Depends(get_room_game_action_command_service),
 ):
     """
     提交当前玩家在房间对局中的操作。
@@ -353,7 +368,53 @@ async def apply_room_action(
     :param roomId: 房间 ID。
     :param request: 操作请求。
     :param current_user: 当前用户账号。
-    :param service: 房间模块服务。
+    :param service: 房间对局动作命令服务。
     :return: 统一成功响应。
     """
-    return success(await service.apply_room_action(current_user, roomId, request))
+    return success(await service.apply_room_action(roomId, current_user.server_id, request))
+
+
+@room_router.post(
+    "/{roomId}/action-preview",
+    response_model=ApiResponse[RoomActionPreviewResponse],
+    summary="预览房间对局操作",
+)
+async def preview_room_action(
+    roomId: str,
+    request: RoomActionPreviewRequest,
+    current_user: UserAccount = Depends(get_current_room_user),
+    service: RoomGameActionQueryService = Depends(get_room_game_action_query_service),
+):
+    """
+    只读预览当前玩家动作。
+
+    :param roomId: 房间 ID。
+    :param request: 预览请求。
+    :param current_user: 当前用户账号。
+    :param service: 房间对局动作查询服务。
+    :return: 统一成功响应。
+    """
+    return success(await service.preview_room_action(roomId, current_user.server_id, request))
+
+
+@room_router.post(
+    "/{roomId}/action-suggestions",
+    response_model=ApiResponse[HintSuggestionPage],
+    summary="查询房间对局动作提示",
+)
+async def suggest_room_actions(
+    roomId: str,
+    request: RoomActionSuggestionsRequest,
+    current_user: UserAccount = Depends(get_current_room_user),
+    service: RoomGameActionQueryService = Depends(get_room_game_action_query_service),
+):
+    """
+    只读查询当前玩家动作提示。
+
+    :param roomId: 房间 ID。
+    :param request: 提示请求。
+    :param current_user: 当前用户账号。
+    :param service: 房间对局动作查询服务。
+    :return: 统一成功响应。
+    """
+    return success(await service.suggest_room_actions(roomId, current_user.server_id, request))

@@ -100,12 +100,10 @@ def register_exception_handlers(app):
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_exc(_request, exc):
+        """将 HTTP 异常统一转换为业务失败响应。"""
         logger.warning("HTTP 异常: status=%s detail=%s", exc.status_code, exc.detail)
         detail_text = str(exc.detail) if exc.detail else None
-        if exc.status_code == status.HTTP_404_NOT_FOUND:
-            body = _fail_from_item(ErrorCode.COMMON_ERROR, message=detail_text or ErrorCode.COMMON_ERROR.message)
-        else:
-            body = _fail_from_item(ErrorCode.COMMON_ERROR, message=detail_text or ErrorCode.COMMON_ERROR.message)
+        body = _fail_from_item(ErrorCode.COMMON_ERROR, message=detail_text or ErrorCode.COMMON_ERROR.message)
         return _json_body(body)
 
     @app.exception_handler(Exception)

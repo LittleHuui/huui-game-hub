@@ -1,4 +1,4 @@
-import { nowMs } from '../utils/timeService.js';
+import { nowMs, toTimestampMs } from '../utils/timeService.js';
 
 /**
  * @param {unknown} v
@@ -72,11 +72,12 @@ export function mapEntityFields(remote) {
   return {
     clientId: requireNonEmptyString(remote.clientId, 'clientId'),
     serverId: remote.serverId ?? null,
+    matchId: remote.matchId ?? remote.serverId ?? null,
     userId: requireNonEmptyString(remote.userId, 'userId'),
     deviceId: remote.deviceId || '',
-    createdAt: remote.createdAt ?? nowMs(),
-    updatedAt: remote.updatedAt ?? nowMs(),
-    syncedAt: remote.syncedAt ?? null
+    createdAt: toTimestampMs(remote.createdAt, nowMs()),
+    updatedAt: toTimestampMs(remote.updatedAt, nowMs()),
+    syncedAt: toTimestampMs(remote.syncedAt)
   };
 }
 

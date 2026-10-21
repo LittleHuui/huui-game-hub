@@ -1,5 +1,8 @@
 """五子棋在线游戏规则种子。"""
 
+from app.modules.game_impls.gomoku.gomoku_constants import (
+    BOARD_SIZE, WIN_LENGTH, DEFAULT_UNDO_REQUEST_EXPIRE_SECONDS,
+)
 from app.modules.game_seed.schemas import (
     GameRuleInfo,
     OnlineGameRuleSeed,
@@ -45,7 +48,7 @@ GOMOKU_ONLINE_GAME_RULE_SEED = OnlineGameRuleSeed(
             key="undoRequestExpireSeconds",
             type="number",
             label="悔棋请求有效时间",
-            defaultValue=30,
+            defaultValue=DEFAULT_UNDO_REQUEST_EXPIRE_SECONDS,
             min=10,
             max=120,
         ),
@@ -54,8 +57,8 @@ GOMOKU_ONLINE_GAME_RULE_SEED = OnlineGameRuleSeed(
         "rule": {
             "name": "gomoku",
             "config": {
-                "boardSize": 15,
-                "winLength": 5,
+                "boardSize": BOARD_SIZE,
+                "winLength": WIN_LENGTH,
             },
         },
     },

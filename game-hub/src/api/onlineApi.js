@@ -13,11 +13,8 @@ export function getOnlineUsers() {
 /**
  * 修改当前用户在线状态。
  * @param {'online'|'away'|'busy'|'offline'} status
- * @param {string} serviceId
  * @returns {Promise<object>}
  */
-export function updateOnlineStatus(status, serviceId) {
-  return requestJson('POST', apiUrl(`${HUB}/online/status`), { status }, 8000, {
-    'X-Game-Hub-User-Id': serviceId
-  });
+export function updateOnlineStatus(status) {
+  return requestJson('POST', apiUrl(`${HUB}/online/status`), { status });
 }

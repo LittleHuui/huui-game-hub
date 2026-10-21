@@ -4,7 +4,7 @@
  * @param {string} gameCode
  * @returns {Record<string, number>}
  */
-export function aggregateQuantitiesByGame(ledgers, gameCode) {
+function aggregateNetQuantitiesByGame(ledgers, gameCode) {
   const map = {};
   if (!Array.isArray(ledgers) || !gameCode) {
     return map;
@@ -18,10 +18,12 @@ export function aggregateQuantitiesByGame(ledgers, gameCode) {
     const delta = row.type === 'gain' ? amt : -amt;
     map[row.propCode] = (map[row.propCode] || 0) + delta;
   }
-  for (const code of Object.keys(map)) {
-    map[code] = Math.max(0, map[code]);
-  }
   return map;
+}
+
+export function aggregateQuantitiesByGame(ledgers, gameCode) {
+  const quantities = aggregateNetQuantitiesByGame(ledgers, gameCode);
+  return Object.fromEntries(Object.entries(quantities).map(([code, amount]) => [code, Math.max(0, amount)]));
 }
 
 /**
@@ -32,10 +34,10 @@ export function aggregateQuantitiesByGame(ledgers, gameCode) {
  * @returns {Record<string, number>}
  */
 export function quantitiesForUserGame(ledgers, bag, gameCode) {
-  if (!bag || Object.keys(bag).length === 0) {
+  if (!bag) {
     return aggregateQuantitiesByGame(ledgers, gameCode);
   }
-  const pending = aggregateQuantitiesByGame(
+  const pending = aggregateNetQuantitiesByGame(
     ledgers.filter((r) => r.syncStatus === 'pending' && r.gameCode === gameCode),
     gameCode
   );

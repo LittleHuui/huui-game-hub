@@ -31,7 +31,7 @@ async def push_room_updated(room: RoomResponse) -> None:
     payload = {
         "roomId": room.roomId,
         "room": room.model_dump(),
-        "version": room.version,
+        "roomVersion": room.roomVersion,
     }
     for member in room.members:
         if member.isAi:

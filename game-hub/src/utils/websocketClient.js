@@ -5,9 +5,10 @@ const RECONNECT_MAX_DELAY_MS = 30000;
 const RECONNECT_MAX_ATTEMPTS = 6;
 const HEARTBEAT_INTERVAL_MS = 60000;
 const CLOSE_CODE_POLICY_VIOLATION = 1008;
+const CLOSE_CODE_AUTH_EXPIRED = 4003;
 
 let socket = null;
-let socketUrl = '';
+let createUrl = null;
 let reconnectTimer = null;
 let heartbeatTimer = null;
 let manualClose = false;
@@ -15,15 +16,16 @@ let authFailed = false;
 let reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS;
 let reconnectAttempts = 0;
 let shouldReconnect = null;
+let generation = 0;
 const handlers = new Map();
 
 /**
- * 连接 WebSocket。
- * @param {string} url
+ * Connect WebSocket using an async URL factory.
+ * @param {() => Promise<string>} urlFactory
  * @param {{ resetAuthFailed?: boolean; shouldReconnect?: () => boolean }} options
  */
-export function connect(url, options = {}) {
-  if (!url) {
+export function connect(urlFactory, options = {}) {
+  if (typeof urlFactory !== 'function') {
     return;
   }
   if (options.resetAuthFailed) {
@@ -36,44 +38,17 @@ export function connect(url, options = {}) {
   if (authFailed) {
     return;
   }
-  socketUrl = url;
+  createUrl = urlFactory;
   manualClose = false;
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
     return;
   }
-  socket = new WebSocket(url);
-  socket.onopen = () => {
-    clearReconnectTimer();
-    resetReconnectBackoff();
-    startHeartbeat();
-  };
-  socket.onmessage = (event) => {
-    dispatch(event.data);
-  };
-  socket.onclose = (event) => {
-    stopHeartbeat();
-    socket = null;
-    if (event.code === CLOSE_CODE_POLICY_VIOLATION) {
-      authFailed = true;
-      clearReconnectTimer();
-      return;
-    }
-    if (!manualClose && canAutoReconnect()) {
-      scheduleReconnect();
-    }
-  };
-  socket.onerror = () => {
-    if (socket) {
-      socket.close();
-    }
-  };
+  void openNextConnection();
 }
 
-/**
- * 断开 WebSocket。
- */
 export function disconnect() {
   manualClose = true;
+  generation += 1;
   clearReconnectTimer();
   stopHeartbeat();
   if (socket) {
@@ -82,19 +57,11 @@ export function disconnect() {
   }
 }
 
-/**
- * 清理身份失败状态，允许后续主动重连。
- */
 export function clearAuthFailure() {
   authFailed = false;
   resetReconnectBackoff();
 }
 
-/**
- * 发送消息。
- * @param {object} message
- * @returns {boolean}
- */
 export function send(message) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return false;
@@ -103,11 +70,6 @@ export function send(message) {
   return true;
 }
 
-/**
- * 监听指定消息类型。
- * @param {string} type
- * @param {(message: object) => void} handler
- */
 export function on(type, handler) {
   if (!handlers.has(type)) {
     handlers.set(type, new Set());
@@ -115,11 +77,6 @@ export function on(type, handler) {
   handlers.get(type).add(handler);
 }
 
-/**
- * 移除指定消息类型监听。
- * @param {string} type
- * @param {(message: object) => void} handler
- */
 export function off(type, handler) {
   const set = handlers.get(type);
   if (!set) {
@@ -131,27 +88,96 @@ export function off(type, handler) {
   }
 }
 
-/**
- * 安排断线重连。
- */
 export function scheduleReconnect() {
-  if (reconnectTimer !== null || !socketUrl || !canAutoReconnect()) {
+  if (reconnectTimer !== null || !createUrl || !canAutoReconnect()) {
     return;
   }
   const delay = reconnectDelayMs;
   reconnectDelayMs = Math.min(reconnectDelayMs * 2, RECONNECT_MAX_DELAY_MS);
   reconnectAttempts += 1;
+  const scheduledGeneration = generation;
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null;
-    connect(socketUrl);
+    if (scheduledGeneration !== generation || !canAutoReconnect()) {
+      return;
+    }
+    void openNextConnection();
   }, delay);
 }
 
+async function openNextConnection() {
+  if (!createUrl || authFailed || manualClose) {
+    return;
+  }
+  const myGeneration = generation + 1;
+  generation = myGeneration;
+  let url = '';
+  try {
+    url = await createUrl();
+  } catch {
+    if (myGeneration === generation && canAutoReconnect()) {
+      scheduleReconnect();
+    }
+    return;
+  }
+  if (myGeneration !== generation || manualClose || authFailed || !url) {
+    return;
+  }
+  const nextSocket = new WebSocket(url);
+  socket = nextSocket;
+  nextSocket.onopen = () => {
+    if (myGeneration !== generation || socket !== nextSocket) {
+      nextSocket.close();
+      return;
+    }
+    clearReconnectTimer();
+    resetReconnectBackoff();
+    startHeartbeat();
+  };
+  nextSocket.onmessage = (event) => {
+    if (myGeneration === generation && socket === nextSocket) {
+      dispatch(event.data);
+    }
+  };
+  nextSocket.onclose = (event) => {
+    if (myGeneration !== generation || socket !== nextSocket) {
+      return;
+    }
+    stopHeartbeat();
+    socket = null;
+    if (isAuthenticationCloseCode(event.code)) {
+      authFailed = true;
+      clearReconnectTimer();
+      notifyRealtimeAuthenticationFailure();
+      return;
+    }
+    if (!manualClose && canAutoReconnect()) {
+      scheduleReconnect();
+    }
+  };
+  nextSocket.onerror = () => {
+    if (myGeneration === generation && socket === nextSocket) {
+      nextSocket.close();
+    }
+  };
+}
+
 /**
- * @deprecated 使用 scheduleReconnect。
+ * @param {number} closeCode
+ * @returns {boolean}
  */
-export function reconnect() {
-  scheduleReconnect();
+function isAuthenticationCloseCode(closeCode) {
+  return closeCode === CLOSE_CODE_POLICY_VIOLATION || closeCode === CLOSE_CODE_AUTH_EXPIRED;
+}
+
+/**
+ * 由实时服务转接到与 HTTP 相同的认证失效流程。
+ */
+function notifyRealtimeAuthenticationFailure() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.dispatchEvent(new window.CustomEvent('game-hub-realtime-auth-failed'));
 }
 
 function dispatch(raw) {

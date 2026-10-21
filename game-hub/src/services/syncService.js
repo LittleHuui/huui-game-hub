@@ -5,24 +5,38 @@ import * as userRepository from '../repositories/userRepository.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { useSettingStore } from '../stores/settingStore.js';
 import { useHistoryStore } from '../stores/historyStore.js';
+import { useUserStore } from '../stores/userStore.js';
 import * as toastService from './toastService.js';
 import * as historyRepository from '../repositories/historyRepository.js';
 import * as rankingService from './rankingService.js';
 import * as inventoryService from './inventoryService.js';
 import { canFetchRemote } from './remoteGate.js';
 import { requireGameCode } from '../utils/requireGameCode.js';
+import { captureUserDataIdentity, isCurrentUserDataIdentity } from '../repositories/userDataIdentity.js';
+import { getCurrentAuthSnapshot } from './onlineAuthService.js';
+
+let syncQueue = Promise.resolve();
 
 export { canFetchRemote };
 
 /**
  * 执行云存档同步。
  */
-export async function sync() {
-  const snap = localRepo.readCloudSnapshot() || {};
-  const payload = syncRepository.buildSyncPayload(snap.clientSnapshotVersion ?? 0);
-  const res = await remoteRepository.syncCloudSave(payload);
-  syncRepository.applyCloudSnapshot(res);
-  syncRepository.clearSyncedPending();
+export function sync() {
+  const identity = captureUserDataIdentity(useUserStore());
+  const token = getCurrentAuthSnapshot().accessToken;
+  const isCurrent = () => isCurrentUserDataIdentity(useUserStore(), identity) && getCurrentAuthSnapshot().accessToken === token;
+  const request = syncQueue.then(async () => {
+    if (!isCurrent()) return;
+    const snap = localRepo.readCloudSnapshot() || {};
+    const payload = syncRepository.buildSyncPayload(snap.clientSnapshotVersion ?? 0, identity);
+    const res = await remoteRepository.syncCloudSave(payload);
+    if (!isCurrent()) return;
+    syncRepository.applyCloudSnapshot(res, identity);
+    syncRepository.clearSyncedPending(payload.pendingEvents, res.syncResult, identity);
+  });
+  syncQueue = request.catch(() => undefined);
+  return request;
 }
 
 /**

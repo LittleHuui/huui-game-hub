@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { onUnmounted, ref, watch } from 'vue';
 import { useStrategyTurnGameView } from '../../../composables/useStrategyTurnGameView.js';
 import { filterCardPlayedEvents } from '../unoGameViewUtils.js';
 
@@ -13,15 +13,15 @@ export function useUnoGameView() {
     currentPlayerId,
     publicState,
     privateState,
-    legalActions,
+    actionOffers,
     frameEvents,
-    animationHint,
-    playbackBusy
+    playbackBusy,
+    reset: resetStrategyView
   } = useStrategyTurnGameView();
 
   const cardPlayedEvents = ref([]);
 
-  watch(roomId, (nextRoomId, prevRoomId) => {
+  const stopRoomWatch = watch(roomId, (nextRoomId, prevRoomId) => {
     const next = String(nextRoomId || '').trim();
     const prev = String(prevRoomId || '').trim();
     if (next !== prev) {
@@ -29,7 +29,7 @@ export function useUnoGameView() {
     }
   });
 
-  watch(
+  const stopVersionWatch = watch(
     version,
     (nextVersion, prevVersion) => {
       const next = Number(nextVersion) || 0;
@@ -49,15 +49,37 @@ export function useUnoGameView() {
     { flush: 'post' }
   );
 
+  /**
+   * 重置 UNO 事件展示和公共 GameView。
+   * @returns {void}
+   */
+  function reset() {
+    cardPlayedEvents.value = [];
+    resetStrategyView();
+  }
+
+  /**
+   * 停止 UNO 局部视图观察。
+   * 房间生命周期负责释放共享 GameView 状态，UNO 视图不应影响其他订阅者。
+   * @returns {void}
+   */
+  function dispose() {
+    stopRoomWatch();
+    stopVersionWatch();
+  }
+
+  onUnmounted(dispose);
+
   return {
     version,
     viewerPlayerId,
     currentPlayerId,
     publicState,
     privateState,
-    legalActions,
-    animationHint,
+    actionOffers,
     playbackBusy,
-    cardPlayedEvents
+    cardPlayedEvents,
+    reset,
+    dispose
   };
 }

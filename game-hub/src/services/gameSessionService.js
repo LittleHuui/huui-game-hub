@@ -3,7 +3,6 @@ import { createClientId } from '../utils/idService.js';
 import { nowMs } from '../utils/timeService.js';
 import * as localRepo from '../repositories/localRepository.js';
 import * as syncRepository from '../repositories/syncRepository.js';
-import * as userRepository from '../repositories/userRepository.js';
 import * as historyRepository from '../repositories/historyRepository.js';
 import { useUserStore } from '../stores/userStore.js';
 import * as walletService from './walletService.js';
@@ -60,7 +59,7 @@ function requireDifficultyCode(v, field = 'difficultyCode') {
 }
 
 /**
- * 游戏会话编排（替代 useGameHubSession）。
+ * 编排游戏会话的启动、道具记录与结算。
  * @param {{ gameCode?: string | (() => string) }} [options]
  */
 export function createGameSession(options = {}) {

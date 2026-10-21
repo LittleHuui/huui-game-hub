@@ -1,0 +1,7 @@
+fastapi==0.115.6
+uvicorn==0.32.1
+sqlalchemy==2.0.36
+pydantic==2.10.4
+pydantic-settings==2.7.0
+typing_extensions==4.12.2
+redis==5.2.1

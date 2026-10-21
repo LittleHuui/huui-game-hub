@@ -159,9 +159,10 @@ export function applySystemSettingToLocal(setting) {
  * @param {object} [wallet]
  * @param {object[]|null} [inventory]
  */
-export function mergeCloudUser(cloudUser, wallet, inventory) {
+export function mergeCloudUser(cloudUser, wallet, inventory, targetUserId) {
   const userStore = useUserStore();
   const localUser = mapRemoteUserToLocal(cloudUser);
+  if (targetUserId) localUser.userId = targetUserId;
   if (wallet) {
     const scores = mapRemoteWalletToLocal(wallet);
     localUser.score = scores.score;
@@ -175,7 +176,6 @@ export function mergeCloudUser(cloudUser, wallet, inventory) {
   } else {
     userStore.addUser(localUser);
   }
-  userStore.setCurrentUserId(localUser.userId);
   if (inventory) {
     inventoryRepository.applyCloudInventory(inventory, localUser.userId);
   }

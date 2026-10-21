@@ -1,6 +1,6 @@
 <template>
   <div v-if="visible" class="modal-mask" @click.self="onMaskClick">
-    <div class="modal" role="dialog" aria-modal="true" @click.stop>
+    <div class="modal" role="dialog" aria-modal="true" :aria-label="title || undefined" @click.stop>
       <header class="modal-header">
         <h2 class="modal-header__title">
           <slot name="title">

@@ -1,4 +1,4 @@
-import { nowMs } from '../utils/timeService.js';
+import { nowMs, toTimestampMs } from '../utils/timeService.js';
 
 /**
  * @param {object} remote
@@ -15,9 +15,9 @@ export function mapPurchaseRecord(remote) {
     quantity: remote.quantity ?? 1,
     unitPrice: remote.unitPrice ?? 0,
     totalPrice: remote.totalPrice ?? 0,
-    createdAt: remote.createdAt ?? nowMs(),
-    updatedAt: remote.updatedAt ?? nowMs(),
-    syncedAt: remote.syncedAt ?? null,
+    createdAt: toTimestampMs(remote.createdAt, nowMs()),
+    updatedAt: toTimestampMs(remote.updatedAt, nowMs()),
+    syncedAt: toTimestampMs(remote.syncedAt),
     syncStatus: 'synced',
     payload: {
       label: remote.propCode || '购买',

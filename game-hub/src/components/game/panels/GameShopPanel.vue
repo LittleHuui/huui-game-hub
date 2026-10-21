@@ -33,7 +33,7 @@
 
 <script setup>
 import { computed, inject } from 'vue';
-import { hasGameCapability } from '../../../constants/gameRegistry.js';
+import { hasGameCapability } from '../../../games/gameModuleRegistry.js';
 import { GH_OPEN_HUB_MODAL } from '../../../constants/injectionKeys.js';
 import * as purchaseService from '../../../services/purchaseService.js';
 import { useGamePropQuantities } from '../../../composables/useGamePropQuantities.js';

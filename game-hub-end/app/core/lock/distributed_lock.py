@@ -1,15 +1,23 @@
 """Redis 分布式锁工具。"""
 
-import asyncio
 import time
 import uuid
 from typing import Optional
 
 from app.core.redis.redis_client import RedisClient, redis_client
+from app.core.clock import Sleeper, system_sleeper
 
 _RELEASE_SCRIPT = """
 if redis.call("get", KEYS[1]) == ARGV[1] then
     return redis.call("del", KEYS[1])
+else
+    return 0
+end
+"""
+
+_RENEW_SCRIPT = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("expire", KEYS[1], tonumber(ARGV[2]))
 else
     return 0
 end
@@ -37,6 +45,16 @@ class LockHandle(object):
         self._released = True
         return released
 
+    async def renew(self, ttl_seconds: int) -> bool:
+        """
+        仅持有者可原子续租。
+        :param ttl_seconds: 新 TTL 秒数。
+        :return: 是否续租成功。
+        """
+        if self._released:
+            return False
+        return await self._lock.renew(self.key, self.token, ttl_seconds)
+
     async def __aenter__(self) -> "LockHandle":
         return self
 
@@ -47,8 +65,14 @@ class LockHandle(object):
 class RedisDistributedLock(object):
     """基于 Redis 的分布式锁。"""
 
-    def __init__(self, redis: RedisClient = redis_client) -> None:
+    def __init__(
+        self,
+        redis: RedisClient = redis_client,
+        sleeper: Sleeper = system_sleeper,
+    ) -> None:
+        """初始化带可注入等待器的 Redis 锁。"""
         self._redis = redis
+        self._sleeper = sleeper
 
     async def acquire(
         self,
@@ -88,7 +112,7 @@ class RedisDistributedLock(object):
             elapsed_ms = self._now_ms() - start_ms
             if elapsed_ms >= max(0, int(wait_timeout_ms)):
                 raise LockAcquireError("lock acquire timeout")
-            await asyncio.sleep(interval_ms / 1000.0)
+            await self._sleeper.sleep_ms(interval_ms)
 
     async def release(self, key: str, token: str) -> bool:
         """
@@ -107,6 +131,24 @@ class RedisDistributedLock(object):
             1,
             [normalized_key],
             [normalized_token],
+        )
+        return int(result or 0) > 0
+
+    async def renew(self, key: str, token: str, ttl_seconds: int) -> bool:
+        """
+        按 token 原子续租锁。
+        :param key: 锁 key。
+        :param token: 持有 token。
+        :param ttl_seconds: 新 TTL 秒数。
+        :return: 是否续租成功。
+        """
+        if int(ttl_seconds) <= 0:
+            return False
+        result = await self._redis.eval(
+            _RENEW_SCRIPT,
+            1,
+            [str(key).strip()],
+            [str(token).strip(), str(int(ttl_seconds))],
         )
         return int(result or 0) > 0
 

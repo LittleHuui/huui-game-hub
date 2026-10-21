@@ -1,99 +1,7 @@
-import { GAME_SEED_CONFIG } from '../constants/gameSeedConfig.js';
 import * as gameConfigRepository from '../repositories/gameConfigRepository.js';
-import {
-  applyMinesweeperServerConfig,
-  getSeedGameConfig,
-  mapGameSeedToMinesweeperConfig
-} from '../mappers/gameConfigMapper.js';
-import { applyMatch3Config } from '../games/match3/match3Config.js';
-import { applyGame2048Config } from '../games/game2048/game2048Config.js';
-import { applySudokuConfig } from '../games/sudoku/sudokuConfig.js';
-import { applyUnoConfig } from '../games/uno/unoConfig.js';
+import { getGameFrontendModule } from '../games/gameModuleRegistry.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { canFetchRemote } from './remoteGate.js';
-
-const MINESWEEPER = 'minesweeper';
-const MATCH3 = 'match3';
-const GAME2048 = '2048';
-const SUDOKU = 'sudoku';
-const UNO = 'uno';
-
-/**
- * @typedef {object} GameConfigHandler
- * @property {() => Promise<void>} loadRemote
- * @property {() => void} applySeed
- */
-
-/** @type {Record<string, GameConfigHandler>} */
-const GAME_CONFIG_HANDLERS = {
-  [MINESWEEPER]: {
-    async loadRemote() {
-      try {
-        const data = await gameConfigRepository.fetchGameConfig(MINESWEEPER);
-        applyMinesweeperServerConfig(data);
-      } catch {
-        applyMinesweeperSeedConfig();
-      }
-    },
-    applySeed: applyMinesweeperSeedConfig
-  },
-  [MATCH3]: {
-    async loadRemote() {
-      try {
-        const data = await gameConfigRepository.fetchGameConfig(MATCH3);
-        applyMatch3Config(data);
-      } catch {
-        applyMatch3Config(getSeedGameConfig(MATCH3, GAME_SEED_CONFIG));
-      }
-    },
-    applySeed() {
-      applyMatch3Config(getSeedGameConfig(MATCH3, GAME_SEED_CONFIG));
-    }
-  },
-  [GAME2048]: {
-    async loadRemote() {
-      try {
-        const data = await gameConfigRepository.fetchGameConfig(GAME2048);
-        applyGame2048Config(data);
-      } catch {
-        applyGame2048Config(getSeedGameConfig(GAME2048, GAME_SEED_CONFIG));
-      }
-    },
-    applySeed() {
-      applyGame2048Config(getSeedGameConfig(GAME2048, GAME_SEED_CONFIG));
-    }
-  },
-  [SUDOKU]: {
-    async loadRemote() {
-      try {
-        const data = await gameConfigRepository.fetchGameConfig(SUDOKU);
-        applySudokuConfig(data);
-      } catch {
-        applySudokuConfig(getSeedGameConfig(SUDOKU, GAME_SEED_CONFIG));
-      }
-    },
-    applySeed() {
-      applySudokuConfig(getSeedGameConfig(SUDOKU, GAME_SEED_CONFIG));
-    }
-  },
-  [UNO]: {
-    async loadRemote() {
-      const data = await gameConfigRepository.fetchGameConfig(UNO);
-      applyUnoConfig(data);
-    },
-    applySeed() {
-      applyUnoConfig(getSeedGameConfig(UNO, GAME_SEED_CONFIG));
-    }
-  }
-};
-
-/**
- * 应用种子配置到扫雷玩法常量。
- */
-function applyMinesweeperSeedConfig() {
-  const mapped = mapGameSeedToMinesweeperConfig(GAME_SEED_CONFIG);
-  applyMinesweeperServerConfig(mapped);
-}
 
 /**
  * 是否应从远端拉取游戏配置。
@@ -116,14 +24,28 @@ export async function loadGameConfig(gameCode) {
   if (gameCode == null || String(gameCode).length === 0) {
     return;
   }
-  const handler = GAME_CONFIG_HANDLERS[gameCode];
-  if (!handler) {
+  const module = getGameFrontendModule(gameCode);
+  const handler = module?.configHandler;
+  if (!handler?.applySeed || !handler?.resolveSeed) {
     return;
   }
   const platform = usePlatformStore();
   if (shouldLoadRemoteConfig(platform)) {
-    await handler.loadRemote();
+    try {
+      const data = await gameConfigRepository.fetchGameConfig(gameCode);
+      if (typeof handler.applyRemote === 'function') {
+        handler.applyRemote(data);
+      } else {
+        handler.applySeed(handler.resolveSeed(data));
+      }
+      return;
+    } catch {
+      // 远端失败统一回退模块种子配置。
+    }
+  }
+  const seedRoot = typeof module.seedProvider === 'function' ? module.seedProvider() : null;
+  if (!seedRoot) {
     return;
   }
-  handler.applySeed();
+  handler.applySeed(handler.resolveSeed(seedRoot));
 }

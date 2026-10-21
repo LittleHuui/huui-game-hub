@@ -1,5 +1,5 @@
-const SIZE = 9;
-const BOX = 3;
+import { SUDOKU_SIZE as SIZE, SUDOKU_BOX_SIZE as BOX, SUDOKU_MIN_GIVENS, SUDOKU_GENERATION_ATTEMPTS, SUDOKU_SEARCH_NODE_BUDGET } from './sudokuConstants.js';
+import { generateSolution, carvePuzzleFromSolution } from './sudokuPuzzleGenerator.js';
 
 /**
  * 是否为可遍历的 9x9 棋盘（首屏 cells 未初始化时需防护）。
@@ -16,135 +16,6 @@ export function isSudokuGridReady(cells) {
     }
   }
   return true;
-}
-
-/**
- * @param {number} row
- * @param {number} col
- * @returns {number}
- */
-function boxIndex(row, col) {
-  return Math.floor(row / BOX) * BOX + Math.floor(col / BOX);
-}
-
-/**
- * @param {number[][]} grid
- * @param {number} row
- * @param {number} col
- * @param {number} num
- * @returns {boolean}
- */
-export function isValidPlacement(grid, row, col, num) {
-  for (let c = 0; c < SIZE; c++) {
-    if (grid[row][c] === num) {
-      return false;
-    }
-  }
-  for (let r = 0; r < SIZE; r++) {
-    if (grid[r][col] === num) {
-      return false;
-    }
-  }
-  const br = Math.floor(row / BOX) * BOX;
-  const bc = Math.floor(col / BOX) * BOX;
-  for (let r = br; r < br + BOX; r++) {
-    for (let c = bc; c < bc + BOX; c++) {
-      if (grid[r][c] === num) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-/**
- * @param {() => number} rng
- * @returns {number[]}
- */
-function shuffledDigits(rng) {
-  const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-  for (let i = nums.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    const tmp = nums[i];
-    nums[i] = nums[j];
-    nums[j] = tmp;
-  }
-  return nums;
-}
-
-/**
- * 回溯填满 9x9 终盘。
- * @param {number[][]} grid
- * @param {() => number} rng
- * @returns {boolean}
- */
-function fillGrid(grid, rng) {
-  for (let row = 0; row < SIZE; row++) {
-    for (let col = 0; col < SIZE; col++) {
-      if (grid[row][col] !== 0) {
-        continue;
-      }
-      for (const num of shuffledDigits(rng)) {
-        if (!isValidPlacement(grid, row, col, num)) {
-          continue;
-        }
-        grid[row][col] = num;
-        if (fillGrid(grid, rng)) {
-          return true;
-        }
-        grid[row][col] = 0;
-      }
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * 生成完整合法终盘。
- * @param {() => number} [rng]
- * @returns {number[][]}
- */
-export function generateSolution(rng = Math.random) {
-  const grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-  fillGrid(grid, rng);
-  return grid;
-}
-
-/**
- * 从终盘挖空生成题目（第一版不校验唯一解）。
- * @param {number[][]} solution
- * @param {number} givensCount
- * @param {() => number} [rng]
- * @returns {number[][]}
- */
-export function carvePuzzleFromSolution(solution, givensCount, rng = Math.random) {
-  const puzzle = solution.map((row) => row.slice());
-  const cells = [];
-  for (let row = 0; row < SIZE; row++) {
-    for (let col = 0; col < SIZE; col++) {
-      cells.push({ row, col });
-    }
-  }
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    const tmp = cells[i];
-    cells[i] = cells[j];
-    cells[j] = tmp;
-  }
-  let remaining = SIZE * SIZE;
-  for (const { row, col } of cells) {
-    if (remaining <= givensCount) {
-      break;
-    }
-    if (puzzle[row][col] === 0) {
-      continue;
-    }
-    puzzle[row][col] = 0;
-    remaining--;
-    // 预留：assertPuzzleHasUniqueSolution(puzzle, solution);
-  }
-  return puzzle;
 }
 
 /**
@@ -194,8 +65,17 @@ export function buildCellsFromPuzzle(puzzle, solution) {
  * @returns {{ solution: number[][]; puzzle: number[][]; cells: SudokuCell[][] }}
  */
 export function createNewPuzzle(givensCount, rng = Math.random) {
-  const solution = generateSolution(rng);
-  const puzzle = carvePuzzleFromSolution(solution, givensCount, rng);
+  const target = Math.max(SUDOKU_MIN_GIVENS, Math.min(SIZE * SIZE, Math.floor(Number(givensCount) || SUDOKU_MIN_GIVENS)));
+  const budget = { remaining: SUDOKU_SEARCH_NODE_BUDGET };
+  let best = null;
+  for (let attempt = 0; attempt < SUDOKU_GENERATION_ATTEMPTS; attempt++) {
+    const solution = generateSolution(rng);
+    const puzzle = carvePuzzleFromSolution(solution, target, rng, budget);
+    const givens = puzzle.flat().filter(Boolean).length;
+    if (!best || givens < best.givens) best = { solution, puzzle, givens };
+    if (givens <= target || budget.remaining <= 0) break;
+  }
+  const { solution, puzzle } = best;
   const cells = buildCellsFromPuzzle(puzzle, solution);
   refreshCellConflicts(cells);
   return { solution, puzzle, cells };

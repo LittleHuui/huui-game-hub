@@ -1,5 +1,5 @@
 <template>
-  <AppModal :visible="visible" :title="title" @close="$emit('cancel')">
+  <AppModal :visible="visible" :title="title" :closable="!submitting" :mask-closable="!submitting" @close="$emit('dismiss')">
     <div class="room-hub-form">
       <p class="muted-small">{{ message }}</p>
       <p v-if="errorMessage" class="empty-text">{{ errorMessage }}</p>
@@ -10,7 +10,7 @@
           type="button"
           class="game-action-btn game-action-btn--ghost game-action-btn--sm"
           :disabled="submitting"
-          @click="$emit('cancel')"
+          @click="$emit('secondary-action')"
         >
           {{ cancelText }}
         </button>
@@ -45,5 +45,5 @@ defineProps({
   errorMessage: { type: String, default: '' }
 });
 
-defineEmits(['confirm', 'cancel']);
+defineEmits(['confirm', 'secondary-action', 'dismiss']);
 </script>

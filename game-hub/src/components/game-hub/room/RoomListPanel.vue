@@ -9,7 +9,8 @@
         :key="room.roomId"
         :room="room"
         :room-config-schema="roomConfigSchema"
-        @select="$emit('select-room', room)"
+        :disabled="disabled"
+        @select="!disabled && $emit('select-room', room)"
       />
     </div>
   </section>

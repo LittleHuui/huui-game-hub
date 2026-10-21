@@ -1,4 +1,4 @@
-﻿"""UNO 牌堆构建工厂（基于在线规则种子）。"""
+"""UNO 牌堆构建工厂（基于在线规则种子）。"""
 
 import random
 from typing import List, Optional
@@ -142,6 +142,44 @@ def draw_cards_from_pile(
     return drawn
 
 
+def _resolve_uno_card_type(definition: CardDefinition) -> str:
+    """
+    从通用牌定义解析 UNO 运行时 ``cardType``。
+
+    :param definition: 牌型定义。
+    :return: UNO 牌型标识。
+    """
+    metadata = definition.metadata
+    if isinstance(metadata, dict):
+        action_type = metadata.get("actionType")
+        if isinstance(action_type, str) and action_type.strip():
+            return action_type.strip().upper()
+    if definition.category == "NUMBER":
+        return "NUMBER"
+    if definition.rankCode is not None and str(definition.rankCode).strip():
+        return str(definition.rankCode).strip().upper()
+    raise ValidationException(
+        "无法从牌定义解析 UNO cardType: {0}".format(definition.cardCode)
+    )
+
+
+def _resolve_uno_number_value(definition: CardDefinition) -> Optional[int]:
+    """
+    从通用牌定义解析 UNO 数字牌点数。
+
+    :param definition: 牌型定义。
+    :return: 数字牌点数为 0~9，其它牌型为 ``None``。
+    """
+    if definition.category != "NUMBER":
+        return None
+    if definition.rankValue is None:
+        return None
+    number_value = int(definition.rankValue)
+    if 0 <= number_value <= 9:
+        return number_value
+    return None
+
+
 def _card_from_definition(
     definition: CardDefinition,
     deck_set_index: int,
@@ -159,9 +197,9 @@ def _card_from_definition(
     return UnoCard(
         cardInstanceId=instance_id,
         cardCode=definition.cardCode,
-        color=definition.color,
-        cardType=definition.cardType,
-        numberValue=definition.numberValue,
+        color=definition.suitCode,
+        cardType=_resolve_uno_card_type(definition),
+        numberValue=_resolve_uno_number_value(definition),
     )
 
 

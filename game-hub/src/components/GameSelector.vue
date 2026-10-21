@@ -66,6 +66,10 @@ async function select(code) {
     await router.push({ name: 'online-room-list', params: { gameCode: code } });
     return;
   }
-  await router.push({ name: entry.implemented ? code : 'game-unavailable', params: { gameCode: code } });
+  if (entry.implemented) {
+    await router.push({ name: code });
+    return;
+  }
+  await router.push({ name: 'game-unavailable', params: { gameCode: code } });
 }
 </script>

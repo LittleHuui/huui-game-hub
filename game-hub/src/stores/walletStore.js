@@ -20,15 +20,24 @@ import { defineStore } from 'pinia';
 export const useWalletStore = defineStore('wallet', {
   state: () => ({
     /** @type {Record<string, WalletLedger[]>} */
-    walletLedgersByUser: {}
+    walletLedgersByUser: {},
+    /** 首屏展示缓存，完整事实流水仍保存在 walletLedgersByUser。 */
+    displayPagesByUser: {}
   }),
   actions: {
     replaceAll(map) {
       this.walletLedgersByUser = map && typeof map === 'object' ? { ...map } : {};
+      this.displayPagesByUser = {};
     },
     /** @param {string} userId */
     listForUser(userId) {
       return this.walletLedgersByUser[userId] || [];
+    },
+    setDisplayPage(userId, rows) {
+      this.displayPagesByUser[userId] = rows;
+    },
+    displayPageForUser(userId) {
+      return this.displayPagesByUser[userId] || this.listForUser(userId);
     }
   }
 });

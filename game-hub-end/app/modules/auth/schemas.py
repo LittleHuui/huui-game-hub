@@ -1,11 +1,12 @@
 """认证模块 Pydantic 模型。"""
 
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.common.camel_schema import CAMEL_MODEL_CONFIG
-from app.modules.boot.schemas import UserPropBagResponse, UserWalletResponse
+from app.modules.inventory.response_schemas import UserPropBagResponse
+from app.modules.wallet.response_schemas import UserWalletResponse
 from app.modules.user.schemas import UserAccountResponse, UserSystemSettingResponse
 
 
@@ -41,3 +42,14 @@ class LoginResponse(BaseModel):
     systemSetting: UserSystemSettingResponse
     wallet: UserWalletResponse
     inventory: List[UserPropBagResponse] = Field(default_factory=list)
+    accessToken: Optional[str] = None
+    expiresAt: Optional[int] = None
+
+
+class RealtimeTicketResponse(BaseModel):
+    """Short-lived WebSocket ticket response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ticket: str = Field(min_length=1)
+    expiresAt: int = Field(ge=0)

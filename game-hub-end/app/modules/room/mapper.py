@@ -34,13 +34,13 @@ def _to_member_response(member: Dict[str, Any]) -> RoomMemberResponse:
     return RoomMemberResponse.model_validate(payload)
 
 
-def build_room_response(meta: Dict[str, Any], members: List[Dict[str, Any]], version: int) -> RoomResponse:
+def build_room_response(meta: Dict[str, Any], members: List[Dict[str, Any]], room_version: int) -> RoomResponse:
     """
     构造统一房间详情响应。
 
     :param meta: 房间元信息。
     :param members: 房间成员。
-    :param version: 房间版本号。
+    :param room_version: 房间元数据版本号。
     :return: 房间详情响应。
     """
     member_items = []
@@ -81,7 +81,7 @@ def build_room_response(meta: Dict[str, Any], members: List[Dict[str, Any]], ver
         "ownerNickname": owner_nickname,
         "maxPlayers": meta.get("maxPlayers", 0),
         "aiCount": int(meta.get("aiCount", 0)),
-        "version": version,
+        "roomVersion": int(room_version),
         "status": meta.get("status", "waiting"),
         "memberCount": real_member_count,
         "members": member_items,

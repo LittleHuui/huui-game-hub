@@ -1,4 +1,4 @@
-/** 策略回合制 legalActions.actionType 平台常量（与后端规则引擎约定一致） */
+/** 策略回合 actionType 平台常量（与后端规则引擎约定一致） */
 export const STRATEGY_TURN_ACTION_TYPE = Object.freeze({
   DRAW_CARD: 'DRAW_CARD',
   PLAY_CARD: 'PLAY_CARD',

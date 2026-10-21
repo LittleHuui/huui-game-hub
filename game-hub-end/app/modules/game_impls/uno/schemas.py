@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from app.common.camel_schema import CAMEL_MODEL_CONFIG
-from app.modules.strategy_turn.schemas import GameEvent
+from app.modules.strategy_turn.schemas import DomainEventDraft
 
 
 class UnoCard(BaseModel):
@@ -125,5 +125,4 @@ class UnoRuleContext(BaseModel):
     runtimeRule: Dict[str, Any] = Field(default_factory=dict, description="运行时规则快照")
     roomConfig: Dict[str, Any] = Field(default_factory=dict, description="房间玩法配置")
     actingPlayerId: Optional[str] = Field(default=None, description="当前出牌玩家 ID")
-    newEvents: List[GameEvent] = Field(default_factory=list, description="本次规则处理产生的事件")
-    nextEventSequence: int = Field(default=0, ge=0, description="下一条事件序号")
+    newEvents: List[DomainEventDraft] = Field(default_factory=list, description="本次规则处理产生的事件草稿")

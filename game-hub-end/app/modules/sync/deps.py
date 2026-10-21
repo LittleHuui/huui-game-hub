@@ -19,6 +19,21 @@ from app.modules.user.deps import get_user_module_service
 from app.modules.user.module_service import UserModuleService
 from app.modules.wallet.deps import get_wallet_module_service
 from app.modules.wallet.module_service import WalletModuleService
+from app.modules.sync.cloud_save_service import CloudSaveService
+from app.modules.sync.cloud_snapshot_service import CloudSnapshotService
+
+
+def get_cloud_snapshot_service(
+    user_module: UserModuleService = Depends(get_user_module_service),
+    wallet_module: WalletModuleService = Depends(get_wallet_module_service),
+    inventory_module: InventoryModuleService = Depends(get_inventory_module_service),
+    purchase_module: PurchaseModuleService = Depends(get_purchase_module_service),
+    match_module: MatchModuleService = Depends(get_match_module_service),
+    score_module: ScoreModuleService = Depends(get_score_module_service),
+) -> CloudSnapshotService:
+    """装配完整云快照的明确领域依赖。"""
+    return CloudSnapshotService(user_module, wallet_module, inventory_module,
+                                purchase_module, match_module, score_module)
 
 
 def get_sync_log_repository(db: Session = Depends(get_db)) -> SyncLogRepository:
@@ -70,3 +85,14 @@ def get_sync_module_service(
         match_module,
         score_module,
     )
+
+
+def get_cloud_save_service(
+    db: Session = Depends(get_db),
+    user_module: UserModuleService = Depends(get_user_module_service),
+    sync_module: SyncModuleService = Depends(get_sync_module_service),
+    sync_log: SyncLogEntityService = Depends(get_sync_log_entity_service),
+    snapshot: CloudSnapshotService = Depends(get_cloud_snapshot_service),
+) -> CloudSaveService:
+    """同步分发、审计和快照共享请求会话，逐事件使用嵌套事务。"""
+    return CloudSaveService(db, user_module, sync_module, sync_log, snapshot)

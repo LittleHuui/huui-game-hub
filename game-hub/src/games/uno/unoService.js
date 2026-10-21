@@ -1,5 +1,6 @@
 import * as gameRuleDefinitionRepository from '../../repositories/gameRuleDefinitionRepository.js';
-import * as roomService from '../../services/roomService.js';
+import * as roomQueryService from '../../services/roomQueryService.js';
+import * as roomGameService from '../../services/roomGameService.js';
 import { canFetchRemote } from '../../services/remoteGate.js';
 import { applyUnoRuleDefinition, UNO_CODE } from './unoConfig.js';
 
@@ -13,7 +14,7 @@ export async function loadRuleDefinition() {
   }
   const data = await gameRuleDefinitionRepository.fetchRuleDefinition(UNO_CODE);
   applyUnoRuleDefinition(data);
-  roomService.applyRoomRuleContext(data);
+  roomQueryService.applyRoomRuleContext(data);
   return data;
 }
 
@@ -22,22 +23,22 @@ export async function loadRuleDefinition() {
  * @param {string} roomId
  * @returns {Promise<object>}
  */
-export async function loadRoomGameView(roomId) {
+export async function loadRoomGameView(roomId, options = {}) {
   if (!canFetchRemote()) {
     throw new Error('UNO 仅支持在线模式，请切换数据模式后重试');
   }
-  return roomService.loadRoomGameView(roomId);
+  return roomGameService.loadRoomGameView(roomId, options);
 }
 
 /**
  * 提交对局操作。
  * @param {string} roomId
- * @param {{ actionId: string; baseVersion: number; clientSeq?: number }} body
+ * @param {{ submission: object; baseVersion: number; requestId?: string }} body
  * @returns {Promise<object>}
  */
 export async function applyRoomGameAction(roomId, body) {
   if (!canFetchRemote()) {
     throw new Error('UNO 仅支持在线模式，请切换数据模式后重试');
   }
-  return roomService.applyRoomGameAction(roomId, body);
+  return roomGameService.applyRoomGameAction(roomId, body);
 }

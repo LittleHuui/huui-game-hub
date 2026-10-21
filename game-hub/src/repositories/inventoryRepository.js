@@ -6,7 +6,7 @@ import {
   mapPropUsageRecord,
   mapLocalInventoryLedgerToPayload
 } from '../mappers/inventoryMapper.js';
-import { pageItems, groupByUserId } from '../mappers/sharedMapper.js';
+import { pageItems } from '../mappers/sharedMapper.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useInventoryStore } from '../stores/inventoryStore.js';
 import { useHistoryStore } from '../stores/historyStore.js';
@@ -16,6 +16,9 @@ import { ensureUserBucket } from './helpers.js';
 import { resolveServerUserId } from './userRepository.js';
 import { persistAllLocal } from './localPersistRepository.js';
 import { requireGameCode } from '../utils/requireGameCode.js';
+
+import { captureUserDataIdentity, mapRecordsToIdentity } from './userDataIdentity.js';
+import { mergeRecordsByClientId } from './recordMerge.js';
 
 const PAGE = { pageNum: 1, pageSize: 20 };
 
@@ -67,8 +70,12 @@ export function pushInventoryLedger(partial, onPending) {
 export function applyCloudInventory(inventory, userId) {
   const inventoryStore = useInventoryStore();
   const byGame = mapRemoteInventoryToBagByGame(Array.isArray(inventory) ? inventory : []);
-  const prev = inventoryStore.bagByUser[userId] || {};
-  inventoryStore.setBagForUser(userId, { ...prev, ...byGame });
+  const knownGames = new Set([
+    ...Object.keys(inventoryStore.bagByUser[userId] || {}),
+    ...inventoryStore.listForUser(userId).map((row) => row.gameCode)
+  ]);
+  const emptyBags = Object.fromEntries([...knownGames].map((gameCode) => [gameCode, {}]));
+  inventoryStore.setBagForUser(userId, { ...emptyBags, ...byGame });
   localRepo.writeInventoryBags(inventoryStore.bagByUser);
   persistAllLocal();
 }
@@ -95,12 +102,18 @@ export function applyPurchaseInventoryItem(userId, inventoryItem) {
 /**
  * @param {object[]} propUsageRecords
  */
-export function applyCloudPropUsage(propUsageRecords) {
+export function applyCloudPropUsage(propUsageRecords, identity = captureUserDataIdentity(useUserStore())) {
   if (!Array.isArray(propUsageRecords) || !propUsageRecords.length) {
     return;
   }
   const historyStore = useHistoryStore();
-  historyStore.replacePropUsage(groupByUserId(propUsageRecords.map(mapPropUsageRecord)));
+  const uid = identity.localUserId;
+  const mapped = mapRecordsToIdentity(propUsageRecords, mapPropUsageRecord, identity);
+  historyStore.propUsageRecordsByUser[uid] = mergeRecordsByClientId(historyStore.propUsageRecordsByUser[uid], mapped);
+  const confirmedIds = new Set(mapped.map((row) => row.clientId));
+  for (const row of useInventoryStore().listForUser(uid)) {
+    if (confirmedIds.has(row.clientId)) row.syncStatus = 'synced';
+  }
 }
 
 /**
@@ -108,16 +121,16 @@ export function applyCloudPropUsage(propUsageRecords) {
  * @param {string} gameCode
  */
 export async function refreshInventory(serverUserId, gameCode) {
+  const identity = captureUserDataIdentity(useUserStore(), serverUserId);
   const inventory = await remoteRepository.getInventory(serverUserId, { gameCode });
   const usagePage = await remoteRepository.getPropUsageRecords(serverUserId, { gameCode, ...PAGE });
-  const userStore = useUserStore();
   const historyStore = useHistoryStore();
   const inventoryStore = useInventoryStore();
-  const localKey = userStore.auth.currentUserId;
+  const localKey = identity.localUserId;
   const list = pageItems(inventory).length ? pageItems(inventory) : Array.isArray(inventory) ? inventory : [];
   inventoryStore.setBagForGame(localKey, gameCode, mapRemoteInventoryListToQuantities(list));
   ensureUserBucket(historyStore.propUsageRecordsByUser, localKey);
-  historyStore.propUsageRecordsByUser[localKey] = pageItems(usagePage).map(mapPropUsageRecord);
+  applyCloudPropUsage(pageItems(usagePage), identity);
   localRepo.writeInventoryBags(inventoryStore.bagByUser);
   persistAllLocal();
 }

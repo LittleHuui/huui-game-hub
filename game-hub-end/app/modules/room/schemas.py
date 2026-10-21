@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.strategy_turn.schemas import GameView
+from app.modules.strategy_turn.schemas import (
+    ActionPreview,
+    ActionSubmission,
+    GameView,
+)
 
 RoomStatus = Literal["waiting", "playing"]
 
@@ -90,7 +94,7 @@ class RoomResponse(BaseModel):
     ownerNickname: str
     maxPlayers: int
     aiCount: int
-    version: int
+    roomVersion: int = Field(description="房间元数据版本号")
     status: RoomStatus
     memberCount: int
     members: List[RoomMemberResponse]
@@ -114,13 +118,29 @@ class RoomActionRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    actionId: str = Field(min_length=1, description="合法操作 ID")
     baseVersion: int = Field(ge=0, description="客户端已知房间版本号")
-    clientSeq: Optional[int] = Field(
-        default=None,
-        ge=0,
-        description="客户端操作序号，用于事件追踪与客户端关联",
-    )
+    requestId: str = Field(min_length=1, description="客户端幂等请求 ID")
+    submission: ActionSubmission = Field(description="动作提交意图")
+
+
+class RoomActionPreviewRequest(BaseModel):
+    """房间动作预览请求。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    baseVersion: int = Field(ge=0, description="客户端已知房间版本号")
+    submission: ActionSubmission = Field(description="动作提交意图")
+
+
+class RoomActionSuggestionsRequest(BaseModel):
+    """房间动作提示请求。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    baseVersion: int = Field(ge=0, description="客户端已知房间版本号")
+    actionType: str = Field(min_length=1, description="动作类型")
+    cursor: Optional[str] = Field(default=None, description="分页游标")
+    limit: int = Field(default=20, ge=1, le=100, description="返回数量")
 
 
 class RoomLeaveResponse(BaseModel):
@@ -135,3 +155,4 @@ class RoomLeaveResponse(BaseModel):
 
 
 RoomGameViewResponse = GameView
+RoomActionPreviewResponse = ActionPreview

@@ -1,7 +1,7 @@
 import * as gameRuleDefinitionRepository from '../repositories/gameRuleDefinitionRepository.js';
-import * as roomService from './roomService.js';
+import * as roomQueryService from './roomQueryService.js';
 import { canFetchRemote } from './remoteGate.js';
-import { getGameConfig } from '../constants/gameRegistry.js';
+import { getGameFrontendModule } from '../games/gameModuleRegistry.js';
 
 /**
  * 读取在线房间默认模式（约定取注册表首个 mode）。
@@ -9,8 +9,8 @@ import { getGameConfig } from '../constants/gameRegistry.js';
  * @returns {string}
  */
 export function resolveOnlineRoomMode(gameCode) {
-  const game = getGameConfig(gameCode);
-  return String(game?.modes?.[0] || '').trim() || 'classic';
+  const game = getGameFrontendModule(gameCode);
+  return String(game?.displayMetadata?.modes?.[0] || '').trim() || 'classic';
 }
 
 /**
@@ -18,7 +18,7 @@ export function resolveOnlineRoomMode(gameCode) {
  * @param {string} gameCode
  * @returns {Promise<object>}
  */
-export async function loadOnlineRuleDefinition(gameCode) {
+export async function loadOnlineRuleDefinition(gameCode, options = {}) {
   const normalized = String(gameCode || '').trim();
   if (!normalized) {
     throw new Error('缺少 gameCode');
@@ -27,6 +27,12 @@ export async function loadOnlineRuleDefinition(gameCode) {
     throw new Error('当前为本地模式，在线房间不可用');
   }
   const data = await gameRuleDefinitionRepository.fetchRuleDefinition(normalized);
-  roomService.applyRoomRuleContext(data);
+  if (options.signal?.aborted) return data;
+  const fieldOrder = getGameFrontendModule(normalized)?.roomConfigFieldOrder || [];
+  const schema = Array.isArray(data.roomConfigSchema) ? data.roomConfigSchema.map((field) => {
+    const index = fieldOrder.indexOf(field.key);
+    return { ...field, displayOrder: index >= 0 ? index : fieldOrder.length + (field.visibleWhen ? 1 : 0) };
+  }) : data.roomConfigSchema;
+  roomQueryService.applyRoomRuleContext({ ...data, roomConfigSchema: schema });
   return data;
 }

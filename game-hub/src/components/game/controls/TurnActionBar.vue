@@ -50,15 +50,15 @@
 import { computed } from 'vue';
 import TurnCountdown from './TurnCountdown.vue';
 import {
-  filterStrategyTurnActionsByType,
-  hasStrategyTurnActionType
+  getEnumeratedOptionsByActionType,
+  hasActionOfferType
 } from './turnActionUtils.js';
 import { STRATEGY_TURN_ACTION_TYPE, TURN_ACTION_BAR_KEY } from './turnControlEnums.js';
 import './turnGame.css';
 
 const props = defineProps({
-  /** @type {import('vue').PropType<Array<{ actionType?: string; actionKey?: string; playerId?: string; payload?: object }>>} */
-  legalActions: {
+  /** @type {import('vue').PropType<import('../../services/action-interaction/actionOfferUtils.js').ActionOffer[]>} */
+  actionOffers: {
     type: Array,
     default: () => []
   },
@@ -99,14 +99,14 @@ const props = defineProps({
 const emit = defineEmits(['action']);
 
 const canDraw = computed(() =>
-  hasStrategyTurnActionType(props.legalActions, STRATEGY_TURN_ACTION_TYPE.DRAW_CARD)
+  hasActionOfferType(props.actionOffers, STRATEGY_TURN_ACTION_TYPE.DRAW_CARD)
 );
 const canPlay = computed(() =>
-  hasStrategyTurnActionType(props.legalActions, STRATEGY_TURN_ACTION_TYPE.PLAY_CARD)
+  hasActionOfferType(props.actionOffers, STRATEGY_TURN_ACTION_TYPE.PLAY_CARD)
 );
 const canHint = computed(() => props.hintEnabled === true);
 const canEndTurn = computed(() =>
-  hasStrategyTurnActionType(props.legalActions, STRATEGY_TURN_ACTION_TYPE.PASS_TURN)
+  hasActionOfferType(props.actionOffers, STRATEGY_TURN_ACTION_TYPE.PASS_TURN)
 );
 
 const interactionBlocked = computed(() => props.disabled || props.busy || props.managedBlocked);
@@ -129,7 +129,7 @@ const isHintDisabled = computed(() => interactionBlocked.value || !canHint.value
 const isEndTurnDisabled = computed(() => interactionBlocked.value || !canEndTurn.value);
 
 /**
- * 将操作栏按钮映射为 actionType 并上报匹配到的 legalActions。
+ * 将操作栏按钮映射为 actionType 并上报匹配到的 options。
  * @param {string} barKey
  */
 function onBarAction(barKey) {
@@ -157,7 +157,7 @@ function onBarAction(barKey) {
       emit('action', {
         barKey: TURN_ACTION_BAR_KEY.UI_ACTION_HINT,
         actionType: '',
-        legalActions: []
+        options: []
       });
       return;
     case TURN_ACTION_BAR_KEY.END_TURN:
@@ -172,7 +172,7 @@ function onBarAction(barKey) {
   emit('action', {
     barKey,
     actionType,
-    legalActions: filterStrategyTurnActionsByType(props.legalActions, actionType)
+    options: getEnumeratedOptionsByActionType(props.actionOffers, actionType)
   });
 }
 </script>

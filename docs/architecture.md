@@ -1,443 +1,111 @@
 # 架构说明
 
-本文描述 **huui-game-hub** 当前架构：多游戏在线平台，提供账号、资产、同步、排行榜与策略回合制多人对局能力；各游戏在 `games/` 下实现玩法与 UI，经注册表与种子接入。
+本文描述当前运行架构与模块边界。
 
-**项目定位**
+## 总体边界
 
-- 多游戏平台（大厅聚合多款游戏）
-- 在线多人游戏平台（在线态、WebSocket、房间）
-- 通用策略回合制运行时（`strategy_turn` + `room` + `GameView` / `legalActions`）
+前端游戏目录导出 `gameModule.js`，由 `src/games/gameModuleRegistry.js` 聚合。公共组件、模板、Store、Repository 与 Page 不按 `gameCode` 编写具体游戏逻辑。
 
-**已接入游戏（`GAME_REGISTRY` / 种子）**
+| 层 | 职责 |
+| --- | --- |
+| `app/core/auth` | Access Token 的 HTTP 认证与认证上下文。 |
+| `app/modules/auth` | Realtime Ticket 签发与消费。 |
+| `app/core/websocket` | 传输、连接管理、消息 envelope 和分发。 |
+| `app/realtime` | WebSocket 认证适配与实时 Handler 组装。 |
+| `app/modules/room` | 房间元数据、RuntimeSnapshot 读写、提交、Presence、任务、Outbox、结算与 Finalize。 |
+| `app/modules/strategy_turn` | 通用策略回合运行时、交互解析、自动决策与 GameView 投影。 |
+| `app/modules/game_impls/{gameCode}` | 游戏规则、Lifecycle、交互绑定、候选、评分与私有兜底。 |
+| `app/modules/game_seed` | 在线规则种子与平台种子导出。 |
 
-| gameCode | runtimeType | supportOnline |
-|----------|-------------|---------------|
-| `minesweeper` | `light-single` | `false` |
-| `match3` | `light-single` | `false` |
-| `2048` | `light-single` | `false` |
-| `sudoku` | `light-single` | `false` |
-| `uno` | `strategy-turn-multiplayer` | `true` |
+## 启动、同步与资产
 
----
+`BootModuleService` 组合用户、设备、设置和游戏摘要；独立的 `HealthService` 负责探测。`CloudSaveService` 负责逐事件执行、批次审计与响应编排，`CloudSnapshotService` 负责派生资产重建与完整快照读取。请求/响应模型归属对应领域，云同步合同位于 `sync/cloud_save_schemas.py`。排名规则由 `RankingEntityService` 解释，成绩仓储只接收已确定的筛选、排序和候选上限。
 
-## 1. 总体关系
+同步保留 `receivedCount/successCount/duplicateCount/failCount` 合同。每条事件的事实、派生数据和幂等写入位于同一 SAVEPOINT；SQLite 在首个 SAVEPOINT 前确保真实外层 BEGIN，因此快照或请求后续失败仍整体回滚。前端按用户和发送时的完整事件内容确认：只有全批成功或重复时移除发送集合，部分失败整批保留幂等重试，期间新增或修改的事件不被清除。
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  平台层（game-hub / game-hub-end）                        │
-│  用户 · 钱包 · 背包 · 商城 · 同步 · 排行榜 · 游戏配置      │
-└───────────────────────────┬─────────────────────────────┘
-                            │ gameCode + config + capabilities
-        ┌───────────────────┼───────────────────┬───────────────┐
-        ├───────────┬───────────┬───────────┬───────────┐
-        ▼           ▼           ▼           ▼           ▼
-   minesweeper   match3      2048       sudoku        uno
-   games/...     games/...   games/...  games/...    games/uno/
-```
+新 pending 的 `ownerUserId` 仅为本地归属元数据，不发送到 API。历史事件仅在已有 ownerUserId 或 payload.userId 能证明归属时上传；无归属事件保留，不猜测归属。新离线购买把库存 gain 与购买 clientId 关联；无关联的存量 gain 不能自动推断已确认。`consumeFromBag=false` 的历史事实持久化和迁移尚未实现。
 
-**原则**
+在线购买响应中的钱包余额摘要不能覆盖本地完整钱包事实。购买成功后按发起请求的用户拉取完整流水并合并；刷新失败保留已有事实，并区分购买成功与余额视图刷新失败，不能因此重复购买或伪造服务端流水身份。
 
-- 平台不知道具体游戏规则；游戏不直接访问 HTTP / localStorage。
-- 对外数据一律 **camelCase**；对局字段见 [api.md §1.9](api.md#19-对局记录业务字段match_record)。
-- `supportOnline === true` 表示**强制在线才能游玩**（`capabilities.offline` 为 `false`）；`false` 表示允许本地模式游玩。
-- 配置与规则种子分轨：前端 `gameConfigService` 统一落地各游戏**基础配置种子**；后端 `GET .../rule-definition` 仅服务 `supportOnline === true` 游戏的**规则种子**（策略回合制在线玩法）。
+钱包流水按用户和 clientId 合并，钱包余额从完整有效流水重建。钱包分页查询必须收齐并核对 total、页长和唯一 ID 后才替换当前用户的云端事实；原有首屏 20 条展示缓存单独保存，不作为持久化事实。异步资产响应捕获请求身份，不能写入 await 后的新用户桶。
 
----
+## 策略回合执行链
 
-## 2. 前端架构
+`ENUMERATED` 和 `COMPOSED` 是平级输入模式。`ActionInteractionGateway` 将 `ActionSubmission` 解析成 `ResolvedGameAction`；Runtime 和 `GameLifecycleEngine` 只执行 `ResolvedGameAction`。
 
-### 2.1 目录职责
-
-| 目录 | 职责 |
-|------|------|
-| `src/pages/` | 平台页：大厅、不可用页 |
-| `src/games/{gameCode}/` | 单游戏：Page、Engine、Config、游戏专用组件（如 `games/uno/`） |
-| `src/game-templates/` | 页面模板（`light-single`、`strategy-turn-multiplayer`）：排版与 slot，不含规则/API/store |
-| `src/composables/` | 跨游戏逻辑；策略回合含 `useStrategyTurnGameView.js` 等 |
-| `src/components/game/` | 跨游戏底层 UI（分包见 §2.7）：`layout/`、`panels/`、`stats/`、`controls/` |
-| `src/services/` | 业务编排：开局、结算、同步、商城、在线状态、实时通道 |
-| `src/repositories/` | 数据访问：local / remote / sync 屏蔽 |
-| `src/stores/` | Pinia 响应式状态快照 |
-| `src/composables/` | 跨组件 UI 逻辑（动画队列、主题、`usePageVisibilityPause` 等） |
-| `src/constants/` | `GAME_REGISTRY`、`GAME_SEED_CONFIG` |
-| `src/mappers/` | API DTO → 领域对象 |
-| `src/api/` | HTTP 封装（`request.js`、`gameHubApi.js`、`onlineApi.js`） |
-
-### 2.2 依赖方向
-
-```
-Page / games/*Page.vue
-    → services（+ 可选 games/*Service.js）
-        → repositories → api / localRepository
-stores ← 仅由 services 写入，供 UI 读取
-games/*Engine.js ← 纯算法，无 Vue / DOM / 网络
-realtimeService → websocketClient → /ws/game-hub/realtime
+```text
+ActionSubmission
+-> ActionInteractionGateway
+-> ResolvedGameAction
+-> StrategyTurnRuntimeService
+-> GameLifecycleEngine
+-> RuntimeSnapshot / DomainEventDraft / TerminalDirective
 ```
 
-### 2.3 注册表与配置
+每个 `gameCode + actionType` 必须注册明确的 `ActionInteractionBinding`。游戏模块的 Lifecycle、Interaction、Decision 三条规则链职责平级：Lifecycle 处理状态推进，Interaction 处理 Offer/Resolver，Decision 处理候选评分、选择和游戏私有兜底。
 
-| 来源 | 文件 | 用途 |
-|------|------|------|
-| 前端能力 | `constants/gameRegistry.js` | `gameCategory`、`runtimeType`、`modes`、`capabilities`（leaderboard/shop/inventory/offline）；`supportOnline`（是否强制在线）；可选 `viewTemplate`（页面模板，**不**进 seed） |
-| 业务种子源码 | `constants/gameSeedConfig.js`（`GAME_SEED_CONFIG`） | 难度、道具、排行榜等平台配置；`npm run export:seed` → `dist/game-seed.json` 供运维导入 |
-| 基础配置落地 | `services/gameConfigService.js` | **所有已接入游戏**的基础配置种子统一经此 Service 加载并写入各游戏 `*Config` 模块；`local` 模式应用 `GAME_SEED_CONFIG`，`online` / `degraded` 模式经 `GET /games/{gameCode}/config` 应用服务端配置 |
-| 在线规则种子 | 后端 `strategy_turn` + `GET /games/{gameCode}/rule-definition` | 仅 `supportOnline === true` 的游戏注册；含 `roomRule`、`runtimeRule`、`actionTypes` 等，供房间与策略回合运行时消费 |
+## RuntimeSnapshot、提交与 Outbox
 
-**`runtimeType` 与页面模板**
+`RuntimeSnapshot` 是对局事实源。GameView、ActionOffer、privateState 和事件展示数据均由快照投影或增量生成。
 
-| runtimeType | 含义 | 典型游戏 |
-|-------------|------|----------|
-| `light-single` | 轻量单人运行时 | 扫雷、消消乐、2048、数独 |
-| `strategy-turn-multiplayer` | **策略回合制多人**运行时（按回合提交 `actionId`、房间聚合玩家）；**不是**卡牌专用类型，斗地主、德州扑克、飞行棋、五子棋等可基于同一类型接入 | `uno`、`gomoku` |
+`RoomGameCommit` 是单次对局变更的原子边界，包含版本校验、RuntimeSnapshot、事件、requestId 幂等记录、响应缓存和 Post-turn Outbox；每条待处理 Outbox 与房间所属分片的 ready-room 索引在同一 Redis Lua 提交中写入。项目采用单体部署和单实例 Redis，不要求 Redis Cluster。房间 ID 稳定映射到固定数量的 hash-tag 逻辑分组，同一房间的 Runtime、版本、成员、Outbox 和 ready 索引使用同一分组；Worker 轮询全部分组。相同 `roomId + playerId + requestId` 以请求内容保证幂等或冲突判定。
 
-`viewTemplate` 与 `runtimeType` 同名时指向 `src/game-templates/{runtimeType}/` 下的页面模板；模板只负责排版，不含玩法与 API。
+Post-turn Outbox 在动作提交成功后异步执行托管动作、阶段自动推进、终局结算、GameView 推送、Finalize 和派生索引清理。领取以房间级分发租约原子转换一条记录状态并同步 ready-room 索引；同一房间同一时刻只由一个 Worker 分发，下一条记录在完成或租约到期恢复后继续处理。恢复流程用于基础设施故障或索引损坏，不参与正常调度，也不重放玩家动作。
 
-**`supportOnline`**
+托管任务与自动推进任务按 `roomId` 映射到同一固定 Redis 分片。每个任务类型在分片内使用 records Hash、due ZSet、processing ZSet 和房间维度 dedupe 键；入队、领取、重试、终态写入和租约恢复的 Lua 只访问同槽键。后台 Worker 轮询全部分片，房间执行锁确保同一房间的自动化任务串行执行。
 
-- 注册表与种子中的 `supportOnline` 语义一致：**为 `true` 时，仅在线模式可进入并游玩该游戏**。
-- 与 `capabilities.offline` 配合：`supportOnline: true` 时 `offline` 须为 `false`。
-- 大厅与路由在 `repositoryMode === 'local'` 或网络不可用时，对 `supportOnline: true` 的游戏展示不可用或引导切换在线模式。
+`ManagedTurnTask` 用于 AI、托管、shell 与超时玩家回合；`RoomAutoAdvanceTask` 用于无玩家输入的阶段展示和推进。二者独立调度。
 
-### 2.4 游戏生命周期
+两类任务仓储通过 `TaskQueueRepository` 共享六组队列原语，各自声明键空间与去重身份。短重试耗尽后的恢复校验失败消耗同一 taskId 的 recoveryCount，并通过队列退避；达到上限保留 FAILED 和去重记录，不递归调用重试入口。损坏 JSON 或非对象任务移出调度索引，原始记录和去重身份保留供核查。
 
-进入游戏页时调用 `gameLifecycleService.activateGame(gameCode, options)`：
+Outbox 的外层读取统一使用受保护 Lua 解析。损坏记录隔离为带原文的 `CORRUPT_RECORD/FAILED` 审计，同时清 due、比较释放自身 dispatch lease 并刷新 ready 索引；不会重放领域动作。坏房间领取失败不阻断其他房间。
 
-1. `loadGameConfig` — 合并服务端/种子配置  
-2. `loadGameShop` — 有 `shop` 能力时加载商城到 `shopStore`  
-3. `refreshGameBag` — `includeInventory` 时刷新背包  
-4. 排行榜侧栏由 `GameRankingPanel` 根据 `gameCode` / `mode` / `difficultyCode` props 自行加载并写入 `rankingStore`；`activateGame` 不承载游戏页排行榜展示数据的拉取职责。
+结算由 `GameSettlementTransaction` 拥有数据库事务、settlementId 幂等、钱包与历史事实写入，`GameSettlementCommitService` 拥有 Runtime 元数据、CAS 和 Finalize Outbox；`GameSettlementService` 校验合同并按数据库 → Redis → 展示顺序编排。展示失败不撤销已经提交的结算。
 
-对局流程由 `gameSessionService` 编排：开局 → 进行中 → 结算 → 写历史 / pending → `syncService.flushPendingIfOnline`。
+Finalize 的后续清理携带最终 CAS 的 `terminalRoomVersion`，与开局共用房间锁；清理 Lua 原子核对当前房间仍为 waiting 且 roomVersion 相等，再删除 playing 索引。仍在等待房间内的真人非 shell 成员保留活跃占用；被移除成员和 shell 的派生索引仅在 owner 仍指向该房间时删除。新局或新房间版本使旧清理过期。无法证明代际的清理载荷进入失败审计。
 
-### 2.5 数据模式（本地 / 在线）
+## 房间成员归属
 
-| `repositoryMode` | 行为 |
-|------------------|------|
-| `local` | 纯本地，不启用在线状态刷新、不连接 WebSocket、不刷新在线用户人数；除健康检查外，不发送远端业务请求 |
-| `auto` | 探测后端可用性；在线则获取当前用户并启动在线运行时，否则使用本地数据 |
-| `remote` | 强制走远端（需 health 通过），获取当前用户后启动在线运行时 |
+房间 meta 与成员 Hash 是成员事实，player-room 与 managed-shell 是派生归属索引。`room_membership_index_lua.py` 统一分类、归属变更和续期；`RoomRepository.get_active_membership` 为跨游戏当前房间查询、创建、加入、恢复席位和邀请中的同房检查提供同一事实读取。Lua 在同一次读取中核对玩家索引、房间 meta、成员和 roomVersion；索引在读取期间切换时有限重试。已失效索引仅比较归属后清理，损坏事实显式报错。未知或缺失的 gameCode 不会使真人非 shell 的真实占用失效，终局展示和结算中的 playing 房间仍受占用限制。
 
-实现：`dataModeService`、`remoteGate.canFetchRemote()`、`api/request.js`。模式切换到本地时会停止在线状态刷新、尝试标记离线、断开实时通道并清理重连与心跳；切换到在线可用状态时会健康检查、刷新当前用户上下文、执行 `markOnline()`、启动在线状态刷新并建立实时通道。
+`RoomMutationCommit` 在单实例 Redis 中将创建、加入、恢复的成员写入与玩家占用认领原子提交，冲突不写入房间。它与 `RoomGameCommit` 共用成员索引变更逻辑：shell 转换、恢复和成员移除随事实一起提交，仅释放自身归属，不再由应用服务提前或事后补写索引。按游戏的房间列表索引与房间提交同步维护。列表中的成员清理与其他房间操作共用房间锁。启动重建由同一 Lua 分类输出候选，Python 只聚合候选和处理唯一性；已有有效 owner 保留，缺失且只有唯一候选时恢复，多个真实候选只记录歧义。请求链不扫描全部房间。
 
-### 2.6 游戏页布局（平台布局 vs 可选模板）
+普通房间续期及 `RoomMutationCommit`、`RoomGameCommit`、`Finalize` 原子提交共用已有归属的续期逻辑，期限不超过房间 meta 与成员事实；续期不调用重建，不补缺失 owner，也不覆盖另一房间。`room_membership_index_bindings.py` 只负责显式 RedisKeys 绑定与成员集合预读；Lua 在写入前再次核对集合，新增未绑定成员或版本冲突时不写数据和 TTL。普通续期遇到预绑定变化有限重试。shell 仅在 playing 且 gameCode 非空时具有自己的 shell 索引，不作为 active 占用。共享游戏列表索引的 TTL 不因短期房间加入而缩短。
 
-| 类型 | 位置 | 定位 |
-|------|------|------|
-| `GamePlayLayout` | `src/components/game/layout/` | 平台通用左右分栏；slots：`config` / `shop` / `ranking` / `hud` / `board` / `inventory` |
-| `LightSingleGameLayout` | `src/game-templates/light-single/` | **轻量单人可选模板**：左信息+商城+榜，右对局信息+**棋盘外框**+背包；内部复用 `GameControlPanel` 等底层组件 |
+历史上多个真实房间同时保留同一真人且 owner 缺失时，重建仅记录歧义，不猜选房间或自动踢人。游戏模块已删除时，通用退出的成员变更可以提交，但 playing 房间后续投影或任务仍可能失败；客户端通过权威重查展示实际归属，不能据成员提交推断该游戏的托管或结算可用。
 
-**`light-single` 原则**
+## 前端版本恢复
 
-- 模板只负责排版与 `LightSingleGameBoardFrame` 等容器；**不**调用 API/store/engine，**不** import 具体游戏。
-- `LightSingleGameBoardFrame` 在对局区 slot 上承载 `GamePauseOverlay`（`paused` / `resume` 由业务页传入）；暂停状态与计时由游戏 Page 维护，通用组件只展示并 `emit('resume')`。
-- 浏览器标签页隐藏时的自动暂停由 `usePageVisibilityPause` 统一监听；**返回可见不自动继续**，恢复仅经左侧按钮或暂停遮罩。
-- 左侧信息/配置/操作由 `LightSingleGameSidePanel` → `GameControlPanel`（`controls/`）展示；业务页计算 `infoStats` / `fields` / `actions`，模板只转发事件。
-- 商城 / 排行榜 / 背包仍由页面通过 slot 注入 `panels/` 下 `GameShopPanel`、`GameRankingPanel`、`GameInventoryPanel`。
-- `viewTemplate: 'light-single'` 仅写在 `GAME_REGISTRY`，**不**写入 `GAME_SEED_CONFIG` / `game-seed.json`。
-- 已接入 `light-single` 的示例：`minesweeper`、`match3`、`2048`、`sudoku`（左侧 `GameControlPanel`，右侧 `GameMatchStatsPanel` + `LightSingleGameBoardFrame`）。
-- 五子棋、飞行棋、Canvas 重游戏等可继续自定义页面或沿用 `GamePlayLayout`，**不强制**使用 `light-single`。
+`strategyTurnGameViewService` 按版本顺序应用实时增量。当 `incomingVersion > highestAcceptedVersion + 1` 时，取消事件展示、丢弃旧展示任务并重新拉取权威 GameView。权威状态立即可交互，展示不锁住输入。连续缺口合并目标版本并共用在途请求，低于目标的完整快照可以应用，但不能提前宣布恢复完成。请求生命周期与展示生命周期独立；reset、切房和重试同时取消网络、timer 与等待 Promise，旧响应不能回写。
 
-页面模板 ≠ 平台通用组件：`components/game/` 是**底层组件层**（展示 + emit）；`game-templates/` 是**模板层**（排版与 slot 容器）。
+房间查询、成员命令、对局请求和实时订阅分别位于 `roomQueryService`、`roomService`、`roomGameService`、`roomRealtimeService`。页面使用可取消上下文管理查询、订阅和后续导航，房间版本与请求代次在写回边界校验。大厅/等待页的弹窗及命令各有实际流程模块，不保留旧服务转发别名。
 
-详见 [new-game-guide.md §3.1](new-game-guide.md#31-轻量单人可选模板-light-single)。
+跨游戏成员归属只保存为 `roomStore.activeRoom` 查询快照，`currentRoom` 仍是浏览或对局详情，不能推断成员资格。`roomQueryService` 是归属快照的唯一写入者，按用户、服务地址和数据模式隔离请求，取消被替代的查询；查询失败保留已知事实并记录错误。查询状态明确区分 `idle/loading/ready/error`，只有 `ready` 的空值表示已确认无归属，旧查询不能回退新状态。`roomService` 在创建、加入、恢复和退出开始时废止旧查询，结束后统一重查归属，命令成功或原异常不会被查询失败改写。大厅、全局邀请与恢复入口消费同一快照；composable 只管理确认、忙态、错误展示和导航，页面 reset 不清其他页面的共享事实。退出确认固定目标房间，弹窗关闭与次要按钮事件分开，只有明确的退出意图进入确认。
 
-### 2.7 `components/game/` 分包
+普通 GameView 查询、开局和动作响应也使用 GameView 所有者的上下文代次，reset 后不能由旧响应复活已清空房间。切房、离线和卸载同时取消重新加入、退出、托管、动作冲突恢复及终局导航；旧请求的 finally 只能释放自己持有的忙态。
 
-```
-src/components/game/
-├── layout/      GamePlayLayout — 左右分栏骨架
-├── panels/      商城、排行榜、背包、结算弹窗、暂停遮罩、配置/HUD 外壳（可含 store/service）
-├── stats/       对局统计展示（纯展示，无 gameCode 分支）
-├── controls/    游戏信息、配置项、操作按钮（纯展示，无 API/store）
-└── index.js     统一聚合导出入口（对外 import 优先从此文件）
-```
+## 单人游戏页面
 
-**import 约定**
+`useXPage` 组合单局控制器、展示模型、输入/动画和私有结算构造器。控制器拥有单局状态、规则动作与道具/会话编排；展示模型不执行引擎或持久化，DOM 几何与异步动画在专门模块中。取消动画必须结束等待 Promise，并在每次 await 后核对对局代次。
 
-- 业务页面、页面模板、跨游戏代码：**优先** `import { GameShopPanel, GAME_ACTION_TYPE, ... } from '@/components/game/index.js'`（或 `@/components/game`、等价相对路径）。
-- 也可按需 **明确分包路径**（如 `components/game/stats/GameMatchStatsPanel.vue`）。
-- **禁止**在 `src/components/game/` 根目录放置带 `<template>` 的 `.vue` 实现；组件实现须位于 `layout/`、`panels/`、`stats/`、`controls/` 之一，并由 `index.js` 导出。
+数独生成唯一解并保留提示使用正确终盘的合同；givens 是目标下限，六次尝试共享 200000 搜索节点预算，耗尽时保留更多已知格。幻彩碰撞到时拒绝新输入，等待已接纳动作及其连锁结束后只结算一次。其他计分、道具及难度种子值保持原业务。远端部分难度按 difficultyCode 合并。
 
-| 子目录 | 职责 | 典型组件 |
-|--------|------|----------|
-| `controls/` | 标题/描述/状态、配置 fields、操作 actions；**业务页**算 `visible`/`disabled`/`value`/`options`，组件只 `emit` | `GameControlPanel`、`GameActionBar`、`gameControlEnums.js` |
-| `stats/` | 当前对局数据卡片网格；**业务页**传 `stats[]`（含 `GAME_STAT_TONE`），组件内组合 `GameStatGrid` + `GameStatCard` | `GameMatchStatsPanel`、`GameHudStats` |
-| `panels/` | 平台业务能力 UI（商城购买、排行榜请求等）；纯展示暂停遮罩 | `GameShopPanel`、`GameRankingPanel`、`GamePauseOverlay` |
-| `layout/` | 无业务、仅 slots | `GamePlayLayout` |
+## HTTP 与 WebSocket 认证
 
-**样式枚举**（`controls/gameControlEnums.js`）：`GAME_ACTION_TYPE`、`GAME_ACTION_SIZE`、`GAME_CONTROL_TYPE`、`GAME_STAT_TONE`。业务页传枚举值驱动样式；`extraClass` 仅作附加扩展样式，**不应**作为主要风格手段。暂停遮罩「继续游戏」使用 `GAME_ACTION_TYPE.RESUME`（`game-action-btn--resume`）。
+登录签发 Access Token。受保护 HTTP API 在 `Authorization: Bearer <accessToken>` 中验证 Token 并生成 `AuthenticatedUser`。
 
-**`GameControlPanel`**：`props` — `title`、`subtitle`、`description`、`statusText`、`infoStats`、`fields`、`actions`；`emit` — `field-change`、`action`。不判断 `gameCode`，不调 API/store。
+浏览器 WebSocket 连接 `/ws/game-hub/realtime` 前，客户端使用 HTTP Bearer 调用 `/auth/realtime-ticket`。服务将短时有效的单次 Ticket 存入 Redis；WebSocket 通过 `?ticket=<ticket>` 原子消费该记录，并从记录构建 `AuthenticatedUser`。连接、重连和重试分别使用新的 Ticket。
 
-**`GameMatchStatsPanel`**：`props` — `stats`、`quotas`、`message`、`themeSeed`、`columns`、`compact`；内部复用 `GameHudStats` / `GameStatGrid` / `GameStatCard` / `GameStatQuotaBar`，禁止写具体游戏分支。
+`app/core/websocket` 不处理 Room、User 或游戏规则。实时消息和业务操作使用握手认证得到的用户上下文，不信任 payload、查询参数或自定义 Header 中的用户身份声明。
 
-### 2.8 统一游戏设置（Game Settings）
+连接登记由带有效期的 Redis 单连接记录维护，每个 `serviceId` 只有一个当前连接记录。浏览器心跳刷新登记有效期；连接替换通过 Redis 原子登记与跨进程事件关闭被替换连接。定向推送和广播经 Redis 频道送达持有目标连接的进程，因此不依赖单个进程内存。
 
-平台通过 **`constants/gameSettingDefinitions.js`**（`GAME_SETTING_DEFINITIONS`）注册各游戏可配置项；**顶部栏设置面板**（`GameHubPage` → `gameSettingService`）是平台级统一入口，展示**全部**已注册游戏设置，**不**依赖当前选中的 `gameCode`。
+终局收敛同时校验对局版本和房间版本。Finalize 载荷损坏时优先从一致性 RuntimeSnapshot 重建；无法恢复的终局写入 `terminalRecovery` 审计数据，状态为 `MANUAL_COMPENSATION_REQUIRED`，保留结算标识、结算状态和结果标识供人工补偿核对，不执行重复结算或钱包写入。
 
-| 原则 | 说明 |
-|------|------|
-| 配置驱动 | 新增开关/选项须先在 `GAME_SETTING_DEFINITIONS` 登记 `gameCode`、`gameName`、`settings[]`（`key`、`label`、`type`、`defaultValue` 等） |
-| 隔离维度 | 持久化与内存态按 **`gameCode` + `settingKey`** 隔离：每个 `gameCode` 对应一行 `setting` 对象，键为 `settingKey`，值为 `settingValue` |
-| 页面只读 | 游戏页通过 **`userService.readGameSettingBoolean`**（或游戏内 `*Service` 薄封装）读取；**不**在 Page 维护独立 localStorage 或并行配置结构 |
-| 写入链路 | 变更经 **Service → Repository → 本地缓存 → 同步队列 → 后端**，见下文数据流 |
-| 公共组件 | `components/game/`、`game-templates/` **禁止** `if (gameCode === 'xxx')` 等游戏特判 |
+## 存活与就绪检查
 
-**顶栏展示**
+`GET /health/live` 是进程存活检查，只返回 `status: "ok"` 和 `serverTime`，不读取数据库或 Redis。`GET /health/ready` 是依赖就绪检查，验证数据库探测、Redis ping、房间后台协调器和已冻结的游戏模块注册表。
 
-- `gameSettingService.buildHubGameSettingGroups()` 遍历 `GAME_SETTING_DEFINITIONS`，从 `userStore` 的 `gameSettings[gameCode][settingKey]` 取已保存值，无则 `defaultValue`。
-- `setHubGameSettingSwitch(gameCode, key, value)` → `userService.updateGameSetting(gameCode, { [key]: value })`。
+所有依赖就绪时，`/health/ready` 返回 HTTP 200 与统一成功响应；任一依赖不可用时，返回 HTTP 503、`SYSTEM_ERROR`，并在响应 `detail` 中返回 `status`、`serverTime` 和 `components`。前端启动和数据模式切换只通过 `/health/ready` 判定远端可用性。
 
-**游戏页读取**
-
-- 游戏内 `*PageSettings.js` 仅通过 `findGameSettingDefinition(gameCode, key)` 引用与顶栏同源的 label/description；读写走 `*Service` → `userService`（示例：扫雷 `highlightAroundCells`、数独 `filterUnavailableNumbers`）。
-- 游戏页**不**在左侧 `GameControlPanel` 重复展示已在顶栏注册的开关。
-
-**设置同步数据流**
-
-```
-Page / GameHubPage（用户改开关）
-  → gameSettingService / userService（或 games/*Service 薄封装）
-    → userRepository.patchGameSettingForCurrentUser → persistAllLocal
-    → userService.queueSettingsSync({ gameCode })
-      → userRepository.buildGameSettingPendingEvent
-      → syncRepository.appendPendingEvent（eventType: user_game_setting_update）
-      → syncService.flushPendingIfOnline
-        → POST /sync/cloud-save
-```
-
-云端快照 / 启动上下文中的 `userGameSettings[]` 经 `userRepository.applyGameSettingToLocal` 合并进 `userStore.gameSettings`。
-
-**禁止**
-
-| 禁止 | 原因 |
-|------|------|
-| 页面直接 `fetch` 游戏设置接口 | 走 `userService` + `userRepository` |
-| 页面直接 `localStorage` 写游戏偏好 | 与 `userStore` / `persistAllLocal` 双轨 |
-| Store 内调 API 或拼同步 payload | Store 只存快照 |
-| 公共组件按 `gameCode` 分支展示设置 | 顶栏统一展示，游戏页只消费 |
-| 各游戏自建独立设置存储结构 | 与 `gameCode` 下 `setting` 对象冲突 |
-
-接口与事件字段见 [api.md §4.5–4.6、§2.3](api.md#45-获取用户游戏设置)；接入步骤见 [new-game-guide.md §9](new-game-guide.md#9-新增游戏设置)。
-
----
-
-## 3. 后端架构
-
-### 3.1 分层（每个 module）
-
-```
-api.py → module_service.py → entity_service.py → repository.py → models.py
-schemas.py：Pydantic 入参/出参（JSON camelCase）
-deps.py：FastAPI Depends
-```
-
-### 3.2 模块职责
-
-| 模块 | 职责 |
-|------|------|
-| `boot` | 健康检查、`/boot/context`、**`POST /sync/cloud-save`** |
-| `auth` | 用户名登录 |
-| `user` | 用户、设备、系统/游戏设置 |
-| `game` | 游戏列表、配置详情 |
-| `prop` | 道具定义 |
-| `wallet` | 钱包与流水 |
-| `inventory` | 背包数量、使用记录 |
-| `purchase` | 购买道具 |
-| `match` | 对局记录查询 |
-| `score` | 成绩实体、排行榜规则计算 |
-| `ranking` | 排行榜 HTTP 查询 |
-| `sync` | 同步编排（逻辑在 `module_service`，路由挂在 boot） |
-| `online` | 在线用户状态与在线用户列表（仅 Redis）；与 `room` **模块解耦**，编排层可按需调用房间接口 |
-| `room` | 独立运行期模块：房间元信息、成员、版本号（仅 Redis）；创建/加入/离开；依赖 `rule-definition` 中的 `roomRule` |
-| `strategy_turn` | 策略回合制规则引擎、`StrategyTurnRuntimeService`（开局/提交操作/构建 `GameView`）、规则定义注册表；`GET .../rule-definition` 由 `game` 模块经 `game_seed` 暴露 |
-| `games/{gameCode}` | 各游戏规则实现（如 `games/uno/` 的 `UnoRuleEngine`、牌堆与终局规则） |
-| `admin_config` | 种子导入（运维）；导入体与前端 `GAME_SEED_CONFIG` 导出 JSON 字段一致，可用 `npm run export:seed` 生成 |
-| `system` | 系统 KV 配置 |
-
-### 3.3 平台运行期基础能力
-
-| 层 | 位置 | 职责边界 |
-|------|------|------|
-| Redis 工具层 | `app/core/redis/` | 封装字符串、JSON、Hash、Set、Sorted Set、scan、expire 等缓存数据结构操作；业务代码通过 `RedisClient` 与 `RedisKeys` 使用 Redis |
-| WebSocket 实时通道层 | `app/core/websocket/` | 维护 `/ws/game-hub/realtime` 单一平台通道，负责连接管理、按 `serviceId` 发送、广播、消息分发、`online.ping` / `online.pong` |
-| Online 业务模块 | `app/modules/online/` | 管理运行期在线用户状态与列表，在线状态只写 Redis，不写数据库 |
-
-Redis 不承载业务规则，WebSocket 不承载在线用户判定；在线用户列表以 Redis TTL 为准，WebSocket 断开不直接等同于离线。
-
-**`online` 与 `room` 边界**
-
-- `room` 为独立 HTTP 模块（`/rooms`），数据仅存 Redis，不写入 SQLite。
-- `online` 模块只维护用户在线态；房间生命周期由 `room` 模块负责。
-- 前端在线对局流程由 Service 编排：可先 `onlineService` 建立在线态，再 `roomService` 创建/加入房间；编排层可组合调用 `online` 与 `room`，但不得在 `online` 内复制房间存储逻辑。
-
-`/ws/game-hub/realtime` 建连时校验 `serviceId` 对应的用户存在且可用，`serviceId` 缺失、无效或用户不可用时以 close code `1008` 拒绝；前端将 `1008` 视为身份/权限失败，不自动重连。普通网络异常使用指数退避重连，手动关闭与本地模式切换不重连。连接管理器只保存已校验用户连接。应用启动时会执行 Redis ping 检查并记录 host、port、db；Redis 不可用只记录错误，不阻断服务启动。
-
-顶部栏在线用户入口属于平台在线能力展示，不放入具体游戏页或对局信息面板。在线模式下，在线人数 badge 由顶部栏组件通过 `onlineService` 主动加载并定时刷新，不依赖弹窗打开；本地模式下停止刷新并不请求在线用户接口。前端仅展示昵称与基于 `onlineAt` 计算的在线时长，不展示 `username`、`serviceId` 或其它账号类字段。
-
-### 3.4 数据库初始化与业务种子
-
-- 应用启动时 `init_db()` 仅负责注册 ORM 元数据并 `create_all` **建表**，**不**写入游戏定义、难度、道具、排行榜规则等业务行。
-- 业务数据须通过 `POST /admin/config/import-game-seed` 导入；请求体须与前端 `game-hub/src/constants/gameSeedConfig.js` 中 `GAME_SEED_CONFIG` 导出的 JSON **字段级一致**（含 `games[].propRules[].sortNo` 等必填项；后端 schema `extra=forbid`，缺字段或多余字段均会校验失败），开发/CI 可在 `game-hub` 目录执行 `npm run export:seed` 生成 `dist/game-seed.json` 再导入。
-- Docker 镜像构建阶段已执行 `export:seed`，运行时可通过静态路径 **`/game-seed.json`** 拉取同源 JSON 并 POST 至上述接口（详见 [docker-guide.md](docker-guide.md)）。
-
-### 3.5 API 前缀
-
-- 默认：`/api/game-hub`（`settings.API_PREFIX`）
-- Docker 内：nginx `location /api/` → uvicorn `127.0.0.1:8000`
-
----
-
-## 4. 核心数据流
-
-### 4.1 启动
-
-```
-前端 bootService
-  → POST /boot/context { userId?, deviceId, clientTime }
-  ← games[], user?, systemSetting, serverTime
-  → platformStore / userStore / settingStore
-```
-
-### 4.2 云同步（sync）
-
-```
-离线操作 → historyRepository 入队 pendingEvents
-结算或显式同步 → syncService.sync()
-  → POST /sync/cloud-save { userId, deviceId, pendingEvents[], clientSnapshotVersion }
-  ← 快照：wallet, inventory, matchRecords, scoreRecords, ...
-  → syncRepository.applyCloudSnapshot + clearSyncedPending
-```
-
-**事件类型**：`match_record`、`score_record`、`prop_purchase`、`prop_usage`、`wallet_ledger`、`user_update` 等。  
-**合并策略**：状态按 `updatedAt`；事件按 `clientId` 幂等。
-
-### 4.3 排行榜（ranking）
-
-游戏页展示路径（由 `GameRankingPanel` 发起请求，**游戏页不直调** ranking 层）：
-
-```
-GameRankingPanel（onMounted / watch props）
-  → rankingRepository / rankingService（组件内封装）
-  → GET /rankings?gameCode&mode&difficultyCode&limit
-  ← 服务端按 game_definition.config.ranking.modes[mode] 排序 score_record
-  → rankingStore
-  → GameRankingPanel 渲染
-```
-
-胜利结算后，`gameSessionService` 可通过 `syncService.refreshRemoteAfterSettle({ includeRanking: true, ... })` 在**结算链路**中触发与排行榜相关的远端刷新，用于尽快对齐服务端视图；与 `{Game}Page` 内排行榜展示请求的职责分离。
-
-必须带齐 `gameCode`、`mode`、`difficultyCode`（有难度时）。
-
-### 4.4 背包与商城（inventory / purchase）
-
-```
-shopService.loadGameShop(gameCode)
-  → propRules + 定义 → shopStore → GameShopPanel
-
-purchaseService.buyProp → POST /purchases → wallet + inventory 更新
-
-inventoryService.refreshGameBag → GET /users/{userId}/inventory?gameCode
-  → inventoryStore → GameInventoryPanel（只读展示，使用由 Page 处理）
-```
-
-### 4.5 对局（match）
-
-```
-gameSessionService 结算
-  → 构造 match_record（gameCode, mode, difficultyCode, result, score, durationMs, propUses[], payload{}）
-  → 本地历史 + pendingEvents（eventType: match_record）
-  → flushPendingIfOnline → 云端持久化
-  → GET /users/{userId}/matches 刷新列表（可选）
-```
-
-### 4.6 统一游戏设置
-
-```
-顶栏 / 游戏页改设置
-  → userService.updateGameSetting(gameCode, patch)
-  → userRepository.patchGameSettingForCurrentUser + persistAllLocal
-  → queueSettingsSync → pendingEvents（user_game_setting_update）
-  → flushPendingIfOnline → POST /sync/cloud-save
-  ← userGameSettings[] 写入快照 → applyGameSettingToLocal
-```
-
-在线时也可经 `GET/PUT /users/{userId}/games/{gameCode}/setting` 读写整包 `setting` 对象；日常变更以云同步事件为主。逻辑键为 **`gameCode` + `settingKey`**，值类型支持布尔、数字、字符串及 JSON 对象（见 [api.md](api.md)）。
-
-### 4.7 强制在线游戏（配置 + 房间）
-
-```
-gameLifecycleService.activateGame
-  → gameConfigService.loadGameConfig          // 基础种子：GAME_SEED_CONFIG 或 GET .../config
-  → （游戏 Service）GET .../rule-definition  // 规则种子：roomRule、runtimeRule（经 repository）
-  → onlineService 保持在线态
-  → roomService.createRoom / joinRoom        // POST /rooms（仅 waiting 态写成员）
-```
-
-`strategy-turn-multiplayer` 页面模板只编排 UI；规则校验在游戏 Engine 与后端 `UnoRuleEngine` 等实现；权威对局状态在 Redis（`runtime`、`public-state`、`private-state`、`legal-actions`、事件日志），由 `room` + `strategy_turn` 读写。
-
-### 4.8 UNO（`strategy-turn-multiplayer`）
-
-UNO 为当前唯一已接入的策略回合制多人游戏，端到端能力包括：
-
-| 能力 | 说明 |
-|------|------|
-| 房间 | 创建/列表/加入/离开/开局/配置；`waiting` / `playing` |
-| 规则种子 | `GET /games/uno/rule-definition`（牌型、`roomRule`、`roomConfigSchema`） |
-| 对局 | `GameView`（`publicState` / `privateState` / `legalActions` / `events`） |
-| 操作 | `POST /rooms/{roomId}/actions` 提交 `actionId` + `baseVersion` |
-| AI | `waiting` 态 `POST /rooms/{roomId}/ai`；对局内平台托管链路代管 |
-| 托管 | `active`（手动/回合超时）、`shell`（离开/在线超时）；`rejoin` 恢复席位 |
-| 前端 | `games/uno/`、`strategyTurnGameViewService`、`strategyTurnActionMatcher` |
-| 排行榜 | 注册表 `capabilities.leaderboard: false`（当前未接榜） |
-
-斗地主、德州扑克、飞行棋、五子棋等可复用 `strategy-turn-multiplayer` 模板与 `strategy_turn` 运行时，在 `games/{gameCode}/` 与 `rule_definition_registry` 中注册各自规则引擎。
-
----
-
-## 5. 前后端协作边界
-
-| 能力 | 权威方 | 说明 |
-|------|--------|------|
-| 计分 / 防作弊 | 服务端（在线） | 前端乐观展示 |
-| 棋盘状态 | 前端内存 | 结算后写入对局记录 |
-| 道具价格 | 服务端 propRules | 前端只展示 |
-| 排行榜顺序 | 服务端 ranking 配置 | 前端只请求与展示 |
-| 基础配置种子 | `GAME_SEED_CONFIG` + 导入库；在线时 `GET .../config` | 前端 `gameConfigService` 统一落地 |
-| 在线规则种子 | `strategy_turn` 注册表 | `GET .../rule-definition`；`room` 读 `roomRule` |
-| 房间成员与版本 | 服务端 Redis（`room` 模块） | 前端 `roomService` 编排，Page 不直调 HTTP |
-| 策略回合对局状态 | 服务端 Redis + `strategy_turn` | 前端 `strategyTurnGameViewService` / Store；提交 `actionId` |
-
----
-
-## 6. 房间生命周期（平台层）
-
-多人在线游戏的房间进出由 `room` 模块统一处理，游戏规则引擎不参与离开/重连。
-
-| 动作 | 接口 / 行为 | 语义 |
-|------|-------------|------|
-| 返回房间页 | 仅前端路由跳转 | 用户仍在房间；对局中不进入托管 |
-| 退出房间 | `POST /rooms/{roomId}/leave` | `waiting`：移除成员，空房删除；`playing`：保留席位，真人进入 `shell` 托管，对局继续 |
-| 重新加入 | `POST /rooms/{roomId}/rejoin` | 仅原成员恢复席位；取消 `shell`；不改变 `seatIndex` / `playerId` / 执棋颜色 / 手牌等身份 |
-| 加入房间 | `POST /rooms/{roomId}/join` | 仅 `waiting` 允许；`playing` 拒绝新玩家中途加入 |
-
-托管模式：
-
-- `active`：在线托管（手动开启或回合超时），用户仍在房间索引中。
-- `shell`：离开房间或在线探活超时，席位保留、删除 `player_room` 索引，可通过 `GET /rooms/my-managed-shell` 发现可恢复对局。
-
-前端约定：
-
-- 游戏对战页「返回房间」只跳转等待页，不调用 `leave`。
-- 「退出并托管」调用 `leave`；对局结束后从结算返回等待页仍视为在房间内。
-- 检测到本人为 `shell` 成员时展示「重新加入」，由用户点击后调用 `rejoin`，不自动恢复。
-
----
-
-## 7. 相关文档
-
-- 接口明细：[api.md](api.md)
-- 新游戏接入：[new-game-guide.md](new-game-guide.md)
-- 前端规范：[code-style/frontend-code-style.md](code-style/frontend-code-style.md)
-- 后端规范：[code-style/backend-code-style.md](code-style/backend-code-style.md)
-- 部署：[docker-guide.md](docker-guide.md)
+数据库与 Redis readiness 探测并行，各限 3 秒；数据库线程创建并关闭自己的会话，超时后复用同一在途 future，避免重复堆积。Redis 连接/I/O 超时为 3/5 秒，启动 await 总期限为 30 秒，部分启动失败也释放已创建资源。同步数据库驱动永久阻塞无法由 asyncio 强制终止，探测超时不代表底层调用已经结束。

@@ -22,7 +22,7 @@ nginx :80  ── /        → 前端静态（/usr/share/nginx/html）
 | Python 3.8 | 运行阶段 |
 | nginx + supervisord | 同容器内管理两进程 |
 | SQLite | 无需独立数据库容器 |
-| Redis 7 alpine | 在线状态、临时态缓存 |
+| Redis | 使用 compose 中配置的私有镜像 `wang_huui/redis:latest`；该浮动标签不代表固定 Redis 版本 |
 
 ---
 
@@ -66,7 +66,13 @@ New-Item -ItemType Directory -Force -Path .\data
 
 `data/` 用于持久化 SQLite，**不要删除**。
 
-### 1.2 构建镜像
+### 1.2 配置并构建镜像
+
+启动前必须在当前 shell 或 Compose 的 `.env` 中设置 `AUTH_JWT_SECRET`（独立生成的随机密钥，不写入 Git）。Compose 对该变量使用必填校验。Redis 的 `--requirepass` 与应用 `REDIS_PASSWORD` 必须一致；当前 compose 内包含开发密码，部署时应同时替换两处。本文不复制该密码。
+
+```powershell
+$env:AUTH_JWT_SECRET = '<替换为独立生成的随机密钥>'
+```
 
 ```powershell
 docker compose build
@@ -90,19 +96,23 @@ docker compose logs -f huui-game-hub
 浏览器访问：
 
 - 前端：`http://127.0.0.1/`
-- 健康检查：`http://127.0.0.1/api/game-hub/health`
+- 进程存活：`http://127.0.0.1/api/game-hub/health/live`
+- 依赖就绪：`http://127.0.0.1/api/game-hub/health/ready`
+
+`compose.yaml` 的容器 healthcheck 调用 `/api/game-hub/health`，该路径返回与 `/health/live` 相同的存活结果。部署确认、业务初始化和种子导入使用 `/health/ready`，因为该接口同时验证数据库、Redis、房间后台协调器和游戏模块注册表。
 
 PowerShell 探测 API：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1/api/game-hub/health
+Invoke-RestMethod http://127.0.0.1/api/game-hub/health/live
+Invoke-RestMethod http://127.0.0.1/api/game-hub/health/ready
 ```
 
 ### 1.4.1 导入游戏种子（首次 / 空库必须）
 
 业务种子**唯一源码**为前端 `game-hub/src/constants/gameSeedConfig.js` 中的 `GAME_SEED_CONFIG`。镜像构建时已把同源 JSON 输出到静态目录根路径 **`/game-seed.json`**（与 `index.html` 同级）。
 
-在容器已启动、健康检查通过后，从本机执行（使用 Windows 自带的 `curl.exe` 管道，避免手工复制 JSON）：
+在容器已启动且依赖就绪检查通过后，从本机执行（使用 Windows 自带的 `curl.exe` 管道，避免手工复制 JSON）：
 
 ```powershell
 # 合并导入（默认，推荐日常/首次灌库）
@@ -152,15 +162,17 @@ docker compose restart huui-game-hub
 ```bash
 cd /path/to/huui-game-hub
 mkdir -p data
+export AUTH_JWT_SECRET='<替换为独立生成的随机密钥>'
 docker compose build
 docker compose up -d
 docker compose ps
-curl -s http://127.0.0.1/api/game-hub/health
+curl -s http://127.0.0.1/api/game-hub/health/live
+curl -s http://127.0.0.1/api/game-hub/health/ready
 ```
 
 浏览器访问 `http://<服务器IP>/`（云主机需在安全组放行 80）。
 
-与 Windows 相同，空库需在健康检查通过后导入种子（静态文件 `http://127.0.0.1/game-seed.json`）：
+与 Windows 相同，空库需在依赖就绪检查通过后导入种子（静态文件 `http://127.0.0.1/game-seed.json`）：
 
 ```bash
 # 合并导入（默认）
@@ -183,11 +195,12 @@ curl -sS http://127.0.0.1/game-seed.json \
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `DATABASE_URL` | `sqlite:////app/data/game_hub.db` | 容器内 SQLite 路径（四个 `/`） |
+| `AUTH_JWT_SECRET` | 无；必填 | JWT 签名密钥，所有环境必须显式配置，不能直接使用示例占位符 |
 | `VITE_API_BASE` | （构建时为空） | 生产前端使用同源 `/api`，由 nginx 反代 |
 | `REDIS_HOST` | `redis` | 后端访问 Redis 的容器服务名 |
 | `REDIS_PORT` | `6379` | Redis 端口 |
 | `REDIS_DB` | `0` | Redis DB 编号 |
-| `REDIS_PASSWORD` | 空 | Redis 密码，可选 |
+| `REDIS_PASSWORD` | compose 已设置开发值 | 当前 compose 启用了 requirepass；应用密码必须与 Redis 启动参数一致 |
 | `REDIS_DECODE_RESPONSES` | `true` | Redis 响应按字符串解码 |
 | `REDIS_ONLINE_USER_EXPIRE_SECONDS` | `360` | 在线用户状态 TTL（秒） |
 
@@ -289,12 +302,14 @@ docker compose --profile watchtower up -d
 
 ## 6. 仅本地镜像名（不推远程）
 
+无需推送远端也可使用 Compose 构建运行。若需要本地镜像名，把应用服务的 `image` 改为 `huui-game-hub:local`；若需要 8080 端口，把应用端口映射改为 `8080:80`，随后按第 1 节配置认证密钥和 Redis 密码，再执行：
+
 ```powershell
-docker build -t huui-game-hub:local .
-docker run -d --name huui-game-hub-test -p 8080:80 -v "${PWD}/data:/app/data" -e DATABASE_URL=sqlite:////app/data/game_hub.db huui-game-hub:local
+docker compose build huui-game-hub
+docker compose up -d
 ```
 
-访问 `http://127.0.0.1:8080/`。
+Compose 同时提供 Redis 网络与持久化依赖；只启动应用镜像但未配置认证密钥或 Redis 不构成可用部署。
 
 ---
 
@@ -312,15 +327,7 @@ huui-game-hub/
 └── data/                # 运行时生成，挂载卷
 ```
 
-`compose.yaml` 包含 `redis` 服务：
-
-```yaml
-redis:
-  image: redis:7-alpine
-  command: redis-server --appendonly yes
-  volumes:
-    - redis_data:/data
-```
+`compose.yaml` 包含 `redis` 服务，使用私有镜像 `crpi-ao151px1a1enkjia.cn-hangzhou.personal.cr.aliyuncs.com/wang_huui/redis:latest`，开启 AOF 与 `--requirepass`，挂载 `redis_data:/data`。应用通过服务名 `redis:6379` 连接，密码来自同一 compose 配置。浮动镜像的实际 Redis 版本以部署时镜像为准。
 
 ---
 
@@ -341,10 +348,11 @@ redis:
 
 ### 8.4 健康检查失败
 
-容器启动后约 40s 内可能仍在初始化；`docker compose ps` 查看 HEALTH。手动：
+容器启动后约 40s 内可能仍在初始化；`docker compose ps` 的 HEALTH 对应进程存活。手动检查时，先验证存活，再用依赖就绪检查确认可处理业务请求：
 
 ```bash
-curl http://127.0.0.1/api/game-hub/health
+curl http://127.0.0.1/api/game-hub/health/live
+curl -f http://127.0.0.1/api/game-hub/health/ready
 ```
 
 ---

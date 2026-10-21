@@ -16,7 +16,7 @@
       <GameControlField
         v-for="field in visibleNonNumberFields"
         :key="field.key"
-        :field="toControlField(field)"
+        :field="toRoomConfigControl(field, fieldValues[field.key])"
         @change="onConfigFieldChange"
       />
 
@@ -32,6 +32,7 @@
         <p v-if="field.description" class="muted-small">{{ field.description }}</p>
       </div>
       <p v-if="errorMessage" class="empty-text">{{ errorMessage }}</p>
+      <slot name="error-action" />
     </form>
     <template #footer>
       <div class="room-hub-form__actions">
@@ -59,7 +60,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import AppModal from '../../AppModal.vue';
-import { GameControlField, GameNumberInput, GAME_CONTROL_TYPE } from '../../game/index.js';
+import { GameControlField, GameNumberInput } from '../../game/index.js';
+import { toRoomConfigControl } from './roomConfigControl.js';
 import {
   buildRoomConfigFormFields,
   buildRoomConfigPayload,
@@ -105,45 +107,6 @@ watch(
   },
   { immediate: true }
 );
-
-/**
- * @param {{ key: string; controlType: string; label: string; value: unknown; options?: Array }} field
- */
-function toControlField(field) {
-  const value = fieldValues.value[field.key];
-  if (field.controlType === 'switch') {
-    return {
-      key: field.key,
-      type: GAME_CONTROL_TYPE.SWITCH,
-      label: field.label,
-      value: Boolean(value)
-    };
-  }
-  if (field.controlType === 'radio') {
-    return {
-      key: field.key,
-      type: GAME_CONTROL_TYPE.RADIO,
-      label: field.label,
-      value,
-      options: field.options || []
-    };
-  }
-  if (field.controlType === 'select') {
-    return {
-      key: field.key,
-      type: GAME_CONTROL_TYPE.SELECT,
-      label: field.label,
-      value,
-      options: field.options || []
-    };
-  }
-  return {
-    key: field.key,
-    type: GAME_CONTROL_TYPE.CUSTOM,
-    label: field.label,
-    value
-  };
-}
 
 /**
  * @param {{ key: string; value: unknown }} payload

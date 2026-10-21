@@ -1,5 +1,4 @@
 import { mapPurchaseRecord, mapLocalPurchaseToPayload } from '../mappers/purchaseMapper.js';
-import { mapRemoteWalletToLocal } from '../mappers/walletMapper.js';
 import { pageItems } from '../mappers/sharedMapper.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useHistoryStore } from '../stores/historyStore.js';
@@ -8,6 +7,9 @@ import * as inventoryRepository from './inventoryRepository.js';
 import { ensureUserBucket } from './helpers.js';
 import { resolveServerUserId } from './userRepository.js';
 import { persistAllLocal } from './localPersistRepository.js';
+
+import { captureUserDataIdentity, mapRecordsToIdentity } from './userDataIdentity.js';
+import { mergeRecordsByClientId } from './recordMerge.js';
 
 const PAGE = { pageNum: 1, pageSize: 20 };
 
@@ -34,23 +36,23 @@ export function pushPurchaseRecord(rec, onPending) {
 }
 
 /**
- * 应用远端购买结果。
+ * 应用购买和库存事实；钱包由完整流水刷新重算，不能用余额摘要覆盖本地待同步流水。
  * @param {object} result
+ * @param {{localUserId: string; serverUserId: string}} identity
+ * @returns {void}
  */
-export function applyPurchaseResult(result) {
-  const userStore = useUserStore();
+export function applyPurchaseResult(result, identity) {
   const historyStore = useHistoryStore();
-  const uid = resolveServerUserId() || userStore.auth.currentUserId;
-  if (result.wallet) {
-    const scores = mapRemoteWalletToLocal(result.wallet);
-    userStore.patchUserScores(uid, scores.score, scores.totalScore);
-  }
+  const uid = identity.localUserId;
   if (result.inventoryItem) {
     inventoryRepository.applyPurchaseInventoryItem(uid, result.inventoryItem);
   }
   if (result.purchaseRecord) {
     ensureUserBucket(historyStore.purchaseRecordsByUser, uid);
-    historyStore.purchaseRecordsByUser[uid].push(mapPurchaseRecord(result.purchaseRecord));
+    historyStore.purchaseRecordsByUser[uid] = mergeRecordsByClientId(
+      historyStore.purchaseRecordsByUser[uid],
+      mapRecordsToIdentity([result.purchaseRecord], mapPurchaseRecord, identity)
+    );
   }
   persistAllLocal();
 }
@@ -59,9 +61,13 @@ export function applyPurchaseResult(result) {
  * @param {string} userId
  */
 export async function refreshPurchases(userId) {
+  const identity = captureUserDataIdentity(useUserStore(), userId);
   const page = await remoteRepository.getPurchases(userId, PAGE);
   const historyStore = useHistoryStore();
-  historyStore.purchaseRecordsByUser[userId] = pageItems(page).map(mapPurchaseRecord);
+  const uid = identity.localUserId;
+  historyStore.purchaseRecordsByUser[uid] = mergeRecordsByClientId(
+    historyStore.purchaseRecordsByUser[uid], mapRecordsToIdentity(pageItems(page), mapPurchaseRecord, identity)
+  );
   persistAllLocal();
 }
 
@@ -71,7 +77,8 @@ export async function refreshPurchases(userId) {
  * @returns {Promise<object>}
  */
 export async function purchaseRemote(payload) {
+  const identity = captureUserDataIdentity(useUserStore(), payload.userId);
   const result = await remoteRepository.purchaseProp(payload);
-  applyPurchaseResult(result);
+  applyPurchaseResult(result, identity);
   return result;
 }

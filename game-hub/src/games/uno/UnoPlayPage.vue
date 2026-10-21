@@ -38,7 +38,7 @@
           <button
             type="button"
             class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-            @click="onBackToRoom"
+            @click="backToRoomOrLobby"
           >
             返回房间
           </button>
@@ -133,12 +133,11 @@
           </div>
           <div class="uno-page__actions">
             <TurnActionBar
-              :legal-actions="gameViewLegalActions"
+              :action-offers="gameViewActionOffers"
               :play-enabled="playActionEnabled"
               :hint-enabled="hintEnabled"
               :disabled="manualActionDisabled"
               :managed-blocked="viewerManagedActive"
-              :busy="gameViewPlaybackBusy"
               :show-countdown="false"
               @action="onTurnBarAction"
             >
@@ -168,15 +167,12 @@
             <div class="uno-page__hand-row">
               <SelectableItemHand
                 :items="handItems"
-                :hand-cards="handCards"
-                :selected-ids="selectedCardIds"
-                :legal-actions="matcherLegalActions"
-                :hint-cursor="hintCursor"
+                :selected-item-ids="selectedCardIds"
+                :selectable-item-ids="selectableItemIds"
+                :disabled-item-ids="disabledItemIds"
                 :disabled="interactionDisabled"
-                :busy="gameViewPlaybackBusy"
-                @select="onHandSelect"
-                @selection-change="onHandSelectionChange"
-                @match-change="onMatchChange"
+                @change="onHandSelectionChange"
+                @illegal-click="onHandIllegalClick"
               >
                 <template #item="{ item }">
                   <UnoCard :card-code="item.cardCode" />
@@ -206,9 +202,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { storeToRefs } from 'pinia';
+import { computed, onMounted, watch } from 'vue';
 import { StrategyTurnMultiplayerLayout } from '../../game-templates/strategy-turn-multiplayer/index.js';
 import {
   SelectableItemHand,
@@ -218,10 +212,11 @@ import {
 } from '../../components/game/index.js';
 import { TURN_ACTION_BAR_KEY } from '../../components/game/controls/turnControlEnums.js';
 import { usePlatformStore } from '../../stores/platformStore.js';
-import * as roomService from '../../services/roomService.js';
+import * as roomGameService from '../../services/roomGameService.js';
 import * as strategyTurnGameViewService from '../../services/strategyTurnGameViewService.js';
-import { canFetchRemote } from '../../services/remoteGate.js';
-import { useRoomStore } from '../../stores/roomStore.js';
+import { useStrategyTurnRoomLifecycle } from '../../composables/useStrategyTurnRoomLifecycle.js';
+import { useStrategyTurnActionController } from '../../composables/useStrategyTurnActionController.js';
+import { useStrategyTurnManagedMode } from '../../composables/useStrategyTurnManagedMode.js';
 import UnoCard from './components/UnoCard.vue';
 import UnoColorPicker from './components/UnoColorPicker.vue';
 import UnoDiscardArea from './components/UnoDiscardArea.vue';
@@ -229,27 +224,18 @@ import UnoPlayerActionDisplay from './components/UnoPlayerActionDisplay.vue';
 import UnoSettlementDialog from './components/UnoSettlementDialog.vue';
 import { useUnoGameView } from './composables/useUnoGameView.js';
 import { useStrategyTurnGameView } from '../../composables/useStrategyTurnGameView.js';
-import { isWildHandCard, normalizeHandCard } from './unoGameViewUtils.js';
+import { useUnoCardMatching } from './composables/useUnoCardMatching.js';
+import { useUnoHandInteraction } from './composables/useUnoHandInteraction.js';
+import { useUnoPlayViewModel } from './composables/useUnoPlayViewModel.js';
+import { useUnoTerminalFlow } from './composables/useUnoTerminalFlow.js';
 import {
-  applyUnoPlayerActionEvents,
-  buildUnoPlayerActionMap,
-  clearUnoPlayerActionForCurrentTurn,
-  createEmptyUnoPlayerActionMap
-} from './unoPlayerActionViewModel.js';
-import {
-  buildMatcherLegalActions,
-  countWildColorCandidates,
-  findPlayActionByChooseColor
-} from './unoLegalActionsAdapter.js';
+  hasPlayCardOffer
+} from './unoActionOffersAdapter.js';
 import * as unoService from './unoService.js';
 import { applyUnoConfig, UNO_CODE } from './unoConfig.js';
 import './unoPage.css';
 
-const route = useRoute();
-const router = useRouter();
 const platform = usePlatformStore();
-const roomStore = useRoomStore();
-const { currentRoom } = storeToRefs(roomStore);
 
 const {
   version: gameViewVersion,
@@ -257,193 +243,121 @@ const {
   currentPlayerId: gameViewCurrentPlayerId,
   publicState: gameViewPublicState,
   privateState: gameViewPrivateState,
-  legalActions: gameViewLegalActions,
+  actionOffers: gameViewActionOffers,
   playbackBusy: gameViewPlaybackBusy
 } = useUnoGameView();
 
 const { isGameOver: gameViewIsGameOver, frameEvents } = useStrategyTurnGameView();
 
-const accumulatedPlayerActions = ref(createEmptyUnoPlayerActionMap());
-
-const loading = ref(false);
-const loadError = ref('');
-const gameViewActionBusy = ref(false);
-const shellRejoinOffered = ref(false);
-const rejoinBusy = ref(false);
-const gameViewLoadError = ref('');
-const selectedCardIds = ref([]);
-const colorPickerVisible = ref(false);
-const hintCursor = ref(0);
-const settlementVisible = ref(false);
-const settlementDismissed = ref(false);
-/** @type {import('vue').Ref<import('../../services/strategyTurnActionMatcher.js').StrategyTurnActionMatcherResult|null>} */
-const matchState = ref(null);
-/** @type {(() => void)|null} */
-let releaseRoomRealtime = null;
-/** @type {(() => void)|null} */
-let releaseRoomPresence = null;
-/** @type {ReturnType<typeof setTimeout>|null} */
-let pendingBackToRoomTimer = null;
-
-const activeRoomId = computed(() => String(route.params.roomId || '').trim());
-const activeGameCode = computed(() => String(route.params.gameCode || '').trim() || UNO_CODE);
-const onlineBlocked = computed(() => !canFetchRemote());
-
-const currentPlayerId = computed(() => roomService.getCurrentPlayerId());
-
-/**
- * @param {object|null|undefined} room
- * @returns {boolean}
- */
-function isUserInRoom(room) {
-  const playerId = currentPlayerId.value;
-  if (!playerId || !room?.members) {
-    return false;
-  }
-  return room.members.some((item) => {
-    const samePlayer = String(item?.playerId || '').trim() === playerId;
-    return samePlayer && String(item?.managedMode || '').trim() !== 'shell';
-  });
-}
-
-/**
- * @param {object|null|undefined} room
- * @returns {boolean}
- */
-function isUserShellInRoom(room) {
-  const playerId = currentPlayerId.value;
-  if (!playerId || !room?.members) {
-    return false;
-  }
-  return room.members.some((item) => {
-    const samePlayer = String(item?.playerId || '').trim() === playerId;
-    return samePlayer && String(item?.managedMode || '').trim() === 'shell';
-  });
-}
-
-const isRoomMember = computed(() => isUserInRoom(currentRoom.value));
-const viewerRoomMember = computed(() => {
-  const viewerId = gameViewViewerId.value;
-  const members = currentRoom.value?.members;
-  if (!viewerId || !Array.isArray(members)) {
-    return null;
-  }
-  return (
-    members.find((item) => String(item?.playerId || '').trim() === String(viewerId || '').trim()) || null
-  );
-});
-const viewerManagedActive = computed(
-  () => String(viewerRoomMember.value?.managedMode || '').trim() === 'active'
-);
-
-const canShowGameView = computed(() => {
-  if (onlineBlocked.value || loading.value) {
-    return false;
-  }
-  if (!currentRoom.value) {
-    return false;
-  }
-  if (!isRoomMember.value) {
-    return false;
-  }
-  const status = String(currentRoom.value.status || '').trim();
-  if (status === 'playing') {
-    return true;
-  }
-  if (gameViewIsGameOver.value && !settlementDismissed.value) {
-    return true;
-  }
-  return false;
+const {
+  loading,
+  loadError,
+  gameViewLoadError,
+  shellRejoinOffered,
+  rejoinBusy,
+  activeRoomId,
+  activeGameCode,
+  onlineBlocked,
+  currentRoom,
+  playRoomLabel,
+  createCanShowGameView,
+  rejoin: onRejoinRoom,
+  exitWithShell: onExitRoomWithShell,
+  backToRoomOrLobby,
+  navigateToLobby
+} = useStrategyTurnRoomLifecycle({
+  defaultGameCode: UNO_CODE,
+  defaultRoomLabel: '对局中',
+  loadGameView: unoService.loadRoomGameView
 });
 
-const playRoomLabel = computed(() => {
-  const name = String(currentRoom.value?.roomName || '').trim();
-  return name || '对局中';
+const {
+  settlementVisible,
+  settlementDismissed,
+  onSettlementClose
+} = useUnoTerminalFlow({
+  isGameOverRef: gameViewIsGameOver,
+  versionRef: gameViewVersion,
+  playbackBusyRef: gameViewPlaybackBusy,
+  roomRef: currentRoom,
+  roomIdRef: activeRoomId,
+  resetGameView: roomGameService.resetRoomGameView,
+  navigate: (destination) =>
+    destination === 'lobby' ? navigateToLobby() : backToRoomOrLobby()
 });
 
-const currentColor = computed(() => String(gameViewPublicState.value?.currentColor || '').trim());
-
-const discardPileRecentCards = computed(() => {
-  const list = gameViewPublicState.value?.discardPileRecentCards;
-  return Array.isArray(list) ? list : [];
+const {
+  busy: gameViewActionBusy,
+  submitAction
+} = useStrategyTurnActionController({
+  roomIdRef: activeRoomId,
+  readVersion: strategyTurnGameViewService.getCurrentGameViewVersion,
+  submit: unoService.applyRoomGameAction,
+  reload: unoService.loadRoomGameView,
+  errorRef: gameViewLoadError
 });
 
-const turnTimeoutSeconds = computed(() => {
-  const raw = Number(gameViewPublicState.value?.turnTimeoutSeconds);
-  return Number.isFinite(raw) && raw > 0 ? raw : 60;
+const canShowGameView = createCanShowGameView(gameViewIsGameOver, settlementDismissed);
+
+const {
+  viewerManagedActive,
+  currentColor,
+  discardPileRecentCards,
+  turnTimeoutSeconds,
+  turnDeadlineAtMs,
+  handCards,
+  handItems,
+  viewerIsCurrentTurn,
+  interactionDisabled,
+  manualActionDisabled,
+  settlementRankings,
+  settlementPlayers,
+  leftPlayerPanels,
+  rightPlayerPanels,
+  playerActionMap
+} = useUnoPlayViewModel({
+  roomIdRef: activeRoomId,
+  currentRoomRef: currentRoom,
+  publicStateRef: gameViewPublicState,
+  privateStateRef: gameViewPrivateState,
+  viewerIdRef: gameViewViewerId,
+  currentPlayerIdRef: gameViewCurrentPlayerId,
+  versionRef: gameViewVersion,
+  frameEventsRef: frameEvents,
+  isGameOverRef: gameViewIsGameOver,
+  playbackBusyRef: gameViewPlaybackBusy,
+  actionBusyRef: gameViewActionBusy,
+  canShowRef: canShowGameView
 });
 
-const turnDeadlineAtMs = computed(() => {
-  const raw = Number(gameViewPublicState.value?.currentTurnDeadlineAt);
-  return Number.isFinite(raw) && raw > 0 ? raw : null;
+const {
+  selectedCardIds,
+  hintCursor,
+  matchState,
+  selectableItemIds,
+  disabledItemIds,
+  determinedAction
+} = useUnoCardMatching({
+  actionOffersRef: gameViewActionOffers,
+  handCardsRef: handCards,
+  interactionDisabledRef: interactionDisabled
 });
 
-const handCards = computed(() => {
-  const list = gameViewPrivateState.value?.handCards;
-  if (!Array.isArray(list)) {
-    return [];
-  }
-  return list.map((item) => normalizeHandCard(item)).filter((item) => item.cardInstanceId);
-});
-
-const handItems = computed(() =>
-  handCards.value.map((card) => ({
-    id: card.cardInstanceId,
-    cardCode: card.cardCode,
-    cardType: card.cardType
-  }))
-);
-
-const viewerIsCurrentTurn = computed(
-  () => gameViewViewerId.value === currentPlayerIdInTurn.value
-);
-
-const interactionDisabled = computed(
-  () =>
-    !canShowGameView.value ||
-    gameViewActionBusy.value ||
-    gameViewPlaybackBusy.value ||
-    viewerManagedActive.value ||
-    gameViewViewerId.value !== currentPlayerIdInTurn.value
-);
-
-const manualActionDisabled = computed(
-  () =>
-    !canShowGameView.value ||
-    gameViewActionBusy.value ||
-    gameViewPlaybackBusy.value ||
-    gameViewViewerId.value !== currentPlayerIdInTurn.value
-);
-
-const settlementRankings = computed(() => {
-  const list = gameViewPublicState.value?.rankings;
-  return Array.isArray(list) ? list : [];
-});
-
-const settlementPlayers = computed(() => {
-  const list = gameViewPublicState.value?.players;
-  return Array.isArray(list) ? list : [];
-});
-
-const matcherLegalActions = computed(() => {
-  if (interactionDisabled.value) {
-    return { selection: { candidates: [], matchFields: ['cardInstanceId'] } };
-  }
-  return buildMatcherLegalActions(gameViewLegalActions.value);
-});
-
-const determinedAction = computed(() => matchState.value?.determinedAction || null);
-
-const selectedWildColorCandidateCount = computed(() => {
-  if (!selectedCardIds.value.length) {
-    return 0;
-  }
-  const instanceId = String(selectedCardIds.value[0] || '').trim();
-  const handCard = handCards.value.find((item) => item.cardInstanceId === instanceId);
-  if (!handCard || !isWildHandCard(handCard)) {
-    return 0;
-  }
-  return countWildColorCandidates(matchState.value?.activeCandidates, selectedCardIds.value);
+const {
+  colorPickerVisible,
+  selectedWildColorCandidateCount,
+  selectCards,
+  applyHint,
+  openColorPickerIfNeeded: openWildColorPickerIfNeeded,
+  cancelColorPicker: onColorPickerCancel,
+  chooseColor: resolveColorChoice,
+  reset: resetHandInteraction
+} = useUnoHandInteraction({
+  selectedCardIdsRef: selectedCardIds,
+  hintCursorRef: hintCursor,
+  matchStateRef: matchState,
+  handCardsRef: handCards,
+  disabledRef: interactionDisabled
 });
 
 const playActionEnabled = computed(() => {
@@ -457,404 +371,29 @@ const hintEnabled = computed(() => {
   if (interactionDisabled.value) {
     return false;
   }
-  return Array.isArray(gameViewLegalActions.value)
-    ? gameViewLegalActions.value.some(
-        (item) => String(item?.actionType || '').trim() === 'PLAY_CARD'
-      )
-    : false;
+  return hasPlayCardOffer(gameViewActionOffers.value);
 });
-
-const currentPlayerIdInTurn = computed(() =>
-  String(gameViewCurrentPlayerId.value || gameViewPublicState.value?.currentPlayerId || '').trim()
-);
-
-/**
- * @param {object|null|undefined} member
- * @returns {string}
- */
-function resolveManagedLabel(member) {
-  const managedMode = String(member?.managedMode || '').trim();
-  if (managedMode === 'active') {
-    return '托管中';
-  }
-  if (managedMode === 'shell') {
-    return '离线托管';
-  }
-  return '';
-}
-
-/**
- * @param {object|null|undefined} member
- * @returns {string}
- */
-function resolveManagedClass(member) {
-  const managedMode = String(member?.managedMode || '').trim();
-  if (managedMode === 'active') {
-    return 'managed-active';
-  }
-  if (managedMode === 'shell') {
-    return 'managed-shell';
-  }
-  return '';
-}
-
-/**
- * @param {string} playerId
- * @returns {object|null|undefined}
- */
-function findRoomMember(playerId) {
-  const members = currentRoom.value?.members;
-  if (!Array.isArray(members)) {
-    return null;
-  }
-  return members.find((item) => String(item?.playerId || '').trim() === playerId) || null;
-}
-
-/**
- * @param {string} playerId
- * @returns {string}
- */
-function resolvePlayerNickname(playerId) {
-  const members = currentRoom.value?.members;
-  if (!Array.isArray(members)) {
-    return playerId;
-  }
-  const matched = members.find((item) => String(item?.playerId || '').trim() === playerId);
-  const nickname = String(matched?.nickname || '').trim();
-  return nickname || playerId;
-}
-
-const opponentPanels = computed(() => {
-  const players = gameViewPublicState.value?.players;
-  if (!Array.isArray(players)) {
-    return [];
-  }
-  const viewerId = gameViewViewerId.value;
-  return players
-    .filter((item) => String(item?.playerId || '').trim() !== viewerId)
-    .map((item) => {
-      const playerId = String(item.playerId || '').trim();
-      const finishRank = Number(item.finishRank);
-      const member = findRoomMember(playerId);
-      const managedMode = String(member?.managedMode || '').trim();
-      const isManagedMode = ['active', 'shell'].includes(managedMode);
-      return {
-        playerId,
-        nickname: resolvePlayerNickname(playerId),
-        handCount: Number(item.handCount) || 0,
-        isAi: Boolean(member?.isAi ?? item.isAi),
-        isManaged: isManagedMode,
-        managedLabel: resolveManagedLabel(member),
-        managedBadgeClass: resolveManagedClass(member),
-        isCurrentTurn: playerId === currentPlayerIdInTurn.value,
-        finishRank: Number.isFinite(finishRank) && finishRank > 0 ? finishRank : null
-      };
-    });
-});
-
-const leftPlayerPanels = computed(() => {
-  const list = opponentPanels.value;
-  if (list.length <= 1) {
-    return list;
-  }
-  const mid = Math.ceil(list.length / 2);
-  return list.slice(0, mid);
-});
-
-const rightPlayerPanels = computed(() => {
-  const list = opponentPanels.value;
-  if (list.length <= 1) {
-    return [];
-  }
-  const mid = Math.ceil(list.length / 2);
-  return list.slice(mid);
-});
-
-const playerActionMap = computed(() =>
-  buildUnoPlayerActionMap(
-    accumulatedPlayerActions.value,
-    gameViewPublicState.value,
-    gameViewIsGameOver.value
-  )
-);
-
-watch(
-  () => activeRoomId.value,
-  (nextRoomId, prevRoomId) => {
-    if (String(nextRoomId || '').trim() !== String(prevRoomId || '').trim()) {
-      accumulatedPlayerActions.value = createEmptyUnoPlayerActionMap();
-    }
-  }
-);
-
-watch(gameViewVersion, (nextVersion, prevVersion) => {
-  const next = Number(nextVersion) || 0;
-  const prev = Number(prevVersion) || 0;
-  if (next <= 0 && prev > 0) {
-    accumulatedPlayerActions.value = createEmptyUnoPlayerActionMap();
-    return;
-  }
-  if (next <= prev) {
-    return;
-  }
-  const events = frameEvents.value;
-  if (!Array.isArray(events) || !events.length) {
-    return;
-  }
-  accumulatedPlayerActions.value = applyUnoPlayerActionEvents(
-    accumulatedPlayerActions.value,
-    events
-  );
-});
-
-watch(currentPlayerIdInTurn, (nextPlayerId, prevPlayerId) => {
-  if (!nextPlayerId || nextPlayerId === prevPlayerId || !gameViewPublicState.value) {
-    return;
-  }
-  accumulatedPlayerActions.value = clearUnoPlayerActionForCurrentTurn(
-    accumulatedPlayerActions.value,
-    gameViewPublicState.value
-  );
-});
-
-watch(
-  () => [gameViewIsGameOver.value, gameViewVersion.value, gameViewPlaybackBusy.value],
-  ([isOver, version, playbackBusy]) => {
-    if (!isOver || !version || playbackBusy || settlementDismissed.value) {
-      return;
-    }
-    settlementVisible.value = true;
-  }
-);
 
 watch(gameViewVersion, () => {
-  selectedCardIds.value = [];
-  colorPickerVisible.value = false;
-  hintCursor.value = 0;
-  matchState.value = null;
+  resetHandInteraction();
 });
 
-/** @type {boolean} */
-let suppressHintCursorReset = false;
-
-watch(selectedCardIds, () => {
-  if (suppressHintCursorReset) {
-    suppressHintCursorReset = false;
-    return;
-  }
-  hintCursor.value = 0;
+const { start: onStartManagedMode, stop: onStopManagedMode } = useStrategyTurnManagedMode({
+  roomIdRef: activeRoomId,
+  managedActiveRef: viewerManagedActive,
+  busyRef: gameViewActionBusy,
+  errorRef: gameViewLoadError
 });
-
-async function ensureRoomAndGameView() {
-  const roomId = activeRoomId.value;
-  if (!roomId || onlineBlocked.value) {
-    return;
-  }
-  loading.value = true;
-  loadError.value = '';
-  gameViewLoadError.value = '';
-  try {
-    await roomService.loadRoomDetail(roomId);
-    if (!currentRoom.value) {
-      loadError.value = '房间不存在或已被删除';
-      await backToRoomOrLobby();
-      return;
-    }
-    if (!isRoomMember.value) {
-      if (isUserShellInRoom(currentRoom.value)) {
-        shellRejoinOffered.value = true;
-        return;
-      }
-      loadError.value = '你尚未加入该房间';
-      await backToRoomOrLobby();
-      return;
-    }
-    shellRejoinOffered.value = false;
-    const status = String(currentRoom.value.status || '').trim();
-    if (status !== 'playing') {
-      await backToRoomOrLobby();
-      return;
-    }
-    strategyTurnGameViewService.setActiveRoom(roomId);
-    const baseVersion = strategyTurnGameViewService.getCurrentGameViewVersion();
-    if (!baseVersion) {
-      await unoService.loadRoomGameView(roomId);
-    }
-  } catch (err) {
-    loadError.value = err?.message || '加载房间失败';
-    await backToRoomOrLobby();
-  } finally {
-    loading.value = false;
-  }
-}
-
-function clearPendingBackToRoomTimer() {
-  if (pendingBackToRoomTimer !== null) {
-    clearTimeout(pendingBackToRoomTimer);
-    pendingBackToRoomTimer = null;
-  }
-}
-
-async function backToRoomOrLobby() {
-  const roomId = activeRoomId.value;
-  if (roomId) {
-    await router.replace({
-      name: 'online-room-waiting',
-      params: { gameCode: activeGameCode.value, roomId }
-    });
-  } else {
-    await router.replace({ name: 'online-room-list', params: { gameCode: activeGameCode.value } });
-  }
-}
-
-function showSettlementIfReady() {
-  if (!gameViewIsGameOver.value || settlementDismissed.value) {
-    return false;
-  }
-  if (!settlementVisible.value && gameViewVersion.value && !gameViewPlaybackBusy.value) {
-    settlementVisible.value = true;
-  }
-  return true;
-}
-
-function navigateToLobby() {
-  roomService.resetRoomGameView();
-  router.push({ name: 'online-room-list', params: { gameCode: activeGameCode.value } });
-}
-
-async function onSettlementClose() {
-  settlementVisible.value = false;
-  settlementDismissed.value = true;
-  await backToRoomOrLobby();
-}
-
-async function onBackToRoom() {
-  await backToRoomOrLobby();
-}
-
-async function onExitRoomWithShell() {
-  const roomId = activeRoomId.value;
-  if (!roomId) {
-    navigateToLobby();
-    return;
-  }
-  gameViewActionBusy.value = true;
-  loadError.value = '';
-  try {
-    await roomService.leaveRoom(roomId);
-    roomService.resetRoomGameView();
-    await router.push({ name: 'online-room-list', params: { gameCode: activeGameCode.value } });
-  } catch (err) {
-    loadError.value = err?.message || '退出房间失败';
-  } finally {
-    gameViewActionBusy.value = false;
-  }
-}
-
-async function onRejoinRoom() {
-  const roomId = activeRoomId.value;
-  if (!roomId || rejoinBusy.value) {
-    return;
-  }
-  rejoinBusy.value = true;
-  loadError.value = '';
-  try {
-    await roomService.rejoinManagedRoom(roomId);
-    shellRejoinOffered.value = false;
-    await unoService.loadRoomGameView(roomId);
-  } catch (err) {
-    loadError.value = err?.message || '重新加入失败';
-  } finally {
-    rejoinBusy.value = false;
-  }
-}
-
-async function onStartManagedMode() {
-  const roomId = activeRoomId.value;
-  if (!roomId || viewerManagedActive.value) {
-    return;
-  }
-  gameViewActionBusy.value = true;
-  gameViewLoadError.value = '';
-  try {
-    await roomService.startManagedMode(roomId);
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '开启托管失败';
-  } finally {
-    gameViewActionBusy.value = false;
-  }
-}
-
-async function onStopManagedMode() {
-  const roomId = activeRoomId.value;
-  if (!roomId || !viewerManagedActive.value) {
-    return;
-  }
-  gameViewActionBusy.value = true;
-  gameViewLoadError.value = '';
-  try {
-    await roomService.stopManagedMode(roomId);
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '取消托管失败';
-  } finally {
-    gameViewActionBusy.value = false;
-  }
-}
-
-/**
- * @param {import('../../services/strategyTurnActionMatcher.js').StrategyTurnActionMatcherResult|null} result
- */
-function onMatchChange(result) {
-  matchState.value = result;
-}
-
-function onHandSelect(payload) {
-  if (interactionDisabled.value) {
-    return;
-  }
-  const id = String(payload?.id || '').trim();
-  if (!id) {
-    return;
-  }
-  if (selectedCardIds.value.includes(id)) {
-    selectedCardIds.value = selectedCardIds.value.filter((item) => item !== id);
-  } else if (matchState.value?.selectableCardIds?.includes(id)) {
-    selectedCardIds.value = [...selectedCardIds.value, id];
-  }
-}
 
 /**
  * @param {string[]} ids
  */
 function onHandSelectionChange(ids) {
-  if (interactionDisabled.value) {
-    return;
-  }
-  selectedCardIds.value = Array.isArray(ids) ? [...ids] : [];
+  selectCards(ids);
 }
 
-function openWildColorPickerIfNeeded() {
-  const instanceId = String(selectedCardIds.value[0] || '').trim();
-  if (!instanceId) {
-    return false;
-  }
-  const handCard = handCards.value.find((item) => item.cardInstanceId === instanceId);
-  if (!handCard || !isWildHandCard(handCard)) {
-    return false;
-  }
-  const wildColorCount = countWildColorCandidates(
-    matchState.value?.activeCandidates,
-    selectedCardIds.value
-  );
-  if (wildColorCount <= 1) {
-    return false;
-  }
-  colorPickerVisible.value = true;
-  return true;
-}
-
-function onColorPickerCancel() {
-  colorPickerVisible.value = false;
+function onHandIllegalClick() {
+  // 震动反馈由 SelectableItemHand 处理
 }
 
 /**
@@ -862,74 +401,43 @@ function onColorPickerCancel() {
  */
 async function onColorPicked(payload) {
   const chooseColor = String(payload?.color || '').trim();
-  colorPickerVisible.value = false;
-  if (!chooseColor) {
-    return;
-  }
-  const action = findPlayActionByChooseColor(
-    matchState.value?.activeCandidates,
-    chooseColor,
-    selectedCardIds.value
-  );
+  const action = resolveColorChoice(chooseColor);
   const actionId = String(action?.actionId || '').trim();
   if (!actionId) {
     gameViewLoadError.value = '当前无法打出该牌';
     return;
   }
   selectedCardIds.value = [];
-  await submitGameAction(actionId);
+  await submitGameAction('PLAY_CARD', actionId);
 }
 
 /**
+ * 通过 Adapter Registry 提交 UNO 动作。
+ * @param {string} actionType
  * @param {string} actionId
+ * @returns {Promise<void>}
  */
-async function submitGameAction(actionId) {
-  const normalized = String(actionId || '').trim();
-  if (!normalized) {
-    return;
-  }
-  const roomId = activeRoomId.value;
-  if (!roomId || interactionDisabled.value) {
-    return;
-  }
-  const baseVersion = strategyTurnGameViewService.getCurrentGameViewVersion();
-  if (!baseVersion) {
-    gameViewLoadError.value = '对局视图尚未就绪';
-    return;
-  }
-  gameViewActionBusy.value = true;
-  gameViewLoadError.value = '';
+async function submitGameAction(actionType, actionId) {
+  const type = String(actionType || '').trim();
+  const id = String(actionId || '').trim();
+  if (!type || !id || interactionDisabled.value) return;
   try {
-    await unoService.applyRoomGameAction(roomId, {
-      actionId: normalized,
-      baseVersion,
-      clientSeq: Date.now()
-    });
-    selectedCardIds.value = [];
-    hintCursor.value = 0;
-  } catch (err) {
-    gameViewLoadError.value = err?.message || '操作失败';
-  } finally {
-    gameViewActionBusy.value = false;
+    await submitAction(gameViewActionOffers.value, type, id);
+    resetHandInteraction();
+  } catch {
+    // ActionController 已记录错误。
   }
 }
 
 /**
- * @param {{ barKey: string; actionType: string; legalActions: object[] }} payload
+ * @param {{ barKey: string; actionType: string; options: object[] }} payload
  */
 async function onTurnBarAction(payload) {
   if (interactionDisabled.value) {
     return;
   }
   if (payload.barKey === TURN_ACTION_BAR_KEY.UI_ACTION_HINT) {
-    const suggested = matchState.value?.suggestedSelection;
-    if (Array.isArray(suggested) && suggested.length > 0) {
-      suppressHintCursorReset = true;
-      selectedCardIds.value = [...suggested];
-    }
-    if (matchState.value?.nextHintCursor != null) {
-      hintCursor.value = matchState.value.nextHintCursor;
-    }
+    applyHint();
     return;
   }
 
@@ -944,136 +452,29 @@ async function onTurnBarAction(payload) {
       return;
     }
 
-    await submitGameAction(actionId);
+    await submitGameAction('PLAY_CARD', actionId);
     return;
   }
 
-  const actions = Array.isArray(payload.legalActions) ? payload.legalActions : [];
-  const action = actions[0];
-  const actionId = String(action?.actionId || '').trim();
-  if (!actionId) {
+  const options = Array.isArray(payload.options) ? payload.options : [];
+  const option = options[0];
+  const actionId = String(option?.actionId || '').trim();
+  const actionType = String(payload.actionType || option?.actionType || '').trim();
+  if (!actionId || !actionType) {
     return;
   }
-  await submitGameAction(actionId);
+  await submitGameAction(actionType, actionId);
 }
 
-onMounted(async () => {
+onMounted(() => {
   platform.setCurrentGame(activeGameCode.value);
-  if (onlineBlocked.value) {
-    return;
+  if (!onlineBlocked.value) {
+    try {
+      applyUnoConfig();
+    } catch {
+      // 配置错误由服务层处理。
+    }
   }
-  try {
-    applyUnoConfig();
-  } catch {
-    // 配置错误在 service 内部处理
-  }
-  const roomId = activeRoomId.value;
-  if (!roomId) {
-    await backToRoomOrLobby();
-    return;
-  }
-  if (releaseRoomRealtime) {
-    releaseRoomRealtime();
-    releaseRoomRealtime = null;
-  }
-  if (releaseRoomPresence) {
-    releaseRoomPresence();
-    releaseRoomPresence = null;
-  }
-  releaseRoomRealtime = roomService.bindRoomRealtime(roomId);
-  releaseRoomPresence = roomService.bindRoomPresencePong(
-    roomId,
-    activeGameCode.value,
-    () => String(route.params.roomId || '').trim() === roomId
-  );
-  await ensureRoomAndGameView();
 });
 
-watch(
-  () => gameViewPlaybackBusy.value,
-  (busy, prevBusy) => {
-    if (busy || !prevBusy) {
-      return;
-    }
-    const status = String(currentRoom.value?.status || '').trim();
-    if (status === 'playing') {
-      return;
-    }
-    if (showSettlementIfReady()) {
-      return;
-    }
-    if (settlementDismissed.value) {
-      return;
-    }
-    clearPendingBackToRoomTimer();
-    pendingBackToRoomTimer = setTimeout(() => {
-      pendingBackToRoomTimer = null;
-      if (showSettlementIfReady()) {
-        return;
-      }
-      roomService.resetRoomGameView();
-      void backToRoomOrLobby();
-    }, 80);
-  }
-);
-
-watch(
-  () => currentRoom.value?.status,
-  (status) => {
-    const normalized = String(status || '').trim();
-    if (!activeRoomId.value) {
-      return;
-    }
-    if (normalized === 'playing') {
-      clearPendingBackToRoomTimer();
-      return;
-    }
-    if (showSettlementIfReady()) {
-      return;
-    }
-    if (gameViewPlaybackBusy.value) {
-      clearPendingBackToRoomTimer();
-      return;
-    }
-    if (settlementDismissed.value) {
-      clearPendingBackToRoomTimer();
-      roomService.resetRoomGameView();
-      void backToRoomOrLobby();
-      return;
-    }
-    if (gameViewVersion.value > 0) {
-      clearPendingBackToRoomTimer();
-      pendingBackToRoomTimer = setTimeout(() => {
-        pendingBackToRoomTimer = null;
-        void nextTick(() => {
-          if (showSettlementIfReady()) {
-            return;
-          }
-          if (!settlementDismissed.value) {
-            roomService.resetRoomGameView();
-            void backToRoomOrLobby();
-          }
-        });
-      }, 80);
-      return;
-    }
-    clearPendingBackToRoomTimer();
-    roomService.resetRoomGameView();
-    void backToRoomOrLobby();
-  }
-);
-
-onUnmounted(() => {
-  clearPendingBackToRoomTimer();
-  if (releaseRoomRealtime) {
-    releaseRoomRealtime();
-    releaseRoomRealtime = null;
-  }
-  if (releaseRoomPresence) {
-    releaseRoomPresence();
-    releaseRoomPresence = null;
-  }
-  roomService.resetRoomGameView();
-});
 </script>
-

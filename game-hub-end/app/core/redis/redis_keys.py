@@ -1,8 +1,51 @@
 """Redis key 集中定义。"""
 
+import zlib
+from typing import List
+
+
 
 class RedisKeys(object):
     """平台 Redis key 生成器。"""
+
+    ROOM_SHARD_COUNT = 64
+
+    @staticmethod
+    def room_shard(room_id: str) -> int:
+        """返回房间的稳定 Redis 分片编号。"""
+        normalized_room_id = str(room_id or "").strip()
+        return int(zlib.crc32(normalized_room_id.encode("utf-8")) & 0xFFFFFFFF) % RedisKeys.ROOM_SHARD_COUNT
+
+    @staticmethod
+    def _room_shard_tag(room_id: str) -> str:
+        """生成房间所属分片的 Redis Cluster hash tag。"""
+        return "room-shard:{0}".format(RedisKeys.room_shard(room_id))
+
+    @staticmethod
+    def _shard_tagged(shard_index: int, suffix: str) -> str:
+        """Return a key placed in the requested room shard."""
+        normalized_index = int(shard_index) % RedisKeys.ROOM_SHARD_COUNT
+        return "game-hub:{{room-shard:{0}}}:{1}".format(
+            normalized_index,
+            str(suffix or "").strip(),
+        )
+
+    @staticmethod
+    def _room_tagged(room_id: str, suffix: str) -> str:
+        """
+        生成带 hash tag 的房间级 Redis key，保证同房间数据位于同一槽位。
+
+        :param room_id: 房间 ID。
+        :param suffix: key 后缀。
+        :return: Redis key。
+        """
+        normalized_room_id = str(room_id or "").strip()
+        normalized_suffix = str(suffix or "").strip()
+        return "game-hub:{{{0}}}:room:{1}:{2}".format(
+            RedisKeys._room_shard_tag(normalized_room_id),
+            normalized_room_id,
+            normalized_suffix,
+        )
 
     @staticmethod
     def user_online(service_id: str) -> str:
@@ -24,6 +67,15 @@ class RedisKeys(object):
         return "game-hub:user:online:*"
 
     @staticmethod
+    def auth_realtime_ticket(ticket: str) -> str:
+        """
+        Generate a short-lived realtime authentication ticket key.
+        :param ticket: Opaque ticket value.
+        :return: Redis key.
+        """
+        return "auth:realtime-ticket:{0}".format(str(ticket or "").strip())
+
+    @staticmethod
     def room_meta(room_id: str) -> str:
         """
         生成房间元信息 key。
@@ -31,7 +83,12 @@ class RedisKeys(object):
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:room:{0}:meta".format(room_id)
+        return RedisKeys._room_tagged(room_id, "meta")
+
+    @staticmethod
+    def room_meta_pattern() -> str:
+        """生成全部房间 meta 的扫描 pattern。"""
+        return "game-hub:{room-shard:*}:room:*:meta"
 
     @staticmethod
     def room_players(room_id: str) -> str:
@@ -41,7 +98,7 @@ class RedisKeys(object):
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:room:{0}:players".format(room_id)
+        return RedisKeys._room_tagged(room_id, "players")
 
     @staticmethod
     def room_runtime(room_id: str) -> str:
@@ -51,59 +108,7 @@ class RedisKeys(object):
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:room:{0}:runtime".format(room_id)
-
-    @staticmethod
-    def room_public_state(room_id: str) -> str:
-        """
-        生成房间公开状态 key。
-
-        :param room_id: 房间 ID。
-        :return: Redis key。
-        """
-        return "game-hub:room:{0}:public-state".format(room_id)
-
-    @staticmethod
-    def room_private_state(room_id: str, player_id: str) -> str:
-        """
-        生成房间玩家私有状态 key。
-
-        :param room_id: 房间 ID。
-        :param player_id: 玩家 ID。
-        :return: Redis key。
-        """
-        return "game-hub:room:{0}:private-state:{1}".format(room_id, player_id)
-
-    @staticmethod
-    def room_private_state_pattern(room_id: str) -> str:
-        """
-        生成房间玩家私有状态扫描 pattern。
-
-        :param room_id: 房间 ID。
-        :return: Redis scan pattern。
-        """
-        return "game-hub:room:{0}:private-state:*".format(room_id)
-
-    @staticmethod
-    def room_legal_actions(room_id: str, player_id: str) -> str:
-        """
-        生成房间玩家合法动作 key。
-
-        :param room_id: 房间 ID。
-        :param player_id: 玩家 ID。
-        :return: Redis key。
-        """
-        return "game-hub:room:{0}:legal-actions:{1}".format(room_id, player_id)
-
-    @staticmethod
-    def room_legal_actions_pattern(room_id: str) -> str:
-        """
-        生成房间玩家合法动作扫描 pattern。
-
-        :param room_id: 房间 ID。
-        :return: Redis scan pattern。
-        """
-        return "game-hub:room:{0}:legal-actions:*".format(room_id)
+        return RedisKeys._room_tagged(room_id, "runtime")
 
     @staticmethod
     def room_events(room_id: str) -> str:
@@ -113,7 +118,7 @@ class RedisKeys(object):
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:room:{0}:events".format(room_id)
+        return RedisKeys._room_tagged(room_id, "events")
 
     @staticmethod
     def room_presence(room_id: str) -> str:
@@ -123,17 +128,27 @@ class RedisKeys(object):
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:room:{0}:presence".format(room_id)
+        return RedisKeys._room_tagged(room_id, "presence")
 
     @staticmethod
-    def room_version(room_id: str) -> str:
+    def room_room_version(room_id: str) -> str:
         """
-        生成房间版本号 key。
+        生成房间元数据版本号 key。
 
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:room:{0}:version".format(room_id)
+        return RedisKeys._room_tagged(room_id, "room-version")
+
+    @staticmethod
+    def room_game_version(room_id: str) -> str:
+        """
+        生成对局运行时版本号 key。
+
+        :param room_id: 房间 ID。
+        :return: Redis key。
+        """
+        return RedisKeys._room_tagged(room_id, "game-version")
 
     @staticmethod
     def room_lock(room_id: str) -> str:
@@ -143,7 +158,68 @@ class RedisKeys(object):
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:room:{0}:lock".format(room_id)
+        return RedisKeys._room_tagged(room_id, "lock")
+
+    @staticmethod
+    def room_action_request(room_id: str, player_id: str, request_id: str) -> str:
+        """
+        生成单条动作请求幂等记录 key。
+
+        :param room_id: 房间 ID。
+        :param player_id: 玩家 ID。
+        :param request_id: 请求 ID。
+        :return: Redis key。
+        """
+        normalized_player_id = str(player_id or "").strip()
+        normalized_request_id = str(request_id or "").strip()
+        return RedisKeys._room_tagged(
+            room_id,
+            "request:{0}:{1}".format(normalized_player_id, normalized_request_id),
+        )
+
+    @staticmethod
+    def room_outbox_records(room_id: str) -> str:
+        """
+        生成房间 Outbox 记录 Hash key。
+
+        :param room_id: 房间 ID。
+        :return: Redis key。
+        """
+        return RedisKeys._room_tagged(room_id, "outbox:records")
+
+    @staticmethod
+    def room_outbox_records_pattern() -> str:
+        """
+        生成全部房间 Outbox records Hash 的 SCAN pattern。
+
+        :return: Redis scan pattern。
+        """
+        return "game-hub:{room-shard:*}:room:*:outbox:records"
+
+    @staticmethod
+    def room_outbox_due(room_id: str) -> str:
+        """
+        生成房间 Outbox 到期 ZSet key。
+
+        :param room_id: 房间 ID。
+        :return: Redis key。
+        """
+        return RedisKeys._room_tagged(room_id, "outbox:due")
+
+    @staticmethod
+    def room_outbox_dedupe(room_id: str) -> str:
+        """
+        生成房间 Outbox 去重 Hash key。
+
+        :param room_id: 房间 ID。
+        :return: Redis key。
+        """
+        return RedisKeys._room_tagged(room_id, "outbox:dedupe")
+
+    @staticmethod
+    def room_outbox_dispatch_lease(room_id: str) -> str:
+        """生成房间 Outbox 分发权租约 key。"""
+        return RedisKeys._room_tagged(room_id, "outbox:dispatch-lease")
 
     @staticmethod
     def player_room(player_id: str) -> str:
@@ -186,55 +262,175 @@ class RedisKeys(object):
         return "game-hub:rooms:playing"
 
     @staticmethod
-    def managed_task_due() -> str:
+    def managed_task_records(room_id: str) -> str:
         """
         生成托管任务到期 sorted set key。
 
         :return: Redis key。
         """
-        return "game-hub:managed-task:due"
+        return RedisKeys.managed_task_records_shard(RedisKeys.room_shard(room_id))
 
     @staticmethod
-    def managed_task_processing() -> str:
+    def managed_task_records_shard(shard_index: int) -> str:
         """
         生成托管任务执行中 sorted set key。
 
         :return: Redis key。
         """
-        return "game-hub:managed-task:processing"
+        return RedisKeys._shard_tagged(shard_index, "managed-task:records")
 
     @staticmethod
-    def managed_task(task_id: str) -> str:
+    def managed_task_due(room_id: str) -> str:
         """
         生成托管任务数据 key。
 
         :param task_id: 任务 ID。
         :return: Redis key。
         """
-        return "game-hub:managed-task:{0}".format(task_id)
+        return RedisKeys.managed_task_due_shard(RedisKeys.room_shard(room_id))
 
     @staticmethod
-    def managed_task_room_running(room_id: str) -> str:
+    def managed_task_due_shard(shard_index: int) -> str:
         """
         生成托管任务房间执行锁 key。
 
         :param room_id: 房间 ID。
         :return: Redis key。
         """
-        return "game-hub:managed-task:room-running:{0}".format(room_id)
+        return RedisKeys._shard_tagged(shard_index, "managed-task:due")
 
     @staticmethod
-    def managed_task_dedupe(room_id: str, player_id: str, expected_version: int) -> str:
+    def managed_task_processing(room_id: str) -> str:
+        return RedisKeys.managed_task_processing_shard(RedisKeys.room_shard(room_id))
+
+    @staticmethod
+    def managed_task_processing_shard(shard_index: int) -> str:
+        return RedisKeys._shard_tagged(shard_index, "managed-task:processing")
+
+    @staticmethod
+    def managed_task_room_running(room_id: str) -> str:
+        return RedisKeys._room_tagged(room_id, "managed-task:room-running")
+
+    @staticmethod
+    def managed_task_dedupe(
+        room_id: str,
+        player_id: str,
+        expected_version: int,
+        expected_phase: str = "",
+    ) -> str:
         """
         生成托管任务去重 key。
 
         :param room_id: 房间 ID。
         :param player_id: 玩家 ID。
-        :param expected_version: 期望房间版本。
+        :param expected_version: 期望对局版本。
+        :param expected_phase: 期望阶段。
         :return: Redis key。
         """
-        return "game-hub:managed-task:dedupe:{0}:{1}:{2}".format(
-            room_id,
+        return RedisKeys._room_tagged(room_id, "managed-task:dedupe:{0}:{1}:{2}".format(
             player_id,
             int(expected_version),
+            str(expected_phase or "").strip() or "unknown",
+        ))
+
+    @staticmethod
+    def auto_advance_task_records(room_id: str) -> str:
+        """
+        生成房间自动推进任务到期 sorted set key。
+
+        :return: Redis key。
+        """
+        return RedisKeys.auto_advance_task_records_shard(RedisKeys.room_shard(room_id))
+
+    @staticmethod
+    def auto_advance_task_records_shard(shard_index: int) -> str:
+        """
+        生成房间自动推进任务执行中 sorted set key。
+
+        :return: Redis key。
+        """
+        return RedisKeys._shard_tagged(shard_index, "auto-advance-task:records")
+
+    @staticmethod
+    def auto_advance_task_due(room_id: str) -> str:
+        """
+        生成房间自动推进任务数据 key。
+
+        :param task_id: 任务 ID。
+        :return: Redis key。
+        """
+        return RedisKeys.auto_advance_task_due_shard(RedisKeys.room_shard(room_id))
+
+    @staticmethod
+    def auto_advance_task_due_shard(shard_index: int) -> str:
+        """
+        生成房间自动推进任务房间执行锁 key。
+
+        :param room_id: 房间 ID。
+        :return: Redis key。
+        """
+        return RedisKeys._shard_tagged(shard_index, "auto-advance-task:due")
+
+    @staticmethod
+    def auto_advance_task_processing(room_id: str) -> str:
+        return RedisKeys.auto_advance_task_processing_shard(RedisKeys.room_shard(room_id))
+
+    @staticmethod
+    def auto_advance_task_processing_shard(shard_index: int) -> str:
+        return RedisKeys._shard_tagged(shard_index, "auto-advance-task:processing")
+
+    @staticmethod
+    def auto_advance_task_room_running(room_id: str) -> str:
+        return RedisKeys._room_tagged(room_id, "auto-advance-task:room-running")
+
+    @staticmethod
+    def outbox_ready_rooms(room_id: str) -> str:
+        """
+        生成房间所属分片的 Outbox 就绪房间 ZSet key。
+
+        :param room_id: 房间 ID。
+        :return: Redis key。
+        """
+        return "game-hub:{{{0}}}:post-turn-outbox:ready-rooms".format(
+            RedisKeys._room_shard_tag(room_id),
         )
+
+    @staticmethod
+    def outbox_ready_room_shards() -> List[str]:
+        """返回全部 Outbox 就绪分片 ZSet key。"""
+        return [
+            "game-hub:{{room-shard:{0}}}:post-turn-outbox:ready-rooms".format(index)
+            for index in range(RedisKeys.ROOM_SHARD_COUNT)
+        ]
+
+    @staticmethod
+    def websocket_connection(service_id: str) -> str:
+        """
+        生成单个用户 WebSocket 活跃连接登记 key。
+        :param service_id: 用户服务端 ID。
+        :return: Redis key。
+        """
+        return "game-hub:websocket:connection:{0}".format(str(service_id or "").strip())
+
+    @staticmethod
+    def websocket_events() -> str:
+        """
+        生成 WebSocket 跨进程投递频道。
+        :return: Redis channel。
+        """
+        return "game-hub:websocket:events"
+
+    @staticmethod
+    def auto_advance_task_dedupe(room_id: str, expected_version: int, expected_phase: str) -> str:
+        """
+        生成房间自动推进任务去重 key。
+
+        :param room_id: 房间 ID。
+        :param expected_version: 期望对局版本。
+        :param expected_phase: 期望阶段标识。
+        :return: Redis key。
+        """
+        return RedisKeys._room_tagged(room_id, "auto-advance-task:dedupe:{0}:{1}".format(
+            int(expected_version),
+            expected_phase,
+        ))

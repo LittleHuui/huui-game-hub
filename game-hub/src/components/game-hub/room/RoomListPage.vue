@@ -17,7 +17,7 @@
         <button
           type="button"
           class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-          :disabled="loading"
+          :disabled="disabled || loading"
           @click="$emit('refresh')"
         >
           刷新
@@ -33,10 +33,12 @@
       </div>
     </header>
 
+    <slot />
+
     <RoomListPanel
       :rooms="filteredRooms"
       :loading="loading"
-      :disabled="disabled"
+      :disabled="disabled || loading"
       :error-message="errorMessage"
       :room-config-schema="roomConfigSchema"
       :empty-text="emptyText"

@@ -52,6 +52,7 @@ export function buildRoomConfigFormFields(roomConfigSchema, valueOverrides) {
     if (type === 'boolean') {
       fields.push({
         key,
+        displayOrder: rawField.displayOrder,
         controlType: 'switch',
         label,
         value: Boolean(value),
@@ -63,6 +64,7 @@ export function buildRoomConfigFormFields(roomConfigSchema, valueOverrides) {
     if (type === 'number') {
       fields.push({
         key,
+        displayOrder: rawField.displayOrder,
         controlType: 'number',
         label,
         value: Number(value),
@@ -83,6 +85,7 @@ export function buildRoomConfigFormFields(roomConfigSchema, valueOverrides) {
       const controlType = options.length > 0 && options.length <= 3 ? 'radio' : 'select';
       fields.push({
         key,
+        displayOrder: rawField.displayOrder,
         controlType,
         label,
         value,
@@ -128,32 +131,6 @@ function formatRoomConfigDisplayValue(value, field) {
   return String(value);
 }
 
-/** @type {Record<string, number>} */
-const ROOM_CONFIG_DISPLAY_KEY_PRIORITY = {
-  finishMode: 120,
-  remainingRealPlayerCountToEnd: 121,
-  appendDeckSetWhenDrawPileEmpty: 210,
-  appendDeckSetCount: 211
-};
-
-/**
- * 计算配置项展示排序权重（数值越小越靠前）。
- * @param {{ key: string; visibleWhen?: { field?: string } }} field
- * @returns {number}
- */
-function resolveRoomConfigDisplayPriority(field) {
-  const key = String(field?.key || '').trim();
-  if (ROOM_CONFIG_DISPLAY_KEY_PRIORITY[key] != null) {
-    return ROOM_CONFIG_DISPLAY_KEY_PRIORITY[key];
-  }
-  const parentKey = String(field?.visibleWhen?.field || '').trim();
-  if (parentKey) {
-    const parentPriority = ROOM_CONFIG_DISPLAY_KEY_PRIORITY[parentKey] ?? 500;
-    return parentPriority + 1;
-  }
-  return 500;
-}
-
 /**
  * 按展示优先级排序配置字段。
  * @param {Array<{ key: string; visibleWhen?: { field?: string } }>} fields
@@ -162,7 +139,7 @@ function resolveRoomConfigDisplayPriority(field) {
 function sortRoomConfigDisplayFields(fields) {
   return [...(fields || [])].sort((left, right) => {
     const priorityDiff =
-      resolveRoomConfigDisplayPriority(left) - resolveRoomConfigDisplayPriority(right);
+      (Number(left.displayOrder) || 0) - (Number(right.displayOrder) || 0);
     if (priorityDiff !== 0) {
       return priorityDiff;
     }

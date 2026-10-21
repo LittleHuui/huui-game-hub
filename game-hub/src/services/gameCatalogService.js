@@ -1,11 +1,11 @@
 import { GAME_SEED_CONFIG } from '../constants/gameSeedConfig.js';
-import { GAME_REGISTRY } from '../constants/gameRegistry.js';
+import {
+  getGameDisplayMetadata,
+  getGameFrontendModule
+} from '../games/gameModuleRegistry.js';
 import { getSeedGameConfig } from '../mappers/gameConfigMapper.js';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { canFetchRemote } from './remoteGate.js';
-
-/** 当前已有前端玩法实现的游戏。未实现游戏仍可进入占位页。 */
-const IMPLEMENTED_GAME_CODES = new Set(['minesweeper', 'match3', '2048', 'sudoku', 'uno', 'gomoku']);
 
 /**
  * 将种子或服务端游戏条目转为顶栏展示结构。
@@ -17,21 +17,23 @@ function mapCatalogEntry(raw) {
     return null;
   }
   const code = raw.gameCode;
-  const reg = GAME_REGISTRY[code] || {};
-  const supportOnline = raw.supportOnline ?? reg.supportOnline ?? false;
+  const metadata = getGameDisplayMetadata(code) || {};
+  const module = getGameFrontendModule(code);
+  const caps = module?.capabilities || {};
+  const supportOnline = raw.supportOnline ?? caps.onlineBattle === true;
   const enabled = raw.enabled !== false;
   const remoteOk = canFetchRemote();
   return {
     code,
-    name: raw.gameName || reg.name || code,
-    subName: raw.gameSubName || reg.subName || '',
-    logo: reg.logo || '🎮',
+    name: raw.gameName || metadata.name || code,
+    subName: raw.gameSubName || metadata.subName || '',
+    logo: metadata.logo || '🎮',
     supportOnline,
     enabled,
     sortNo: raw.sortNo != null ? Number(raw.sortNo) : 999,
     playable: enabled && (!supportOnline || remoteOk),
-    implemented: IMPLEMENTED_GAME_CODES.has(code),
-    capabilities: reg.capabilities || {}
+    implemented: module?.implemented === true,
+    capabilities: caps
   };
 }
 
@@ -74,9 +76,9 @@ export function resolveGameDisplayName(gameCode) {
   if (fromCatalog?.name) {
     return fromCatalog.name;
   }
-  const reg = GAME_REGISTRY[gameCode];
-  if (reg?.name) {
-    return reg.name;
+  const metadata = getGameDisplayMetadata(gameCode);
+  if (metadata?.name) {
+    return metadata.name;
   }
   const seed = getSeedGameConfig(gameCode);
   if (seed?.gameName) {

@@ -4,7 +4,8 @@ from typing import List, Optional
 
 from app.common.page_response import PageResponse
 from app.common.exceptions import NotFoundException, ValidationException
-from app.modules.boot.schemas import UserWalletResponse, WalletLedgerResponse
+from app.modules.wallet.response_schemas import UserWalletResponse
+from app.modules.wallet.response_schemas import WalletLedgerResponse
 from app.modules.user.entity_service import UserAccountEntityService
 from app.modules.wallet.entity_service import UserWalletEntityService, WalletLedgerEntityService
 from app.modules.wallet.mappers import to_user_wallet_response, to_wallet_ledger_response
@@ -319,6 +320,4 @@ class WalletModuleService:
             return row.amount
         if change_type == _CHANGE_COST:
             return -row.amount
-        if row.amount < 0:
-            return row.amount
         return row.amount

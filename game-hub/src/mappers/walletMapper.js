@@ -1,4 +1,4 @@
-import { nowMs } from '../utils/timeService.js';
+import { nowMs, toTimestampMs } from '../utils/timeService.js';
 
 /**
  * @param {object} wallet
@@ -33,9 +33,9 @@ export function mapWalletLedger(remote) {
     type,
     reason: remote.reason || '',
     amount: Math.abs(rawAmount),
-    createdAt: remote.createdAt ?? nowMs(),
-    updatedAt: remote.updatedAt ?? nowMs(),
-    syncedAt: remote.syncedAt ?? remote.updatedAt ?? nowMs(),
+    createdAt: toTimestampMs(remote.createdAt, nowMs()),
+    updatedAt: toTimestampMs(remote.updatedAt, nowMs()),
+    syncedAt: toTimestampMs(remote.syncedAt ?? remote.updatedAt, nowMs()),
     syncStatus: 'synced',
     payload: remote.payload || {}
   };

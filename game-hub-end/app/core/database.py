@@ -1,4 +1,4 @@
-﻿"""SQLAlchemy 引擎、会话与通用时间戳混入。"""
+"""SQLAlchemy database setup and session helpers."""
 
 from contextlib import contextmanager
 from typing import Any, Generator, Optional, Tuple
@@ -12,11 +12,11 @@ from app.core.time_utils import now_ms
 
 
 class Base(DeclarativeBase):
-    """声明式映射基类。"""
+    """Declarative base for all ORM models."""
 
 
 class TimestampMixin:
-    """通用时间戳字段混入（Unix 毫秒 + 软删除）。"""
+    """Common millisecond timestamp columns for persisted entities."""
 
     __abstract__ = True
 
@@ -36,9 +36,8 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, clas
 
 def get_db() -> Generator[Session, None, None]:
     """
-    FastAPI 依赖：提供请求级数据库会话。
-
-    :yield: SQLAlchemy ``Session``。
+    Provide a request-scoped SQLAlchemy session for FastAPI dependencies.
+    :yield: SQLAlchemy ``Session``.
     """
     db = SessionLocal()
     try:
@@ -54,9 +53,8 @@ def get_db() -> Generator[Session, None, None]:
 @contextmanager
 def session_scope() -> Generator[Session, None, None]:
     """
-    非 Web 场景使用的会话上下文管理器。
-
-    :yield: SQLAlchemy ``Session``。
+    Provide a transactional SQLAlchemy session outside request handling.
+    :yield: SQLAlchemy ``Session``.
     """
     session = SessionLocal()
     try:
@@ -69,11 +67,22 @@ def session_scope() -> Generator[Session, None, None]:
         session.close()
 
 
+@contextmanager
+def isolated_write(session: Session) -> Generator[None, None, None]:
+    """在请求事务内隔离一次写入；保证 SQLite SAVEPOINT 不提前提交外层事务。"""
+    connection = session.connection()
+    if connection.dialect.name == "sqlite":
+        driver_connection = connection.connection.driver_connection
+        if not driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN")
+    with session.begin_nested():
+        yield
+
+
 def _import_all_models() -> None:
     """
-    导入所有 ORM 模块以注册 ``metadata``。
-
-    仅负责装载模型类映射，不做业务初始化、不调用 service、不执行 seed。
+    Import all ORM model modules so ``Base.metadata`` contains every table.
+    Keep imports local to avoid eager service initialization at module import time.
     """
     import app.modules.game_config.models as _game_models  # noqa: F401
     import app.modules.inventory.models as _inventory_models  # noqa: F401
@@ -85,22 +94,22 @@ def _import_all_models() -> None:
     import app.modules.system.models as _system_models  # noqa: F401
     import app.modules.user.models as _user_models  # noqa: F401
     import app.modules.wallet.models as _wallet_models  # noqa: F401
+    import app.modules.room.game_settlement_models as _game_settlement_models  # noqa: F401
 
 
 def init_db() -> None:
-    """创建所有已注册映射对应的数据库表。"""
+    """Create every declared ORM table."""
     _import_all_models()
     Base.metadata.create_all(bind=engine)
 
 
 def _updated_at_was_explicitly_set(obj: Any) -> bool:
     """
-    判断 ``updated_at`` 是否已在本次会话中被业务代码显式赋值。
-
-    状态类同步 merge 会写入事件的 ``updatedAt``；不得被 flush 时刻的服务端时间覆盖。
-
-    :param obj: ORM 实例。
-    :return: 若 ``updated_at`` 相对加载状态有变更则返回 ``True``。
+    Check whether ``updated_at`` was set explicitly before flush.
+    ORM merges may intentionally carry a caller-provided ``updatedAt`` for LWW
+    conflict resolution; in that case the automatic timestamp must not overwrite it.
+    :param obj: ORM entity.
+    :return: ``True`` when ``updated_at`` has pending changes.
     """
     state = sa_inspect(obj)
     return state.attrs.updated_at.history.has_changes()
@@ -109,16 +118,15 @@ def _updated_at_was_explicitly_set(obj: Any) -> bool:
 @event.listens_for(Session, "before_flush")
 def _stamp_timestamps(session: Session, flush_context: Any, instances: Any) -> None:
     """
-    在 flush 前自动填充创建/更新时间戳（毫秒）。
-
-    新建记录补 ``created_at`` / ``updated_at``；更新记录仅在未显式修改 ``updated_at`` 时写入 ``now_ms()``，
-    以便状态类同步 LWW 保留事件时间而非 ORM flush 时间。
+    Stamp ``created_at`` and ``updated_at`` before ORM flush.
+    New rows receive both timestamps when missing. Dirty rows receive a fresh
+    ``updated_at`` unless the caller already set one explicitly for LWW semantics.
     """
     now = now_ms()
     for obj in list(session.new):
         if isinstance(obj, TimestampMixin):
             if hasattr(obj, "server_id") and not getattr(obj, "server_id", None):
-                raise ValueError("持久化前必须设置 server_id")
+                raise ValueError("Persisted entity must have server_id")
             if obj.created_at is None or obj.created_at == 0:
                 obj.created_at = now
             if obj.updated_at is None or obj.updated_at == 0:
@@ -132,10 +140,9 @@ def _stamp_timestamps(session: Session, flush_context: Any, instances: Any) -> N
 
 def new_entity_ids(prefix: str) -> Tuple[str, int, int]:
     """
-    为新实体生成 server_id 与时间戳元组。
-
-    :param prefix: 传给 ``generate_server_id`` 的前缀。
-    :return: ``(server_id, created_at, updated_at)``。
+    Generate a server id and paired create/update timestamps.
+    :param prefix: Prefix passed to ``generate_server_id``.
+    :return: ``(server_id, created_at, updated_at)``.
     """
     sid = generate_server_id(prefix)
     ts = now_ms()

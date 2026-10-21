@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.common.page_response import PageResponse
 from app.common.response import ApiResponse, success
-from app.modules.boot.schemas import PropPurchaseRecordResponse
+from app.modules.purchase.response_schemas import PropPurchaseRecordResponse
 from app.modules.purchase.deps import get_purchase_module_service
 from app.modules.purchase.module_service import PurchaseModuleService
 from app.modules.purchase.schemas import CreatePropPurchaseRequest, PropPurchaseResultResponse

@@ -1,0 +1,29 @@
+/* Multiplier */
+.doudizhu-multiplier-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.doudizhu-multiplier-panel__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.doudizhu-multiplier-panel__label {
+  font-size: 0.72rem;
+  color: rgba(226, 232, 240, 0.76);
+}
+
+.doudizhu-multiplier-panel__value {
+  font-size: 1.1rem;
+  color: #fbbf24;
+}
+
+.doudizhu-multiplier-panel__details {
+  margin: 0;
+  padding-left: 1rem;
+  flex: 1 1 100%;
+}

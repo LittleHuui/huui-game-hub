@@ -1,6 +1,11 @@
 import { GAME_SEED_CONFIG } from '../constants/gameSeedConfig.js';
 import { mergeGameProps } from '../mappers/gameConfigMapper.js';
-import { useShopStore } from '../stores/shopStore.js';
+
+/**
+ * @typedef {object} PropDisplayLookup
+ * @property {(gameCode: string, propCode: string) => { name?: string }|null|undefined} [findShopItem]
+ * @property {Record<string, unknown>} [shopItemsByGame]
+ */
 
 /**
  * 从平台种子道具定义解析展示名。
@@ -39,18 +44,20 @@ function isUsableDisplayName(name, propCode) {
  * 解析道具展示名：优先商城/规则，其次种子配置，最后回退 propCode。
  * @param {string} propCode
  * @param {string} [gameCode]
+ * @param {PropDisplayLookup} [lookup]
  * @returns {string}
  */
-export function resolvePropDisplayName(propCode, gameCode) {
+export function resolvePropDisplayName(propCode, gameCode, lookup = {}) {
   const code = String(propCode || '').trim();
   if (!code) {
     return '';
   }
 
-  const shopStore = useShopStore();
+  const findShopItem = lookup.findShopItem || (() => null);
+  const itemsByGame = lookup.shopItemsByGame || {};
 
   if (gameCode) {
-    const item = shopStore.findItem(gameCode, code);
+    const item = findShopItem(gameCode, code);
     if (isUsableDisplayName(item?.name, code)) {
       return item.name;
     }
@@ -60,8 +67,8 @@ export function resolvePropDisplayName(propCode, gameCode) {
     }
   }
 
-  for (const loadedGameCode of Object.keys(shopStore.itemsByGame)) {
-    const item = shopStore.findItem(loadedGameCode, code);
+  for (const loadedGameCode of Object.keys(itemsByGame)) {
+    const item = findShopItem(loadedGameCode, code);
     if (isUsableDisplayName(item?.name, code)) {
       return item.name;
     }

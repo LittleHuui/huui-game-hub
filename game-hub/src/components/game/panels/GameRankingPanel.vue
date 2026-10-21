@@ -36,7 +36,7 @@
 
 <script setup>
 import { computed, watch, onMounted } from 'vue';
-import { hasGameCapability } from '../../../constants/gameRegistry.js';
+import { hasGameCapability } from '../../../games/gameModuleRegistry.js';
 import { useRankingStore } from '../../../stores/rankingStore.js';
 import { usePlatformStore } from '../../../stores/platformStore.js';
 import * as rankingService from '../../../services/rankingService.js';

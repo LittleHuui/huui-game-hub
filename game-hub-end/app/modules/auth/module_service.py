@@ -5,7 +5,8 @@ from typing import List
 from app.common.error_code import ErrorCode
 from app.common.exceptions import BizException
 from app.modules.auth.schemas import LoginRequest, LoginResponse
-from app.modules.boot.schemas import UserPropBagResponse, UserWalletResponse
+from app.modules.inventory.response_schemas import UserPropBagResponse
+from app.modules.wallet.response_schemas import UserWalletResponse
 from app.modules.inventory.module_service import InventoryModuleService
 from app.modules.user.entity_service import (
     UserAccountEntityService,
@@ -75,7 +76,6 @@ class AuthModuleService:
         setting_entity = self._system_settings.create_if_not_exists(user_id)
         wallet_response = self._load_wallet_response(user_id)
         inventory_items = self._load_inventory_response(user_id)
-
         return LoginResponse(
             user=user_account_to_response(account),
             systemSetting=user_system_setting_read_to_response(

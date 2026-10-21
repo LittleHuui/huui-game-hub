@@ -1,3 +1,4 @@
+import { mergeDifficultyDefinitions } from '../../utils/mergeDifficultyDefinitions.js';
 import { GAME_SEED_CONFIG } from '../../constants/gameSeedConfig.js';
 import { getSeedGameConfig } from '../../mappers/gameConfigMapper.js';
 import { getEnabledDifficulties, setGameDifficulties } from '../../services/gameDifficultyService.js';
@@ -19,10 +20,9 @@ export const SUDOKU_GIVENS_BY_DIFFICULTY = {
 };
 
 /**
- * @param {object} game
  * @returns {object}
  */
-function firstEnabledDifficultyConfig(game) {
+function firstEnabledDifficultyConfig() {
   const first = getEnabledDifficulties(SUDOKU_CODE)[0] || {};
   return {
     difficultyCode: first.difficultyCode || 'easy',
@@ -44,7 +44,7 @@ export let SUDOKU_CONFIG = {
   gameCode: SUDOKU_CODE,
   gameName: '数独',
   featureFlags: {},
-  difficulty: firstEnabledDifficultyConfig(seedGame()),
+  difficulty: firstEnabledDifficultyConfig(),
   propRules: seedGame().propRules || []
 };
 
@@ -93,23 +93,7 @@ export function normalizeSudokuConfig(raw) {
   };
   const seedDifficulties = Array.isArray(seedConfig.difficulties) ? seedConfig.difficulties : [];
   const remoteDifficulties = Array.isArray(base.difficulties) ? base.difficulties : [];
-  const seedFirst = seedDifficulties[0] || {};
-  const mergedDifficulties =
-    remoteDifficulties.length > 0
-      ? remoteDifficulties.map((d, index) => {
-          const seedDiff = seedDifficulties[index] || seedFirst;
-          return {
-            ...seedDiff,
-            ...d,
-            config: mergeDifficultyConfig(seedDiff.config, d.config)
-          };
-        })
-      : [
-          {
-            ...seedFirst,
-            config: mergeDifficultyConfig(seedFirst.config, {})
-          }
-        ];
+  const mergedDifficulties = mergeDifficultyDefinitions(seedDifficulties, remoteDifficulties, mergeDifficultyConfig);
   setGameDifficulties(SUDOKU_CODE, mergedDifficulties);
   const firstDifficulty = mergedDifficulties.find((d) => d?.enabled !== false) || mergedDifficulties[0] || {};
   return {

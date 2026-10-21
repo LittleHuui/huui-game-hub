@@ -4,13 +4,12 @@ from typing import List, Optional
 
 from app.common.page_response import PageResponse
 from app.common.exceptions import NotFoundException, ValidationException
-from app.modules.boot.schemas import PropPurchaseRecordResponse
+from app.modules.purchase.response_schemas import PropPurchaseRecordResponse
 from app.modules.inventory.entity_service import UserPropBagEntityService
 from app.modules.inventory.module_service import InventoryModuleService
+from app.modules.inventory.mappers import to_user_prop_bag_response
 from app.modules.purchase.converters import (
     to_prop_purchase_record_response,
-    to_user_prop_bag_response,
-    to_user_wallet_response,
 )
 from app.modules.purchase.entity_service import PropPurchaseRecordEntityService
 from app.modules.purchase.models import PropPurchaseRecord
@@ -19,6 +18,7 @@ from app.modules.prop.module_service import PropModuleService
 from app.modules.prop.schemas import PropPurchaseRecordRead, PropPurchaseRequest
 from app.modules.user.entity_service import UserAccountEntityService
 from app.modules.wallet.module_service import WalletModuleService
+from app.modules.wallet.mappers import to_user_wallet_response
 
 _REASON_BUY_PROP = "buy_prop"
 

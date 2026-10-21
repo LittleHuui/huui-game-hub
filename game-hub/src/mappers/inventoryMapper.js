@@ -1,3 +1,5 @@
+import { nowMs, toTimestampMs } from '../utils/timeService.js';
+
 /**
  * 远端背包列表 → 按 gameCode 分组的 propCode 数量。
  * @param {object[]} inventory
@@ -57,9 +59,9 @@ export function mapPropUsageRecord(remote) {
     propCode: remote.propCode || '',
     quantity: remote.quantity ?? 1,
     reason: remote.useReason || 'use',
-    createdAt: remote.createdAt ?? Date.now(),
-    updatedAt: remote.updatedAt ?? Date.now(),
-    syncedAt: remote.syncedAt ?? null,
+    createdAt: toTimestampMs(remote.createdAt, nowMs()),
+    updatedAt: toTimestampMs(remote.updatedAt, nowMs()),
+    syncedAt: toTimestampMs(remote.syncedAt),
     syncStatus: 'synced',
     payload: remote.payload || { label: remote.useReason || remote.propCode }
   };

@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.common.page_response import PageResponse
 from app.common.response import ApiResponse, success
-from app.modules.boot.schemas import PropUsageRecordResponse, UserPropBagResponse
+from app.modules.inventory.response_schemas import PropUsageRecordResponse
+from app.modules.inventory.response_schemas import UserPropBagResponse
 from app.modules.inventory.deps import get_inventory_module_service
 from app.modules.inventory.module_service import InventoryModuleService
 

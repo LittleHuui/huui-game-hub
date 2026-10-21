@@ -2,6 +2,16 @@
 .git
 .gitignore
 
+# 本地工作辅助与临时目录
+.agents/
+.codex/
+.codex_pycache/
+.codex_python/
+.codex_tmp/
+.codex_test_*/
+**/tmp/
+**/temp/
+
 # 本地数据与压缩包
 data/
 *.db
@@ -14,6 +24,7 @@ game-hub-end.zip
 **/.pytest_cache
 **/.mypy_cache
 **/.coverage
+**/coverage
 **/htmlcov
 **/.venv
 **/venv
@@ -43,6 +54,5 @@ game-hub/.vite
 .DS_Store
 Thumbs.db
 
-# 文档与测试（镜像不需要）
+# 文档（镜像不需要）
 **/*.md
-game-hub-end/tests

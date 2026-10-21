@@ -3,7 +3,8 @@
 import json
 from typing import Any, Dict, Optional
 
-from app.modules.boot.schemas import PropUsageRecordResponse, UserPropBagResponse
+from app.modules.inventory.response_schemas import PropUsageRecordResponse
+from app.modules.inventory.response_schemas import UserPropBagResponse
 from app.modules.inventory.models import PropUsageRecord, UserPropBag
 
 

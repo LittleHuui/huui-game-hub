@@ -1,5 +1,3 @@
-import { usePlatformStore } from '../stores/platformStore.js';
-
 /**
  * 校验 gameCode 非空。
  * @param {unknown} gameCode
@@ -13,14 +11,4 @@ export function requireGameCode(gameCode, context) {
     throw new Error(`缺少 gameCode${suffix}`);
   }
   return code;
-}
-
-/**
- * 从 platform store 读取当前游戏 code（须已由目录/路由/boot 写入）。
- * @param {string} [context]
- * @returns {string}
- */
-export function resolvePlatformGameCode(context = 'platform') {
-  const platform = usePlatformStore();
-  return requireGameCode(platform.currentGameCode, context);
 }

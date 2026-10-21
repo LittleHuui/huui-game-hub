@@ -1,3 +1,5 @@
+import { mapActionOffers } from '../services/action-interaction/actionOfferUtils.js';
+
 /**
  * 将策略回合 GameEvent API 项映射为前端事件对象。
  * @param {object} raw
@@ -39,7 +41,7 @@ export function mapStrategyTurnGameView(raw) {
   }
   const publicState = raw.publicState && typeof raw.publicState === 'object' ? raw.publicState : {};
   const privateState = raw.privateState && typeof raw.privateState === 'object' ? raw.privateState : {};
-  const legalActions = Array.isArray(raw.legalActions) ? raw.legalActions : [];
+  const actionOffers = mapActionOffers(raw.actionOffers);
   const events = Array.isArray(raw.events)
     ? raw.events.map((item) => mapStrategyTurnGameEvent(item)).filter(Boolean)
     : [];
@@ -51,9 +53,13 @@ export function mapStrategyTurnGameView(raw) {
     viewerPlayerId,
     currentPlayerId: raw.currentPlayerId != null ? String(raw.currentPlayerId).trim() : '',
     isGameOver: Boolean(raw.isGameOver),
+    terminalMetadata:
+      raw.terminalMetadata && typeof raw.terminalMetadata === 'object'
+        ? { ...raw.terminalMetadata }
+        : null,
     publicState,
     privateState,
-    legalActions,
+    actionOffers,
     events
   };
 }

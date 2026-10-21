@@ -85,7 +85,7 @@ function boardsEqual(a, b) {
  * @param {number[][]} board
  * @returns {{ row: number; col: number }|null}
  */
-function pickRandomEmptyCell(board) {
+function pickRandomEmptyCell(board, rng = Math.random) {
   const empties = [];
   for (let r = 0; r < board.length; r++) {
     for (let c = 0; c < board[r].length; c++) {
@@ -97,7 +97,7 @@ function pickRandomEmptyCell(board) {
   if (empties.length === 0) {
     return null;
   }
-  return empties[Math.floor(Math.random() * empties.length)];
+  return empties[Math.floor(rng() * empties.length)];
 }
 
 /**
@@ -105,13 +105,13 @@ function pickRandomEmptyCell(board) {
  * @param {number[][]} board
  * @returns {number[][]}
  */
-export function spawnRandomTile(board) {
-  const cell = pickRandomEmptyCell(board);
+export function spawnRandomTile(board, rng = Math.random) {
+  const cell = pickRandomEmptyCell(board, rng);
   if (!cell) {
     return cloneBoard(board);
   }
   const next = cloneBoard(board);
-  next[cell.row][cell.col] = Math.random() < 0.9 ? 2 : 4;
+  next[cell.row][cell.col] = rng() < 0.9 ? 2 : 4;
   return next;
 }
 
@@ -121,13 +121,13 @@ export function spawnRandomTile(board) {
  * @param {number} [size]
  * @returns {{ tiles: Game2048Tile[]; spawn: Game2048Tile|null }}
  */
-export function spawnRandomTileOnTiles(tiles, size = GAME2048_SIZE) {
+export function spawnRandomTileOnTiles(tiles, size = GAME2048_SIZE, rng = Math.random) {
   const grid = tilesToGrid(tiles, size);
-  const cell = pickRandomEmptyCell(grid);
+  const cell = pickRandomEmptyCell(grid, rng);
   if (!cell) {
     return { tiles: [...tiles], spawn: null };
   }
-  const value = Math.random() < 0.9 ? 2 : 4;
+  const value = rng() < 0.9 ? 2 : 4;
   const spawn = createTile(value, cell.row, cell.col);
   return { tiles: [...tiles, spawn], spawn };
 }
@@ -137,10 +137,10 @@ export function spawnRandomTileOnTiles(tiles, size = GAME2048_SIZE) {
  * @param {number} [size]
  * @returns {number[][]}
  */
-export function createInitialBoard(size = GAME2048_SIZE) {
+export function createInitialBoard(size = GAME2048_SIZE, rng = Math.random) {
   let board = createEmptyBoard(size);
-  board = spawnRandomTile(board);
-  board = spawnRandomTile(board);
+  board = spawnRandomTile(board, rng);
+  board = spawnRandomTile(board, rng);
   return board;
 }
 
@@ -149,11 +149,11 @@ export function createInitialBoard(size = GAME2048_SIZE) {
  * @param {number} [size]
  * @returns {Game2048Tile[]}
  */
-export function createInitialTiles(size = GAME2048_SIZE) {
+export function createInitialTiles(size = GAME2048_SIZE, rng = Math.random) {
   resetTileIdCounter();
   let tiles = [];
-  ({ tiles } = spawnRandomTileOnTiles(tiles, size));
-  ({ tiles } = spawnRandomTileOnTiles(tiles, size));
+  ({ tiles } = spawnRandomTileOnTiles(tiles, size, rng));
+  ({ tiles } = spawnRandomTileOnTiles(tiles, size, rng));
   return tiles;
 }
 

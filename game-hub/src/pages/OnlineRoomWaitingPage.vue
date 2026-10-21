@@ -110,7 +110,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoomWaitingCommands } from '../composables/useRoomWaitingCommands.js';
+import { useRoomWaitingDialogs } from '../composables/useRoomWaitingDialogs.js';
+import { computed, ref, watch } from 'vue';
+import { useAsyncContext } from '../composables/useAsyncContext.js';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import AppModal from '../components/AppModal.vue';
@@ -120,13 +123,15 @@ import RoomInviteDialog from '../components/game-hub/room/RoomInviteDialog.vue';
 import RoomConfigSettingsDialog from '../components/game-hub/room/RoomConfigSettingsDialog.vue';
 import { usePlatformStore } from '../stores/platformStore.js';
 import { useRoomStore } from '../stores/roomStore.js';
-import * as roomService from '../services/roomService.js';
+import * as roomAccessService from '../services/roomAccessService.js';
+import * as roomQueryService from '../services/roomQueryService.js';
+import * as roomRealtimeService from '../services/roomRealtimeService.js';
 import { loadOnlineRuleDefinition } from '../services/onlineRoomService.js';
 import { canFetchRemote } from '../services/remoteGate.js';
-import { estimateAiRemovalOnMaxPlayersChange } from '../utils/roomConfigFormUtils.js';
-import * as toastService from '../services/toastService.js';
+import { resolveGamePlayRoute } from '../games/gameModuleRegistry.js';
 import '../components/game-hub/room/roomHub.css';
 
+const context = useAsyncContext();
 const route = useRoute();
 const router = useRouter();
 const platform = usePlatformStore();
@@ -143,28 +148,8 @@ const errorMessage = ref('');
 const shellRejoinOffered = ref(false);
 const rejoinBusy = ref(false);
 
-const detailVisible = ref(false);
-const settingsVisible = ref(false);
-const settingsSubmitting = ref(false);
-const inviteDialogVisible = ref(false);
-const inviteUsers = ref([]);
-const inviteLoading = ref(false);
-const inviteSubmitting = ref(false);
-const inviteError = ref('');
-
-const removeMemberConfirmVisible = ref(false);
-const removeMemberTargetId = ref('');
-const removeMemberConfirmMessage = ref('确认移除该玩家？');
-
-const aiRemoveConfirmVisible = ref(false);
-const pendingSettingsPayload = ref(null);
-const pendingAiRemoveCount = ref(0);
-
-/** @type {(() => void)|null} */
-let releaseRoomRealtime = null;
-
-const room = computed(() => currentRoom.value);
-const currentPlayerId = computed(() => roomService.getCurrentPlayerId());
+const room = computed(() => currentRoom.value?.roomId === roomId.value ? currentRoom.value : null);
+const currentPlayerId = computed(() => roomAccessService.getCurrentPlayerId());
 
 const statusText = computed(() => {
   if (onlineBlocked.value) {
@@ -223,27 +208,34 @@ async function navigatePlayRoom() {
   if (!gameCode.value || !roomId.value) {
     return;
   }
-  await router.push({
-    name: 'online-play-entry',
-    params: { gameCode: gameCode.value, roomId: roomId.value }
-  });
+  const playRoute = resolveGamePlayRoute(gameCode.value, roomId.value);
+  if (!playRoute) {
+    throw new Error('当前游戏不支持在线对战');
+  }
+  await router.push(playRoute);
 }
 
 async function ensureRoomContext() {
+  const operation = context.capture();
+  if (!operation.isCurrent()) return;
   const id = roomId.value;
   if (!id || !gameCode.value || onlineBlocked.value) {
     errorMessage.value = id ? '房间不可用' : '房间 ID 无效';
     await navigateLobby();
+    if (!operation.isCurrent()) return;
     return;
   }
   loading.value = true;
   errorMessage.value = '';
   try {
-    await loadOnlineRuleDefinition(gameCode.value);
-    await roomService.loadRoomDetail(id);
+    await loadOnlineRuleDefinition(gameCode.value, { signal: operation.signal });
+    if (!operation.isCurrent()) return;
+    await roomQueryService.loadRoomDetail(id, { signal: operation.signal });
+    if (!operation.isCurrent()) return;
     if (!room.value) {
       errorMessage.value = '房间不存在或已被删除';
       await navigateLobby();
+      if (!operation.isCurrent()) return;
       return;
     }
     if (!isRoomMember.value) {
@@ -253,271 +245,80 @@ async function ensureRoomContext() {
       }
       errorMessage.value = '你尚未加入该房间';
       await navigateLobby();
+      if (!operation.isCurrent()) return;
       return;
     }
     shellRejoinOffered.value = false;
     ready.value = true;
   } catch (err) {
+    if (!operation.isCurrent()) return;
     errorMessage.value = err?.message || '加载房间失败';
     await navigateLobby();
+    if (!operation.isCurrent()) return;
   } finally {
-    loading.value = false;
-  }
-}
-
-function onOpenDetail() {
-  detailVisible.value = true;
-}
-
-async function onRejoinManagedRoom() {
-  const id = roomId.value;
-  if (!id || rejoinBusy.value) {
-    return;
-  }
-  rejoinBusy.value = true;
-  errorMessage.value = '';
-  try {
-    await roomService.rejoinManagedRoom(id);
-    shellRejoinOffered.value = false;
-    await roomService.loadRoomDetail(id);
-    ready.value = true;
-    const status = String(room.value?.status || '').trim();
-    if (status === 'playing') {
-      await navigatePlayRoom();
-    }
-  } catch (err) {
-    errorMessage.value = err?.message || '重新加入失败';
-  } finally {
-    rejoinBusy.value = false;
-  }
-}
-
-async function onBackToLobbyFromShell() {
-  await navigateLobby();
-}
-
-async function onLeaveRoom() {
-  const id = roomId.value;
-  if (!id) {
-    await navigateLobby();
-    return;
-  }
-  actionBusy.value = true;
-  errorMessage.value = '';
-  try {
-    await roomService.leaveRoom(id);
-    await navigateLobby();
-  } catch (err) {
-    errorMessage.value = err?.message || '离开房间失败';
-  } finally {
-    actionBusy.value = false;
+    if (operation.isCurrent()) loading.value = false;
   }
 }
 
 /**
  * @param {string} targetPlayerId
  */
-function onRemoveMemberRequest(targetPlayerId) {
-  const normalizedTargetId = String(targetPlayerId || '').trim();
-  if (!normalizedTargetId || !isRoomMember.value) {
-    return;
-  }
-  const members = Array.isArray(room.value?.members) ? room.value.members : [];
-  const target = members.find((item) => String(item?.playerId || '').trim() === normalizedTargetId);
-  removeMemberTargetId.value = normalizedTargetId;
-  removeMemberConfirmMessage.value = target?.isAi ? '确认移除该 AI？' : '确认移除该玩家？';
-  removeMemberConfirmVisible.value = true;
-}
-
-function onCancelRemoveMember() {
-  removeMemberConfirmVisible.value = false;
-  removeMemberTargetId.value = '';
-}
-
-async function onConfirmRemoveMember() {
-  const id = roomId.value;
-  const normalizedTargetId = removeMemberTargetId.value;
-  if (!id || !normalizedTargetId) {
-    onCancelRemoveMember();
-    return;
-  }
-  actionBusy.value = true;
-  errorMessage.value = '';
-  try {
-    await roomService.removeRoomMember(id, normalizedTargetId);
-    await roomService.loadRoomDetail(id);
-    onCancelRemoveMember();
-  } catch (err) {
-    toastService.push(err?.message || '移除玩家失败', 'error');
-  } finally {
-    actionBusy.value = false;
-  }
-}
 
 /**
  * @param {{ error?: string; maxPlayers?: number; roomConfig?: object }} payload
  */
-async function onRoomSettingsSubmit(payload) {
-  if (payload?.error) {
-    toastService.push(payload.error, 'warning');
-    return;
-  }
-  const id = roomId.value;
-  if (!id || !isRoomMember.value || !payload) {
-    return;
-  }
-  const aiRemoveCount = estimateAiRemovalOnMaxPlayersChange(room.value, payload.maxPlayers);
-  if (aiRemoveCount > 0) {
-    pendingSettingsPayload.value = payload;
-    pendingAiRemoveCount.value = aiRemoveCount;
-    aiRemoveConfirmVisible.value = true;
-    return;
-  }
-  await saveRoomSettings(payload);
-}
-
-function onCancelAiRemoveConfirm() {
-  aiRemoveConfirmVisible.value = false;
-  pendingSettingsPayload.value = null;
-  pendingAiRemoveCount.value = 0;
-}
-
-async function onConfirmAiRemoveAndSave() {
-  const payload = pendingSettingsPayload.value;
-  if (!payload) {
-    onCancelAiRemoveConfirm();
-    return;
-  }
-  await saveRoomSettings(payload);
-  onCancelAiRemoveConfirm();
-}
 
 /**
  * @param {{ maxPlayers?: number; roomConfig?: object }} payload
  */
-async function saveRoomSettings(payload) {
-  const id = roomId.value;
-  if (!id || !isRoomMember.value) {
-    return;
-  }
-  settingsSubmitting.value = true;
-  try {
-    await roomService.updateRoomConfig(id, payload);
-    await roomService.loadRoomDetail(id);
-    settingsVisible.value = false;
-  } catch (err) {
-    toastService.push(err?.message || '保存房间设置失败', 'error');
-  } finally {
-    settingsSubmitting.value = false;
-  }
-}
 
-async function onAddAi() {
-  const id = roomId.value;
-  if (!id || !isRoomMember.value) {
-    return;
-  }
-  actionBusy.value = true;
-  errorMessage.value = '';
-  try {
-    await roomService.addRoomAi(id);
-    await roomService.loadRoomDetail(id);
-  } catch (err) {
-    errorMessage.value = err?.message || '添加 AI 失败';
-  } finally {
-    actionBusy.value = false;
-  }
-}
+const {
+  onRejoinManagedRoom,
+  onBackToLobbyFromShell,
+  onLeaveRoom,
+  onAddAi,
+  onStartGame
+} = useRoomWaitingCommands({ roomId, room, isRoomMember, context, actionBusy, rejoinBusy, errorMessage, shellRejoinOffered, ready, navigateLobby, navigatePlayRoom });
 
-async function onStartGame() {
-  const id = roomId.value;
-  if (!id || !isRoomMember.value) {
-    return;
-  }
-  actionBusy.value = true;
-  errorMessage.value = '';
-  try {
-    await roomService.startRoomGame(id);
-    await roomService.loadRoomDetail(id);
-    const status = String(room.value?.status || '').trim();
-    if (status === 'playing') {
-      await navigatePlayRoom();
-    }
-  } catch (err) {
-    errorMessage.value = err?.message || '开始游戏失败';
-  } finally {
-    actionBusy.value = false;
-  }
-}
+const {
+  detailVisible,
+  settingsVisible,
+  settingsSubmitting,
+  inviteDialogVisible,
+  inviteUsers,
+  inviteLoading,
+  inviteSubmitting,
+  inviteError,
+  removeMemberConfirmVisible,
+  removeMemberConfirmMessage,
+  aiRemoveConfirmVisible,
+  pendingAiRemoveCount,
+  resetDialogs,
+  onOpenDetail,
+  onRemoveMemberRequest,
+  onCancelRemoveMember,
+  onConfirmRemoveMember,
+  onRoomSettingsSubmit,
+  onCancelAiRemoveConfirm,
+  onConfirmAiRemoveAndSave,
+  loadInviteUsers,
+  onInvite,
+  onInviteUser
+} = useRoomWaitingDialogs({ roomId, room, isRoomMember, context, actionBusy, errorMessage });
 
-async function loadInviteUsers() {
-  const id = roomId.value;
-  if (!id) {
-    return;
-  }
-  inviteLoading.value = true;
-  inviteError.value = '';
-  try {
-    inviteUsers.value = await roomService.loadInviteCandidates(id);
-  } catch (err) {
-    inviteUsers.value = [];
-    inviteError.value = err?.message || '加载在线用户失败';
-  } finally {
-    inviteLoading.value = false;
-  }
-}
-
-function onInvite() {
-  if (!room.value || !isRoomMember.value) {
-    return;
-  }
-  inviteError.value = '';
-  inviteDialogVisible.value = true;
-  void loadInviteUsers();
-}
-
-/**
- * @param {{ serviceId: string; nickname: string }} user
- */
-async function onInviteUser(user) {
-  const id = roomId.value;
-  if (!id || !user?.serviceId) {
-    return;
-  }
-  inviteSubmitting.value = true;
-  try {
-    roomService.sendRoomInvite(id, {
-      serviceId: user.serviceId,
-      nickname: user.nickname
-    });
-    inviteDialogVisible.value = false;
-  } catch (err) {
-    inviteError.value = err?.message || '邀请失败';
-  } finally {
-    inviteSubmitting.value = false;
-  }
-}
-
-onMounted(async () => {
-  if (!gameCode.value) {
-    return;
-  }
+watch([gameCode, roomId, onlineBlocked], () => {
+  const operation = context.reset();
+  ready.value = false;
+  loading.value = false;
+  actionBusy.value = false;
+  rejoinBusy.value = false;
+  shellRejoinOffered.value = false;
+  resetDialogs();
+  if (!gameCode.value || onlineBlocked.value) return;
   platform.setCurrentGame(gameCode.value);
-  if (onlineBlocked.value) {
-    return;
-  }
-  const id = roomId.value;
-  if (!id) {
-    await navigateLobby();
-    return;
-  }
-  if (releaseRoomRealtime) {
-    releaseRoomRealtime();
-    releaseRoomRealtime = null;
-  }
-  releaseRoomRealtime = roomService.bindRoomRealtime(id);
-  await ensureRoomContext();
-});
+  if (roomId.value) operation.own(roomRealtimeService.bindRoomRealtime(roomId.value));
+  void ensureRoomContext();
+}, { immediate: true });
 
 watch(
   () => room.value?.status,
@@ -532,10 +333,4 @@ watch(
   }
 );
 
-onUnmounted(() => {
-  if (releaseRoomRealtime) {
-    releaseRoomRealtime();
-    releaseRoomRealtime = null;
-  }
-});
 </script>

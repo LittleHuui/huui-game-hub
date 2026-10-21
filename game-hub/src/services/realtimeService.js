@@ -1,23 +1,23 @@
 import { apiBase } from '../api/request.js';
 import { REALTIME_MESSAGE_TYPES } from '../constants/realtimeMessageTypes.js';
-import * as userRepository from '../repositories/userRepository.js';
+import * as onlineAuthService from './onlineAuthService.js';
 import { useSettingStore } from '../stores/settingStore.js';
 import * as websocketClient from '../utils/websocketClient.js';
+import { remoteRepository } from '../repositories/remoteRepository.js';
 
 /**
  * 连接平台实时通道。
  * @param {{ resetAuthFailed?: boolean }} options
  */
-export function connect(options = {}) {
+export async function connect(options = {}) {
   if (isLocalMode()) {
     websocketClient.disconnect();
     return;
   }
-  const serviceId = userRepository.resolveServerUserId();
-  if (!serviceId) {
+  if (!onlineAuthService.hasCurrentAccessToken()) {
     return;
   }
-  websocketClient.connect(buildRealtimeUrl(serviceId), {
+  websocketClient.connect(createRealtimeUrl, {
     resetAuthFailed: options.resetAuthFailed === true,
     shouldReconnect: canConnectRealtime
   });
@@ -64,17 +64,25 @@ export function off(type, handler) {
   websocketClient.off(type, handler);
 }
 
-function buildRealtimeUrl(serviceId) {
+function buildRealtimeUrl(ticket) {
   const base = apiBase();
   const origin = base || window.location.origin;
   const url = new URL('/ws/game-hub/realtime', origin);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.searchParams.set('serviceId', serviceId);
+  url.searchParams.set('ticket', ticket);
   return url.toString();
 }
 
+async function createRealtimeUrl() {
+  const ticketData = await remoteRepository.issueRealtimeTicket();
+  if (!ticketData?.ticket) {
+    return '';
+  }
+  return buildRealtimeUrl(ticketData.ticket);
+}
+
 function canConnectRealtime() {
-  return !isLocalMode() && Boolean(userRepository.resolveServerUserId());
+  return !isLocalMode() && onlineAuthService.hasCurrentAccessToken();
 }
 
 function isLocalMode() {
@@ -89,3 +97,12 @@ function createRequestId() {
 }
 
 export { REALTIME_MESSAGE_TYPES };
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('game-hub-online-auth-failed', () => {
+    disconnect({ manual: true });
+  });
+  window.addEventListener('game-hub-realtime-auth-failed', () => {
+    onlineAuthService.handleAuthenticationFailure();
+  });
+}

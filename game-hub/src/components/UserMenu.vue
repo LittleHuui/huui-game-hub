@@ -27,7 +27,8 @@
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount } from 'vue';
+import { ref } from 'vue';
+import { useOutsideClick } from '../composables/useOutsideClick.js';
 
 defineProps({
   user: { type: Object, required: true },
@@ -44,23 +45,5 @@ function pick(type) {
   emit('open-modal', type);
 }
 
-function onDocClick(e) {
-  const root = anchor.value;
-  if (root && root.contains(e.target)) {
-    return;
-  }
-  open.value = false;
-}
-
-watch(open, (v) => {
-  if (v) {
-    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
-  } else {
-    document.removeEventListener('click', onDocClick, true);
-  }
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocClick, true);
-});
+useOutsideClick(open, anchor, () => { open.value = false; });
 </script>

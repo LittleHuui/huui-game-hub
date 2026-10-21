@@ -4,7 +4,7 @@ import {
   toLocalMatchRecord
 } from '../mappers/matchMapper.js';
 import { mapScoreRecord, mapLocalScoreToPayload, toLocalScoreRecord } from '../mappers/scoreMapper.js';
-import { pageItems, groupByUserId } from '../mappers/sharedMapper.js';
+import { pageItems } from '../mappers/sharedMapper.js';
 import { useUserStore } from '../stores/userStore.js';
 import { useHistoryStore } from '../stores/historyStore.js';
 import { remoteRepository } from './remoteRepository.js';
@@ -13,6 +13,9 @@ import { resolveServerUserId } from './userRepository.js';
 import { persistAllLocal } from './localPersistRepository.js';
 import { requireGameCode } from '../utils/requireGameCode.js';
 import { sortHistoryRecordsDesc } from '../utils/historySort.js';
+
+import { captureUserDataIdentity, mapRecordsToIdentity } from './userDataIdentity.js';
+import { mergeRecordsByClientId } from './recordMerge.js';
 
 const PAGE = { pageNum: 1, pageSize: 20 };
 
@@ -23,18 +26,7 @@ const PAGE = { pageNum: 1, pageSize: 20 };
  * @returns {object[]}
  */
 function mergeMatchRecords(remoteList, localList) {
-  const byClientId = new Map();
-  for (const row of remoteList) {
-    if (row && row.clientId) {
-      byClientId.set(row.clientId, row);
-    }
-  }
-  for (const row of localList) {
-    if (row && row.clientId && !byClientId.has(row.clientId)) {
-      byClientId.set(row.clientId, row);
-    }
-  }
-  return sortHistoryRecordsDesc(Array.from(byClientId.values()));
+  return sortHistoryRecordsDesc(mergeRecordsByClientId(localList, remoteList));
 }
 
 /**
@@ -87,33 +79,12 @@ export function pushScoreRecord(rec, onPending) {
  * 将云端对局记录合并进本地桶（保留 pending，避免同步响应滞后时冲掉刚结束的对局）。
  * @param {object[]} matchRecords
  */
-export function applyCloudMatches(matchRecords) {
-  if (!Array.isArray(matchRecords) || !matchRecords.length) {
-    return;
-  }
+export function applyCloudMatches(matchRecords, identity = captureUserDataIdentity(useUserStore())) {
+  if (!Array.isArray(matchRecords)) return;
   const historyStore = useHistoryStore();
-  const userStore = useUserStore();
-  const localKey = userStore.auth.currentUserId;
-  const serverId = resolveServerUserId();
-  const mapped = matchRecords.map(mapMatchRecord);
-  const next = { ...historyStore.matchRecordsByUser };
-
-  const remoteForCurrent = mapped.filter(
-    (r) => r.userId === localKey || (serverId && r.userId === serverId)
-  );
-  const existing = next[localKey] || [];
-  ensureUserBucket(next, localKey);
-  next[localKey] = mergeMatchRecords(remoteForCurrent, existing);
-
-  const grouped = groupByUserId(mapped);
-  for (const [uid, rows] of Object.entries(grouped)) {
-    if (uid === localKey || (serverId && uid === serverId)) {
-      continue;
-    }
-    const ex = next[uid] || [];
-    next[uid] = mergeMatchRecords(rows, ex);
-  }
-  historyStore.matchRecordsByUser = next;
+  const uid = identity.localUserId;
+  const mapped = mapRecordsToIdentity(matchRecords, mapMatchRecord, identity);
+  historyStore.matchRecordsByUser[uid] = mergeMatchRecords(mapped, historyStore.matchRecordsByUser[uid]);
   persistAllLocal();
 }
 
@@ -121,33 +92,12 @@ export function applyCloudMatches(matchRecords) {
  * 将云端成绩记录合并进本地桶（保留 pending）。
  * @param {object[]} scoreRecords
  */
-export function applyCloudScores(scoreRecords) {
-  if (!Array.isArray(scoreRecords) || !scoreRecords.length) {
-    return;
-  }
+export function applyCloudScores(scoreRecords, identity = captureUserDataIdentity(useUserStore())) {
+  if (!Array.isArray(scoreRecords)) return;
   const historyStore = useHistoryStore();
-  const userStore = useUserStore();
-  const localKey = userStore.auth.currentUserId;
-  const serverId = resolveServerUserId();
-  const mapped = scoreRecords.map(mapScoreRecord);
-  const next = { ...historyStore.scoreRecordsByUser };
-
-  const remoteForCurrent = mapped.filter(
-    (r) => r.userId === localKey || (serverId && r.userId === serverId)
-  );
-  const existing = next[localKey] || [];
-  ensureUserBucket(next, localKey);
-  next[localKey] = mergeMatchRecords(remoteForCurrent, existing);
-
-  const grouped = groupByUserId(mapped);
-  for (const [uid, rows] of Object.entries(grouped)) {
-    if (uid === localKey || (serverId && uid === serverId)) {
-      continue;
-    }
-    const ex = next[uid] || [];
-    next[uid] = mergeMatchRecords(rows, ex);
-  }
-  historyStore.scoreRecordsByUser = next;
+  const uid = identity.localUserId;
+  const mapped = mapRecordsToIdentity(scoreRecords, mapScoreRecord, identity);
+  historyStore.scoreRecordsByUser[uid] = mergeMatchRecords(mapped, historyStore.scoreRecordsByUser[uid]);
   persistAllLocal();
 }
 
@@ -170,12 +120,12 @@ function mapRemoteMatchForRefresh(remote, queryGameCode) {
  * @param {string} gameCode
  */
 export async function refreshMatches(userId, gameCode) {
+  const identity = captureUserDataIdentity(useUserStore(), userId);
   const code = requireGameCode(gameCode, 'refreshMatches');
   const page = await remoteRepository.getMatches(userId, { gameCode: code, ...PAGE });
   const historyStore = useHistoryStore();
-  const userStore = useUserStore();
-  const localKey = userStore.auth.currentUserId;
-  const remote = pageItems(page).map((row) => mapRemoteMatchForRefresh(row, code));
+  const localKey = identity.localUserId;
+  const remote = mapRecordsToIdentity(pageItems(page), (row) => mapRemoteMatchForRefresh(row, code), identity);
   const existing = historyStore.matchRecordsByUser[localKey] || [];
   const others = existing.filter((r) => {
     const rowCode = r.gameCode || '';

@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-const props = defineProps({
+defineProps({
   visible: {
     type: Boolean,
     default: false

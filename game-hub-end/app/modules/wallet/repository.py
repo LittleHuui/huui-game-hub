@@ -29,6 +29,30 @@ class UserWalletRepository:
             stmt = stmt.where(UserWallet.deleted_at.is_(None))
         return self._session.scalar(stmt)
 
+    def lock_by_user_ids(self, user_ids: List[str]) -> List[UserWallet]:
+        """
+        按稳定顺序锁定一组真人钱包。
+        :param user_ids: 用户 ID 列表。
+        :return: 已锁定的钱包列表。
+        """
+        normalized_ids = sorted({
+            str(user_id or "").strip()
+            for user_id in user_ids
+            if str(user_id or "").strip()
+        })
+        if not normalized_ids:
+            return []
+        stmt = (
+            select(UserWallet)
+            .where(
+                UserWallet.user_id.in_(normalized_ids),
+                UserWallet.deleted_at.is_(None),
+            )
+            .order_by(UserWallet.user_id.asc())
+            .with_for_update()
+        )
+        return list(self._session.scalars(stmt).all())
+
     def add(self, entity: UserWallet) -> UserWallet:
         """插入钱包。"""
         self._session.add(entity)

@@ -3,11 +3,11 @@ import { apiUrl, requestJson, requestRawJson } from './request.js';
 const HUB = '/api/game-hub';
 
 /**
- * 健康检查（保留原始响应解析，避免 dev 下 index.html 误判）。
+ * 依赖就绪检查，保留原始响应解析，避免开发服务器返回 HTML 时误判。
  * @returns {Promise<unknown>}
  */
-export async function healthCheck() {
-  const url = apiUrl(`${HUB}/health`);
+export async function readinessCheck() {
+  const url = apiUrl(`${HUB}/health/ready`);
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), 4000);
   try {
@@ -17,23 +17,23 @@ export async function healthCheck() {
       headers: { Accept: 'application/json' }
     });
     if (!res.ok) {
-      throw new Error(`health HTTP ${res.status}`);
+      throw new Error(`readiness HTTP ${res.status}`);
     }
     const ct = (res.headers.get('content-type') || '').toLowerCase();
     if (!ct.includes('application/json')) {
-      throw new Error('health response is not application/json');
+      throw new Error('readiness response is not application/json');
     }
     const raw = await res.json();
     if (raw && typeof raw === 'object' && 'code' in raw) {
       if (raw.code !== 0 || raw.success === false) {
-        throw new Error(raw.message || 'health check failed');
+        throw new Error(raw.message || 'readiness check failed');
       }
       return raw.data;
     }
     return raw;
   } catch (e) {
     if (e && e.name === 'AbortError') {
-      throw new Error('health 请求超时');
+      throw new Error('依赖就绪检查超时');
     }
     throw e;
   } finally {
@@ -53,8 +53,8 @@ export function getBootContext(payload) {
  * @param {object} payload
  * @returns {Promise<object>}
  */
-export function syncCloudSave(payload) {
-  return requestJson('POST', apiUrl(`${HUB}/sync/cloud-save`), payload, 12000);
+export function syncCloudSave(payload, options = {}) {
+  return requestJson('POST', apiUrl(`${HUB}/sync/cloud-save`), payload, 12000, {}, options);
 }
 
 export function getGames() {
@@ -121,10 +121,14 @@ export function getLeaderboard(params) {
 
 /**
  * @param {{ username: string; deviceId: string }} payload
- * @returns {Promise<{ user: object; systemSetting: object; wallet: object; inventory: object[] }>}
+ * @returns {Promise<{ user: object; systemSetting: object; wallet: object; inventory: object[]; accessToken?: string; expiresAt?: number }>}
  */
 export function login(payload) {
   return requestJson('POST', apiUrl(`${HUB}/auth/login`), payload);
+}
+
+export function issueRealtimeTicket() {
+  return requestJson('POST', apiUrl(`${HUB}/auth/realtime-ticket`), {});
 }
 
 /**

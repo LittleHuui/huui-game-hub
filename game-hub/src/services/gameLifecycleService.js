@@ -1,4 +1,4 @@
-import { hasGameCapability } from '../constants/gameRegistry.js';
+import { hasGameCapability } from '../games/gameModuleRegistry.js';
 import { useRankingStore } from '../stores/rankingStore.js';
 import * as gameConfigService from './gameConfigService.js';
 import * as inventoryService from './inventoryService.js';

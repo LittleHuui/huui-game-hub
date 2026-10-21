@@ -1,85 +1,60 @@
-# =========================
 # Python
-# =========================
 __pycache__/
 *.py[cod]
 *$py.class
 
-# =========================
-# Virtual Environment
-# =========================
+# Local Python and Codex runtime artifacts
+.codex_pycache/
+.codex_python/
+.codex_tmp/
+.codex_test_*/
+
+# Virtual environments
 venv/
 .venv/
 env/
 
-# =========================
-# IDE
-# =========================
-.idea/
-.vscode/
+# Node dependencies and tooling cache
+node_modules/
+.vite/
+.cache/
+.eslintcache
+*.tsbuildinfo
 
-# =========================
-# Logs
-# =========================
-logs/
-*.log
+# Runtime configuration
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# =========================
-# SQLite
-# =========================
+# Local databases and Docker runtime data
 *.db
+*.sqlite
 *.sqlite3
-
-# Docker 运行时数据
+*.db-journal
+*.sqlite-journal
+*.sqlite3-journal
+*.db-wal
+*.sqlite-wal
+*.sqlite3-wal
+*.db-shm
+*.sqlite-shm
+*.sqlite3-shm
 data/
 
-# =========================
-# Environment
-# =========================
-.env
-
-# =========================
-# Build
-# =========================
-dist/
-build/
-
-# =========================
-# Pytest
-# =========================
+# Test and coverage output
 .pytest_cache/
-
-# =========================
-# Mypy
-# =========================
 .mypy_cache/
-
-# =========================
-# Coverage
-# =========================
 .coverage
+coverage/
 htmlcov/
 
-# =========================
-# OS
-# =========================
-.DS_Store
-Thumbs.db
-
-# =========================
-# Node Modules
-# =========================
-node_modules/
-
-# =========================
-# Build Output
-# =========================
+# Build output
 dist/
 build/
 
-# =========================
 # Logs
-# =========================
 logs/
 *.log
 npm-debug.log*
@@ -87,44 +62,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# =========================
-# Environment
-# =========================
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
 
-# =========================
-# IDE
-# =========================
+# IDE and operating system files
 .idea/
 .vscode/
-
-# =========================
-# OS
-# =========================
 .DS_Store
 Thumbs.db
-
-# =========================
-# Vite
-# =========================
-.vite/
-
-# =========================
-# Cache
-# =========================
-.cache/
-.eslintcache
-
-# =========================
-# Coverage
-# =========================
-coverage/
-
-# =========================
-# TypeScript
-# =========================
-*.tsbuildinfo

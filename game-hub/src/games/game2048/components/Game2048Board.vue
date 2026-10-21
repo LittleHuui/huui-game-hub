@@ -9,7 +9,6 @@
       aria-label="2048 棋盘"
       @keydown.prevent="onKeydown"
       @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
       @pointerleave="onPointerUp"
@@ -246,15 +245,6 @@ function onPointerDown(event) {
     event.currentTarget?.setPointerCapture?.(event.pointerId);
   } catch {
     /* 部分环境不支持 capture */
-  }
-}
-
-/**
- * @param {PointerEvent} event
- */
-function onPointerMove(event) {
-  if (pointerId.value !== event.pointerId || !pointerStart.value) {
-    return;
   }
 }
 

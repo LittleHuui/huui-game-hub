@@ -8,20 +8,9 @@ import { SUDOKU_PAGE_SETTING_FILTER_UNAVAILABLE } from './sudokuPageSettings.js'
  * @param {string} difficultyCode
  * @returns {{ solution: number[][]; puzzle: number[][]; cells: import('./sudokuEngine.js').SudokuCell[][] }}
  */
-export function createBoardForDifficulty(difficultyCode) {
+export function createBoardForDifficulty(difficultyCode, rng = Math.random) {
   const givensCount = getGivensCountForDifficulty(difficultyCode);
-  return createNewPuzzle(givensCount);
-}
-
-/**
- * @param {number} totalSec
- * @returns {string}
- */
-export function formatDurationMmSs(totalSec) {
-  const sec = Math.max(0, Math.floor(totalSec));
-  const minutes = Math.floor(sec / 60);
-  const seconds = sec % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return createNewPuzzle(givensCount, rng);
 }
 
 /**

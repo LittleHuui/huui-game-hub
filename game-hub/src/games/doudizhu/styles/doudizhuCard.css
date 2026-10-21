@@ -1,0 +1,184 @@
+/* Card */
+.doudizhu-card {
+  --doudizhu-laizi-rank-size: 14px;
+  --doudizhu-laizi-corner-star-size: 10px;
+  --doudizhu-laizi-center-star-size: 28px;
+  --doudizhu-laizi-source-rank-size: 11px;
+  --doudizhu-laizi-index-inset: 5px;
+  position: relative;
+  width: 74px;
+  height: 104px;
+  margin: 0;
+  border-radius: 9px;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.doudizhu-card--selected {
+  transform: translateY(-10px);
+}
+
+.doudizhu-hand .selectable-item-hand__item--drag-selected .doudizhu-card,
+.doudizhu-hand .selectable-item-hand__item--selected .doudizhu-card {
+  box-shadow: 0 0 0 3px #fbbf24, 0 4px 12px rgba(0, 0, 0, 0.42);
+}
+
+.doudizhu-card__image,
+.doudizhu-card__face {
+  width: 100%;
+  height: 100%;
+  border-radius: 9px;
+  display: block;
+}
+
+.doudizhu-card__face {
+  position: relative;
+  background: linear-gradient(180deg, #fff 0%, #f3f4f6 100%);
+  border: 1px solid #d1d5db;
+  box-sizing: border-box;
+}
+
+.doudizhu-card--red .doudizhu-card__face {
+  color: #dc2626;
+}
+
+.doudizhu-card--black .doudizhu-card__face {
+  color: #111827;
+}
+
+.doudizhu-card--joker .doudizhu-card__face {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+}
+
+.doudizhu-card--joker-big .doudizhu-card__face {
+  color: #dc2626;
+}
+
+.doudizhu-card--joker-small .doudizhu-card__face {
+  color: #111827;
+}
+
+.doudizhu-card--face-down .doudizhu-card__face {
+  background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
+  border-color: #1e40af;
+}
+
+.doudizhu-card--laizi .doudizhu-card__face {
+  color: #9b6015;
+}
+
+.doudizhu-card__laizi-index {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 1.4em;
+  font-size: var(--doudizhu-laizi-rank-size);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.doudizhu-card__laizi-index--top {
+  top: var(--doudizhu-laizi-index-inset);
+  left: var(--doudizhu-laizi-index-inset);
+}
+
+.doudizhu-card__laizi-index--bottom {
+  right: var(--doudizhu-laizi-index-inset);
+  bottom: var(--doudizhu-laizi-index-inset);
+  transform: rotate(180deg);
+}
+
+.doudizhu-card__laizi-star {
+  display: block;
+  width: var(--doudizhu-laizi-corner-star-size);
+  height: var(--doudizhu-laizi-corner-star-size);
+  flex: 0 0 auto;
+  background-color: #cc8a24;
+  -webkit-mask: url('../../../assets/games/doudizhu/icons/star-filled.svg') center / contain no-repeat;
+  mask: url('../../../assets/games/doudizhu/icons/star-filled.svg') center / contain no-repeat;
+}
+
+.doudizhu-card__laizi-star--center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--doudizhu-laizi-center-star-size);
+  height: var(--doudizhu-laizi-center-star-size);
+  transform: translate(-50%, -50%);
+}
+
+.doudizhu-card--substituted .doudizhu-card__laizi-star--center {
+  left: 60%;
+}
+
+.doudizhu-card__laizi-source-rank {
+  font-size: var(--doudizhu-laizi-source-rank-size);
+}
+
+.doudizhu-card__corner {
+  position: absolute;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.1;
+  padding: 0.3rem;
+}
+
+.doudizhu-card__corner--top {
+  top: 0;
+  left: 0;
+}
+
+.doudizhu-card__corner--bottom {
+  bottom: 0;
+  right: 0;
+  transform: rotate(180deg);
+}
+
+.doudizhu-card__suit-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.doudizhu-card__joker-label {
+  top: 0.3rem;
+  bottom: auto;
+  left: 0.25rem;
+  right: auto;
+  padding: 0;
+  font-size: clamp(0.42rem, 0.82vw, 0.56rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  transform: none;
+  z-index: 1;
+}
+
+.doudizhu-card__joker-clown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54%;
+  max-height: 54%;
+  object-fit: contain;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.doudizhu-card__back-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #dbeafe;
+  font-weight: 700;
+}

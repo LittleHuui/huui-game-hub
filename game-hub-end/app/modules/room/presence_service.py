@@ -4,40 +4,55 @@ import asyncio
 import logging
 from typing import Awaitable, Callable, Dict, List, Optional
 
-from app.core.time_utils import now_ms
+from app.core.clock import Clock, CancellableSleeper, Sleeper, system_clock
+from app.core.redis.redis_client import RedisClient, redis_client
+from app.core.redis.redis_keys import RedisKeys
+from app.core.websocket.connection_manager import connection_manager
 from app.core.websocket.message_types import MessageType
 from app.modules.room.repository import RoomRepository
-from app.core.websocket.connection_manager import connection_manager
 
 logger = logging.getLogger(__name__)
 
 PING_INTERVAL_MS = 6000
 TIMEOUT_MISS_LIMIT = 3
+DERIVED_INDEX_REBUILD_INTERVAL_MS = 300000
 
 SHELL_MANAGED_REASONS = frozenset({"presenceTimeout"})
+
+MarkMemberShellManagedHandler = Callable[[str, str, str], Awaitable[bool]]
 
 
 class RoomPresenceService(object):
     """对局内玩家探活与断线判定。"""
 
-    def __init__(self) -> None:
-        """初始化探活服务。"""
-        self._repository = RoomRepository()
-        self._mark_member_shell_managed_handler = None  # type: Optional[Callable[[str, str, str], Awaitable[bool]]]
-        self._running = False
-        self._task = None  # type: Optional[asyncio.Task]
-
-    def bind_mark_member_shell_managed_handler(
+    def __init__(
         self,
-        handler: Callable[[str, str, str], Awaitable[bool]],
+        repository: RoomRepository,
+        mark_member_shell_managed: MarkMemberShellManagedHandler,
+        clock: Clock,
+        sleeper: Sleeper,
+        redis: RedisClient,
+        module_logger: Optional[logging.Logger] = None,
     ) -> None:
         """
-        绑定成员 shell 托管处理函数。
+        初始化探活服务。
 
-        :param handler: ``mark_member_shell_managed(room_id, player_id, reason) -> bool``。
-        :return: 无。
+        :param repository: 房间 Redis 仓库。
+        :param mark_member_shell_managed: shell 托管命令端口。
+        :param clock: 可注入时钟。
+        :param sleeper: 可注入异步等待器。
+        :param redis: Redis 客户端，用于在线 TTL 判定。
+        :param module_logger: 模块日志对象。
         """
-        self._mark_member_shell_managed_handler = handler
+        self._repository = repository
+        self._mark_member_shell_managed = mark_member_shell_managed
+        self._clock = clock
+        self._sleeper = sleeper
+        self._redis = redis
+        self._logger = module_logger or logger
+        self._running = False
+        self._task = None  # type: Optional[asyncio.Task]
+        self._last_derived_rebuild_at_ms = 0
 
     async def start(self) -> None:
         """
@@ -57,12 +72,10 @@ class RoomPresenceService(object):
         :return: 无。
         """
         self._running = False
+        if isinstance(self._sleeper, CancellableSleeper):
+            self._sleeper.cancel()
         if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            await self._task
         self._task = None
 
     async def accept_pong(self, service_id: str, payload: Dict[str, object]) -> None:
@@ -91,7 +104,7 @@ class RoomPresenceService(object):
             return
         if sequence != expected_sequence:
             return
-        current_time = now_ms()
+        current_time = self._clock.now_ms()
         state["missedCount"] = 0
         state["lastPongAt"] = current_time
         state["lastAckSequence"] = sequence
@@ -107,8 +120,10 @@ class RoomPresenceService(object):
             try:
                 await self._tick_once()
             except Exception:
-                logger.exception("room presence tick failed")
-            await asyncio.sleep(PING_INTERVAL_MS / 1000.0)
+                self._logger.exception("room presence tick failed")
+            if not self._running:
+                break
+            await self._sleeper.sleep_ms(PING_INTERVAL_MS)
 
     async def _tick_once(self) -> None:
         """
@@ -116,9 +131,29 @@ class RoomPresenceService(object):
 
         :return: 无。
         """
+        await self._maybe_rebuild_derived_indexes()
         room_ids = await self._list_playing_room_ids()
         for room_id in room_ids:
+            if not self._running:
+                break
             await self._tick_room(room_id)
+
+    async def _maybe_rebuild_derived_indexes(self) -> None:
+        """
+        低频从 Room 主事实扫描重建派生索引。
+
+        :return: 无。
+        """
+        current_time = self._clock.now_ms()
+        if current_time - self._last_derived_rebuild_at_ms < DERIVED_INDEX_REBUILD_INTERVAL_MS:
+            return
+        self._last_derived_rebuild_at_ms = current_time
+        try:
+            rebuilt = await self._repository.rebuild_member_derived_indexes()
+            if rebuilt > 0:
+                self._logger.info("rebuilt member derived indexes, count=%s", rebuilt)
+        except Exception:
+            self._logger.exception("rebuild member derived indexes failed")
 
     async def _list_playing_room_ids(self) -> List[str]:
         """
@@ -149,7 +184,7 @@ class RoomPresenceService(object):
             await self._repository.delete_presence(room_id)
             return
         game_code = str(meta.get("gameCode", "")).strip()
-        current_time = now_ms()
+        current_time = self._clock.now_ms()
         for member in members:
             if bool(member.get("isAi")):
                 continue
@@ -178,16 +213,29 @@ class RoomPresenceService(object):
                 },
             )
             if missed >= TIMEOUT_MISS_LIMIT:
+                if await self._is_player_online_by_ttl(player_id):
+                    state["missedCount"] = 0
+                    await self._repository.save_presence_state(room_id, player_id, state)
+                    continue
                 marked = await self._notify_shell_managed(room_id, player_id, "presenceTimeout")
                 if marked:
                     await self._repository.delete_presence_state(room_id, player_id)
                 else:
-                    logger.warning(
+                    self._logger.warning(
                         "presenceTimeout shell mark failed, keep state, roomId=%s playerId=%s missed=%s",
                         room_id,
                         player_id,
                         missed,
                     )
+
+    async def _is_player_online_by_ttl(self, player_id: str) -> bool:
+        """
+        根据 Redis 在线状态 TTL 判断玩家是否仍在线。
+
+        :param player_id: 玩家 ID。
+        :return: 在线状态 key 仍存在时返回 ``True``。
+        """
+        return bool(await self._redis.exists(RedisKeys.user_online(player_id)))
 
     async def _notify_shell_managed(self, room_id: str, player_id: str, reason: str) -> bool:
         """
@@ -201,15 +249,6 @@ class RoomPresenceService(object):
         normalized_reason = str(reason or "").strip()
         if normalized_reason not in SHELL_MANAGED_REASONS:
             return True
-        handler = self._mark_member_shell_managed_handler
-        if handler is None:
-            logger.warning(
-                "presence shell handler not bound, roomId=%s playerId=%s",
-                room_id,
-                player_id,
-            )
-            return False
-        return bool(await handler(room_id, player_id, normalized_reason))
-
-
-room_presence_service = RoomPresenceService()
+        return bool(
+            await self._mark_member_shell_managed(room_id, player_id, normalized_reason),
+        )

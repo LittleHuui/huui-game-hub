@@ -206,7 +206,7 @@ export async function initialize() {
 
   let apiOk = false;
   try {
-    await remoteRepository.healthCheck();
+    await remoteRepository.readinessCheck();
     apiOk = true;
   } catch {
     apiOk = false;

@@ -73,7 +73,7 @@
   }
 }
 
-/* 顶栏左右固定宽度，仅中间游戏列表区域可收缩并滚动 */
+/* 顶栏左右区域保持可见，中间游戏列表占满剩余宽度。 */
 .site-topbar-inner>.site-brand {
   flex-shrink: 0;
   min-width: max-content;
@@ -143,27 +143,24 @@ body,
   box-shadow: 0 0 14px rgba(125, 211, 252, 0.5);
 }
 
-/* 顶栏游戏横向列表：轨道左右留白与列表对齐 */
-.site-topbar-games.hub-scrollbar::-webkit-scrollbar-track {
-  margin: 0 6px;
-}
-
 .site-topbar-games {
-  line-height: 50px;
-  height: 50px;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
-  max-width: min(640px, 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
+  .site-topbar-inner {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
   .site-topbar-games {
-    justify-content: flex-start;
+    order: 3;
+    flex-basis: 100%;
   }
 }
 
@@ -176,11 +173,12 @@ body,
 
 .game-selector-row--topbar {
   margin-bottom: 0;
-  gap: 8px;
-  justify-content: flex-start;
-  width: max-content;
+  gap: 6px 8px;
+  justify-content: center;
+  width: 100%;
   max-width: 100%;
-  flex-wrap: nowrap;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .game-selector-row--topbar .game-selector-pill {

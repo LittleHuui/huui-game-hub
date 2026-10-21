@@ -532,6 +532,34 @@ export const GAME_SEED_CONFIG = {
       ],
       clientConfigs: [],
       propRules: []
+    },
+    {
+      gameCode: 'doudizhu',
+      gameName: '斗地主',
+      gameSubName: 'Doudizhu',
+      supportOnline: true,
+      enabled: true,
+      sortNo: 7,
+      config: {
+        featureFlags: {
+          leaderboard: false,
+          shop: false,
+          inventory: false,
+          offline: false,
+          onlineBattle: true
+        }
+      },
+      difficulties: [
+        {
+          difficultyCode: 'classic',
+          difficultyName: '经典',
+          enabled: true,
+          sortNo: 1,
+          config: {}
+        }
+      ],
+      clientConfigs: [],
+      propRules: []
     }
   ]
 };

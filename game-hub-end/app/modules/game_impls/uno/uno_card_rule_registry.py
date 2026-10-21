@@ -1,9 +1,9 @@
-﻿"""UNO 牌型规则注册表。"""
+"""UNO 牌型规则注册表。"""
 
+from types import MappingProxyType
 from typing import Any, Dict, List, Optional
 
 from app.common.exceptions import ValidationException
-from app.core.time_utils import now_ms
 from app.modules.game_impls.uno.schemas import (
     UnoCard,
     UnoDiscardRecentCard,
@@ -11,14 +11,15 @@ from app.modules.game_impls.uno.schemas import (
     UnoRuleContext,
 )
 from app.modules.game_impls.uno.uno_card_rule import UnoCardRule
+from app.modules.game_impls.uno.uno_constants import VALID_CHOOSE_COLORS
 from app.modules.game_impls.uno.uno_turn_rule import (
     advance_turn,
     count_active_players,
     peek_next_active_player,
 )
-from app.modules.strategy_turn.schemas import GameEvent
+from app.modules.game_impls.uno.uno_event_factory import append_domain_event
 
-_VALID_COLORS = frozenset(("RED", "YELLOW", "BLUE", "GREEN"))
+_VALID_COLORS = frozenset(VALID_CHOOSE_COLORS)
 _RULE_KEY_DRAW_TWO = "DRAW_TWO"
 _RULE_KEY_WILD_DRAW4 = "WILD_DRAW4"
 
@@ -167,40 +168,15 @@ def _apply_discard(context: UnoRuleContext, card: UnoCard) -> None:
     state.discardPile.append(card)
 
 
-def _append_event(
-    context: UnoRuleContext,
-    event_type: str,
-    payload: Dict[str, Any],
-) -> None:
-    """
-    向上下文追加一条对局事件。
-
-    :param context: 规则上下文。
-    :param event_type: 事件类型。
-    :param payload: 事件载荷。
-    """
-    event = GameEvent(
-        eventType=event_type,
-        sequence=context.nextEventSequence,
-        playerId=context.actingPlayerId,
-        payload=payload,
-        createdAt=now_ms(),
-    )
-    context.newEvents.append(event)
-    context.nextEventSequence = context.nextEventSequence + 1
-
-
 def _record_discard_recent(
     context: UnoRuleContext,
     card: UnoCard,
-    sequence: int,
 ) -> None:
     """
     记录最近有效出牌，仅保留最近两张。
 
     :param context: 规则上下文。
     :param card: 已出的牌。
-    :param sequence: 对应出牌事件序号。
     :return: 无。
     """
     state = context.runtimeState
@@ -210,7 +186,7 @@ def _record_discard_recent(
             cardInstanceId=card.cardInstanceId,
             cardCode=card.cardCode,
             playerId=context.actingPlayerId,
-            sequence=sequence,
+            sequence=0,
         )
     )
     state.discardPileRecentCards = recent[-2:]
@@ -223,9 +199,9 @@ def _emit_card_played(context: UnoRuleContext, card: UnoCard, rule_key: str) -> 
     :param context: 规则上下文。
     :param card: 已出的牌。
     :param rule_key: 牌型规则键。
+    :return: 无。
     """
-    sequence = context.nextEventSequence
-    _append_event(
+    append_domain_event(
         context,
         "uno.card.played",
         {
@@ -237,7 +213,7 @@ def _emit_card_played(context: UnoRuleContext, card: UnoCard, rule_key: str) -> 
             "numberValue": card.numberValue,
         },
     )
-    _record_discard_recent(context, card, sequence)
+    _record_discard_recent(context, card)
 
 
 def _stack_or_set_pending_draw(
@@ -284,7 +260,7 @@ def _stack_or_set_pending_draw(
             stackable=stackable,
             sourceCardType=source_card_type,
         )
-    _append_event(
+    append_domain_event(
         context,
         "uno.pendingDraw.updated",
         {
@@ -393,7 +369,7 @@ class _DisableCardRule(UnoCardRule):
         advance_turn(state, 2)
         state.effectAdvanceHandled = True
         _emit_card_played(context, card, self.rule_key)
-        _append_event(
+        append_domain_event(
             context,
             "uno.player.disabled",
             {"disabledPlayerId": disabled_player_id},
@@ -432,7 +408,7 @@ class _ReverseCardRule(UnoCardRule):
         state.playDirection = state.playDirection * -1
         next_player_id = advance_turn(state, 1)
         state.effectAdvanceHandled = True
-        _append_event(
+        append_domain_event(
             context,
             "uno.direction.reversed",
             {
@@ -502,7 +478,7 @@ class _WildCardRule(UnoCardRule):
         _apply_discard(context, card)
         state.currentColor = chosen_color
         _emit_card_played(context, card, self.rule_key)
-        _append_event(
+        append_domain_event(
             context,
             "uno.color.chosen",
             {"chooseColor": chosen_color},
@@ -540,21 +516,21 @@ class _WildDrawFourCardRule(UnoCardRule):
         state.currentColor = chosen_color
         _stack_or_set_pending_draw(context, _RULE_KEY_WILD_DRAW4, 4)
         _emit_card_played(context, card, self.rule_key)
-        _append_event(
+        append_domain_event(
             context,
             "uno.color.chosen",
             {"chooseColor": chosen_color},
         )
 
 
-_CARD_RULE_REGISTRY = {
+_CARD_RULE_REGISTRY = MappingProxyType({
     "NUMBER": _NumberCardRule(),
     "DISABLE": _DisableCardRule(),
     "REVERSE": _ReverseCardRule(),
     "DRAW_TWO": _DrawTwoCardRule(),
     "WILD": _WildCardRule(),
     "WILD_DRAW4": _WildDrawFourCardRule(),
-}  # type: Dict[str, UnoCardRule]
+})
 
 def get_card_rule(rule_key: str) -> Optional[UnoCardRule]:
     """

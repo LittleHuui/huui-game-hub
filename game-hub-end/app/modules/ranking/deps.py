@@ -1,4 +1,4 @@
-﻿"""排行榜模块 FastAPI 依赖注入。"""
+"""排行榜模块 FastAPI 依赖注入。"""
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -17,11 +17,12 @@ def get_score_record_repository(db: Session = Depends(get_db)) -> ScoreRecordRep
     :param db: 请求级数据库会话。
     :return: ``ScoreRecordRepository`` 实例。
     """
-    return ScoreRecordRepository(db, GameDefinitionRepository(db))
+    return ScoreRecordRepository(db)
 
 
 def get_ranking_module_service(
     score_repository: ScoreRecordRepository = Depends(get_score_record_repository),
+    db: Session = Depends(get_db),
 ) -> RankingModuleService:
     """
     组装排行榜模块服务依赖。
@@ -29,4 +30,4 @@ def get_ranking_module_service(
     :param score_repository: 成绩仓储（排行榜派生查询）。
     :return: ``RankingModuleService`` 实例。
     """
-    return RankingModuleService(RankingEntityService(score_repository))
+    return RankingModuleService(RankingEntityService(score_repository, GameDefinitionRepository(db)))

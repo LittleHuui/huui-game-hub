@@ -1,0 +1,28 @@
+/* Hand */
+.doudizhu-hand {
+  --doudizhu-hand-card-width: clamp(68px, 6vw, 82px);
+  --doudizhu-hand-card-height: clamp(96px, 8.45vw, 116px);
+}
+
+.doudizhu-hand .selectable-item-hand {
+  width: max-content;
+  min-width: 100%;
+  min-height: var(--doudizhu-hand-card-height);
+  padding: 0;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.doudizhu-hand .selectable-item-hand__item {
+  margin: 0;
+  padding: 0;
+}
+
+.doudizhu-hand .doudizhu-card {
+  width: var(--doudizhu-hand-card-width);
+  height: var(--doudizhu-hand-card-height);
+}
+
+.doudizhu-hand .doudizhu-card--selected {
+  transform: none;
+}

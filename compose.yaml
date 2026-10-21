@@ -23,6 +23,7 @@ services:
       - redis
     environment:
       DATABASE_URL: sqlite:////app/data/game_hub.db
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?AUTH_JWT_SECRET must be configured}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
