@@ -95,6 +95,7 @@ for index = 1, #deletes do
 end
 redis.call('EXPIRE', playersKey, ttl)
 redis.call('SET', roomVersionKey, tostring(nextVersion), 'EX', ttl)
+redis.call('EXPIRE', gameVersionKey, ttl)
 if hasGameIndex then
   redis.call('SADD', KEYS[8], roomId)
   if redis.call('TTL', KEYS[8]) < ttl then redis.call('EXPIRE', KEYS[8], ttl) end

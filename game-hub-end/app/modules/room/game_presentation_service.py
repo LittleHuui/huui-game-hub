@@ -1,6 +1,6 @@
 """房间对局视图展示与推送端口。"""
 
-from typing import Callable, List, Optional
+from typing import List
 
 from app.modules.room.mapper import build_room_response
 from app.modules.room.realtime_service import (
@@ -46,7 +46,7 @@ class GamePresentationService(object):
 
         :param snapshot: 运行时快照。
         :param player_id: 视角玩家 ID。
-        :param version: 房间版本号。
+        :param version: 对局版本号。
         :param events: 本帧事件列表。
         :return: 对局视图。
         """
@@ -61,7 +61,7 @@ class GamePresentationService(object):
         game_version: int,
         frame_events: List[GameEvent],
         is_game_over: bool,
-        room_version: Optional[int] = None,
+        room_version: int,
     ) -> None:
         """
         推送房间更新与各成员对局视图。
@@ -73,12 +73,11 @@ class GamePresentationService(object):
         :param game_version: 对局版本号。
         :param frame_events: 本帧事件列表。
         :param is_game_over: 是否已对局结束。
-        :param room_version: 房间元数据版本号；为空时与对局版本相同。
+        :param room_version: 与 meta、members 同一事实快照的房间元数据版本号。
         :return: 无。
         """
         normalized_room_id = str(room_id or "").strip()
-        resolved_room_version = int(room_version) if room_version is not None else int(game_version)
-        room_response = build_room_response(meta, members, resolved_room_version)
+        room_response = build_room_response(meta, members, int(room_version))
         player_ids = collect_human_player_ids(room_response.members)
         enrich_fn = self.enrich_game_view
         views = build_views_for_members(
@@ -104,7 +103,7 @@ class GamePresentationService(object):
         members: list,
         snapshot: RuntimeSnapshot,
         game_version: int,
-        room_version: Optional[int] = None,
+        room_version: int,
     ) -> None:
         """
         推送终局元数据更新后的权威 GameView（不附带领域事件）。
@@ -114,7 +113,7 @@ class GamePresentationService(object):
         :param members: 成员列表。
         :param snapshot: 提交后的运行时快照。
         :param game_version: 对局版本号。
-        :param room_version: 房间元数据版本号；为空时与对局版本相同。
+        :param room_version: 与 meta、members 同一事实快照的房间元数据版本号。
         :return: 无。
         """
         await self.push_room_and_game_view(

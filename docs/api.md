@@ -129,19 +129,25 @@ Ticket 存储在 Redis，短时有效且只能消费一次。房间及实时操�
 
 `RuntimeSnapshot` 是对局事实源，`GameView` 是按查看者投影的结果。客户端消费 `actionOffers`，不读取 `GameView.legalActions`。
 
+`GameView.version` 与动作 `baseVersion` 属于对局版本流，在同一 `roomId` 存续期间跨局单调递增；终局回到等待页不归零，下一次开局继续递增。房间详情的 `roomVersion` 是独立的元数据版本，不能由对局版本替代。HTTP、动作响应与 WebSocket GameView 使用同一版本语义。
+
 斗地主癞子玩法的初始阶段为 `laizi_reveal`：`publicState.gameState` 已公开 `enableLaizi`、`laiziRankCode`、`laiziRankValue` 和 `laiziCardCodes`，此时玩家手牌与底牌尚未生成。自动推进到 `dealing` 后，`privateState.handCards` 中对应点数牌的 `isLaizi` 为 `true`；底牌在地主确认前仍通过 `bottomCards: []` 隐藏。癞子点数独立于底牌确定，普通玩法直接从 `dealing` 开始。
 
 斗地主 `GET /rooms/{roomId}/view` 的倍率与理论结算字段如下，开局、动作响应及实时 GameView 使用相同投影：
 
 | JSON 路径（相对 `publicState`） | 类型 | 说明与示例 |
 | --- | --- | --- |
-| `gameState.globalMultiplier` | integer，必填 | 全桌唯一累计倍率，初始 `1`；明牌、抢地主、加倍、炸弹、王炸、春天 / 反春天均累乘此值，例如 `16`。 |
-| `gameState.multiplierDetails` | array，必填 | 倍率明细，初始 `[]`；每项包含 `type`、`playerId`（春天可空）、`multiplier`、`globalMultiplierAfter`、`eventType`。 |
-| `players[].showCards` / `players[].isDoubled` | boolean，必填 | 玩家是否选择明牌 / 加倍，例如 `true`；只表示行为，玩家不再返回 `personalMultiplier`。 |
-| `gameState.settlement` | object / null，必填 | 未结算为 `null`；结算对象包括 `baseScore`、`globalMultiplier`、`landlordPlayerId`、`winnerRole`、`springType`、`multiplierDetails.entries`、`playerSettlements`。 |
-| `gameState.settlement.playerSettlements[]` | object | 新结算每项仅含 `playerId`、`role`、`scoreDelta`；地主按两份、农民各一份 `baseScore × globalMultiplier` 生成理论零和积分，例如 `+32 / -16 / -16`，不含个人倍率。 |
+| `gameState.rulesVersion` | integer，必填 | `1` 为旧叫抢与全桌计分，`2` 为经典叫分与成对计分；新局为 `2`。历史缺版本字段的快照只归入 `1`，未知版本拒绝。 |
+| `gameState.baseScore` | integer / null，必填 | 本局底分。版本 `2` 未定地主前为 `null`，确认后为本局房间基础分乘最终叫分，例如 `10 × 3 = 30`；版本 `1` 保留原基础分。 |
+| `gameState.bidScore` | integer / null，必填 | 版本 `2` 本轮当前最高叫分，初始 `0`，合法出价为 `1 / 2 / 3`；旧叫抢快照可能为 `null`，不能将其解释为叫分结果。 |
+| `gameState.globalMultiplier` | integer，必填 | 版本 `2` 的公共倍率，初始 `1`，仅实际炸弹、王炸、春天 / 反春天累乘此值；叫分进入底分，明牌和加倍只影响对应个人因素。版本 `1` 保留原全桌倍率含义。 |
+| `gameState.multiplierDetails` | array，必填 | 倍率来源，初始 `[]`；新明细包含 `scope`（`GLOBAL` / `PLAYER`）、`type`、`playerId`、`multiplier`、`eventType`，仅 `GLOBAL` 明细含 `globalMultiplierAfter`。历史明细可能未携带 `scope`，按本局旧规则解释。 |
+| `players[].showCards` / `players[].isDoubled` | boolean，必填 | 玩家是否选择明牌 / 加倍，例如 `true`；用于行为标签，不返回个人倍率数字字段。版本 `2` 计分时由行为与本局固定系数派生个人因素。 |
+| `gameState.lastActionEvent.payload.bidScore` | integer，可选 | 最近叫分动作的实际分值，配合 `playerId / actionType` 显示座位反馈；不叫及其他动作没有该参数。 |
+| `gameState.settlement` | object / null，必填 | 未结算为 `null`；新生成结算含 `rulesVersion`、`bidScore`（新版最终叫分，旧版为 `null`）、`baseScore`、`globalMultiplier`、`landlordPlayerId`、`winnerRole`、`springType`、`multiplierDetails.entries`、`playerSettlements`。历史已生成对象原样保留。 |
+| `gameState.settlement.playerSettlements[]` | object | 每项含 `playerId`、`role`、`scoreDelta`；版本 `2` 每名农民按 `baseScore × globalMultiplier × 地主个人因素 × 该农民个人因素` 计分，地主为两份的相反合计，例如 `+360 / -240 / -120`。 |
 
-历史上已生成的旧结算保留原结果；新结算与已归一化的未结算局统一使用全桌倍率。实际钱包入账仍以 `terminalMetadata.settlementResult.playerSettlements[].actualDelta` 为准。
+`CALL_LANDLORD` 在版本 `2` 中提供携带 `payload.bidScore` 的合法更高分值选项；`PASS_CALL` 表示不叫。每人至多一次，`3` 分立即定地主，一轮结束取最高分；全部不叫重新发牌。该版本不提供抢地主动作。版本 `1` 的在途局继续原叫抢与全桌结算，不中途切换玩法。历史已生成结算（包括 `PENDING`）保留原结果，实际钱包入账仍以 `terminalMetadata.settlementResult.playerSettlements[].actualDelta` 为准。
 
 ```json
 {

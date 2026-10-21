@@ -1,6 +1,7 @@
 """斗地主托管动作评分参数（集中配置，便于人工调参）。"""
 
 from dataclasses import dataclass
+from typing import Tuple
 
 
 @dataclass(frozen=True)
@@ -15,7 +16,13 @@ class DoudizhuActionScoreConfig(object):
     show_weak_penalty_ratio: float = 0.3
     skip_strong_penalty_ratio: float = 0.3
 
-    # --- 叫地主 ---
+    # --- 经典叫分：各档位的强度门槛与风险惩罚，仅影响 AI 偏好 ---
+    bid_strength_thresholds: Tuple[float, float, float] = (140.0, 240.0, 360.0)
+    bid_preferred_score: float = 500.0
+    bid_distance_penalty: float = 150.0
+    bid_overreach_penalty: float = 600.0
+
+    # --- 旧版在途局叫地主 ---
     call_when_strong: float = 450.0
     pass_call_when_weak: float = 450.0
     call_threshold: float = 200.0

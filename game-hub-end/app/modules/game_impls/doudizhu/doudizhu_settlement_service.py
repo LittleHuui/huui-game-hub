@@ -2,6 +2,13 @@
 
 from typing import Any, Dict, Optional
 
+from app.common.exceptions import ValidationException
+from app.modules.game_impls.doudizhu.doudizhu_rule_policy import (
+    resolve_base_score,
+    resolve_personal_multipliers,
+    resolve_rules_version,
+    uses_classic_bid_rules,
+)
 from app.modules.game_impls.doudizhu.doudizhu_clock_service import DoudizhuClockService
 from app.modules.game_impls.doudizhu.doudizhu_constants import (
     ANTI_SPRING,
@@ -70,9 +77,14 @@ class DoudizhuSettlementService(object):
         :param context: 事件上下文。
         :return: 无。
         """
+        if state.get("settlement") is not None:
+            raise ValidationException("斗地主结算已生成，不能重复计算")
         rule_config = state.get("ruleConfig") or {}
         animation_ms = animation_durations(rule_config)
         landlord_id = str(state.get("landlordPlayerId") or "")
+        base_score = resolve_base_score(state)
+        if base_score is None:
+            raise ValidationException("斗地主尚未确定底分，不能生成结算")
         landlord_won = winner_player_id == landlord_id
         winner_role = WINNER_LANDLORD if landlord_won else WINNER_FARMER
         spring_type = self.detect_spring_type(state, landlord_won)
@@ -102,7 +114,10 @@ class DoudizhuSettlementService(object):
                 landlord_player_id=landlord_id,
                 winner_role=winner_role,
                 global_multiplier=int(state.get("globalMultiplier") or 1),
-                base_score=int(rule_config.get("baseScore", 1)),
+                base_score=base_score,
+                personal_multipliers=resolve_personal_multipliers(state),
+                rules_version=resolve_rules_version(state),
+                bid_score=state.get("bidScore") if uses_classic_bid_rules(state) else None,
                 spring_type=spring_type,
                 multiplier_details={"entries": list(state.get("multiplierDetails") or [])},
             )

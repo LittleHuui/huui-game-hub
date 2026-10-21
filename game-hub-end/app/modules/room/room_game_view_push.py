@@ -59,7 +59,7 @@ class RoomGameViewPushPort(object):
         if str(meta.get("status", "")).strip() != "playing":
             return
         try:
-            snapshot = (await self._state_reader.load_consistent(normalized_room_id)).snapshot
+            consistent_state = await self._state_reader.load_consistent(normalized_room_id)
         except BizException:
             logger.warning(
                 "push_current_game_view_if_playing runtime missing, roomId=%s",
@@ -68,13 +68,10 @@ class RoomGameViewPushPort(object):
             return
         room_response = build_room_response(meta, members, version)
         player_ids = collect_human_player_ids(room_response.members)
-        game_version = await self._repository.get_game_version(normalized_room_id)
-        if game_version is None:
-            game_version = 0
         views = build_views_for_members(
             self._presentation_service.enrich_game_view,
-            snapshot,
-            int(game_version),
+            consistent_state.snapshot,
+            int(consistent_state.gameVersion),
             [],
             player_ids,
         )

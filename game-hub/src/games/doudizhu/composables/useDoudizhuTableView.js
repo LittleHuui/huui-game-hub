@@ -75,11 +75,11 @@ export function useDoudizhuTableView(input) {
   }
 
   /**
-   * 构建单个对手面板。
+   * 构建单个玩家的信息展示。
    * @param {object} playerState
    * @returns {object}
    */
-  function buildOpponentPanel(playerState) {
+  function buildPlayerPanel(playerState) {
     const playerId = String(playerState?.playerId || '').trim();
     const member = findRoomMember(playerId);
     const managedMode = String(member?.managedMode || '').trim();
@@ -102,11 +102,17 @@ export function useDoudizhuTableView(input) {
     resolveOpponentLayout(publicPlayers.value, input.viewerIdRef.value)
   );
   const leftOpponent = computed(() =>
-    opponentLayout.value.left ? buildOpponentPanel(opponentLayout.value.left) : null
+    opponentLayout.value.left ? buildPlayerPanel(opponentLayout.value.left) : null
   );
   const rightOpponent = computed(() =>
-    opponentLayout.value.right ? buildOpponentPanel(opponentLayout.value.right) : null
+    opponentLayout.value.right ? buildPlayerPanel(opponentLayout.value.right) : null
   );
+  const viewerPlayer = computed(() => {
+    const player = publicPlayers.value.find((item) =>
+      String(item?.playerId || '').trim() === String(input.viewerIdRef.value || '').trim()
+    );
+    return player ? buildPlayerPanel(player) : null;
+  });
   const lastPlayPlayerNickname = computed(() => {
     const playerId = String(gameState.value?.lastPlayPlayerId || '').trim();
     return playerId ? resolvePlayerNickname(playerId) : '';
@@ -123,7 +129,8 @@ export function useDoudizhuTableView(input) {
     }
     const playerId = String(rawEvent.playerId || '').trim();
     const actionType = String(rawEvent.actionType || '').trim();
-    return playerId && actionType ? { playerId, actionType } : null;
+    const payload = rawEvent.payload && typeof rawEvent.payload === 'object' ? rawEvent.payload : {};
+    return playerId && actionType ? { playerId, actionType, payload } : null;
   });
   const lastActionPlayerNickname = computed(() => {
     const playerId = lastActionEvent.value?.playerId;
@@ -150,6 +157,7 @@ export function useDoudizhuTableView(input) {
     passPlayerIds,
     viewerManagedActive,
     viewerIsCurrentTurn,
+    viewerPlayer,
     leftOpponent,
     rightOpponent,
     lastPlayPlayerNickname,

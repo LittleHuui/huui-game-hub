@@ -29,6 +29,9 @@ class DoudizhuScoreInput(object):
         winner_role: str,
         global_multiplier: int,
         base_score: int,
+        personal_multipliers: Dict[str, int],
+        rules_version: int,
+        bid_score: Optional[int] = None,
         spring_type: Optional[str] = None,
         multiplier_details: Optional[Dict[str, object]] = None,
     ) -> None:
@@ -40,6 +43,9 @@ class DoudizhuScoreInput(object):
         :param winner_role: 胜方角色 ``landlord`` / ``farmer``。
         :param global_multiplier: 全局倍数。
         :param base_score: 底分。
+        :param personal_multipliers: 按本局规则解析的个人行为系数。
+        :param rules_version: 本局规则版本，用于保留结算口径。
+        :param bid_score: 已确认的叫分；旧叫抢规则为空。
         :param spring_type: 春天类型。
         :param multiplier_details: 倍数明细。
         """
@@ -48,6 +54,9 @@ class DoudizhuScoreInput(object):
         self.winnerRole = winner_role
         self.globalMultiplier = global_multiplier
         self.baseScore = base_score
+        self.personalMultipliers = personal_multipliers
+        self.rulesVersion = rules_version
+        self.bidScore = bid_score
         self.springType = spring_type
         self.multiplierDetails = multiplier_details or {}
 
@@ -78,6 +87,8 @@ def build_settlement(score_input: DoudizhuScoreInput) -> DoudizhuSettlementResul
             )
         )
     return DoudizhuSettlementResult(
+        rulesVersion=score_input.rulesVersion,
+        bidScore=score_input.bidScore,
         landlordPlayerId=score_input.landlordPlayerId,
         winnerRole=score_input.winnerRole,
         baseScore=score_input.baseScore,
@@ -112,16 +123,20 @@ def _validate_score_input(score_input: DoudizhuScoreInput) -> None:
         raise ValidationException("底分必须大于 0")
     if score_input.globalMultiplier < 1:
         raise ValidationException("全局倍数必须大于 0")
+    for player_id in score_input.playerIds:
+        multiplier = score_input.personalMultipliers.get(player_id)
+        if isinstance(multiplier, bool) or not isinstance(multiplier, int) or multiplier < 1:
+            raise ValidationException("玩家个人行为系数必须为正整数")
 
 
 def _build_theoretical_deltas(
     score_input: DoudizhuScoreInput,
 ) -> Dict[str, int]:
     """
-    按全桌统一倍率计算地主两份、每名农民一份的理论积分（零和）。
+    按地主与每名农民的独立关系计算理论积分（零和）。
 
     单对结算额：
-    baseScore × globalMultiplier
+    baseScore × globalMultiplier × landlordPersonalMultiplier × farmerPersonalMultiplier
 
     :param score_input: 结算输入。
     :return: 玩家 ID -> 理论积分变动。
@@ -133,8 +148,12 @@ def _build_theoretical_deltas(
     ]
     landlord_id = score_input.landlordPlayerId
     base_unit = score_input.baseScore * score_input.globalMultiplier
-    farmer_delta = -base_unit if score_input.winnerRole == _WINNER_LANDLORD else base_unit
-    deltas = {farmer_id: farmer_delta for farmer_id in farmers}
+    landlord_factor = score_input.personalMultipliers[landlord_id]
+    farmer_sign = -1 if score_input.winnerRole == _WINNER_LANDLORD else 1
+    deltas = {
+        farmer_id: farmer_sign * base_unit * landlord_factor * score_input.personalMultipliers[farmer_id]
+        for farmer_id in farmers
+    }
     deltas[landlord_id] = -sum(deltas.values())
 
     total = sum(deltas.values())

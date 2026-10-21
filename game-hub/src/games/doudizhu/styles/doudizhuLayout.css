@@ -152,6 +152,30 @@
   font-size: 0.82rem;
 }
 
+.doudizhu-page__viewer-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  min-height: 20px;
+  color: #f8fafc;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.doudizhu-page__viewer-name {
+  max-width: min(200px, 45vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doudizhu-page__viewer-role {
+  color: #e9bd61;
+  white-space: nowrap;
+}
+
 .doudizhu-page__hand-heading strong {
   color: #f8fafc;
   font-size: 0.95rem;

@@ -50,10 +50,7 @@
           </span>
         </div>
         <div class="doudizhu-player-panel__status">
-          <p class="doudizhu-player-panel__status-row">
-            <span v-if="showCards">明牌</span>
-            <span v-if="isDoubled">加倍</span>
-          </p>
+          <DoudizhuPlayerTags class="doudizhu-player-panel__status-row" :player-state="playerState" />
           <p class="doudizhu-player-panel__status-row">
             <span v-if="managedLabel" :class="managedBadgeClass">{{ managedLabel }}</span>
             <span v-if="isAi">AI</span>
@@ -131,6 +128,7 @@ import botAvatarUrl from '../../../assets/games/doudizhu/doudizhu-bot-avatar.png
 import { formatDoudizhuRoleLabel } from '../doudizhuDisplayText.js';
 import { normalizeHandCard, sortHandCards } from '../doudizhuGameViewUtils.js';
 import DoudizhuCard from './DoudizhuCard.vue';
+import DoudizhuPlayerTags from './DoudizhuPlayerTags.vue';
 
 const props = defineProps({
   nickname: { type: String, default: '玩家' },
@@ -156,8 +154,6 @@ const avatarInitial = computed(() => {
 });
 
 const handCount = computed(() => Number(props.playerState?.handCount) || 0);
-const showCards = computed(() => Boolean(props.playerState?.showCards));
-const isDoubled = computed(() => Boolean(props.playerState?.isDoubled));
 const nameTooltipId = useId();
 const nameTooltipVisible = ref(false);
 

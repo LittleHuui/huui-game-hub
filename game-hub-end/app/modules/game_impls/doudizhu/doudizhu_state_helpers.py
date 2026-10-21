@@ -172,6 +172,7 @@ def empty_player_state(player_id: str, seat_index: int) -> Dict[str, Any]:
         "showCardsDecided": False,
         "isDoubled": False,
         "callDecided": False,
+        "bidScore": 0,
         "doubleDecided": False,
         "playCount": 0,
         "passCount": 0,
@@ -331,6 +332,7 @@ def record_seat_action_feedback(
     state: Dict[str, Any],
     player_id: str,
     action_type: str,
+    payload: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     记录可公开展示的最近一次座位操作。
@@ -338,6 +340,7 @@ def record_seat_action_feedback(
     :param state: 当前对局状态。
     :param player_id: 操作玩家 ID。
     :param action_type: 已解析动作类型。
+    :param payload: 可公开的动作参数；当前仅发布叫分值。
     :return: 无。
     """
     normalized_player_id = str(player_id or "").strip()
@@ -349,6 +352,8 @@ def record_seat_action_feedback(
         "playerId": normalized_player_id,
         "actionType": normalized_action_type,
     }
+    if isinstance(payload, dict) and "bidScore" in payload:
+        state["lastActionEvent"]["payload"] = {"bidScore": payload["bidScore"]}
 
 
 def apply_global_multiplier(
@@ -374,10 +379,36 @@ def apply_global_multiplier(
     details = list(state.get("multiplierDetails") or [])
     details.append(
         {
+            "scope": "GLOBAL",
             "type": detail_type,
             "playerId": player_id,
             "multiplier": multiplier,
             "globalMultiplierAfter": int(state.get("globalMultiplier") or 1),
+            "eventType": event_type,
+        }
+    )
+    state["multiplierDetails"] = details
+
+
+def apply_personal_multiplier(
+    state: Dict[str, Any],
+    detail_type: str,
+    player_id: str,
+    multiplier: int,
+    event_type: str,
+) -> None:
+    """记录已生效的个人行为系数来源，不改变公共倍率或另存个人倍率状态。"""
+    if isinstance(multiplier, bool) or not isinstance(multiplier, int) or multiplier < 1:
+        raise ValidationException("个人倍率因子必须为正整数")
+    if player_id not in (state.get("players") or {}):
+        raise ValidationException("个人倍率所属玩家不存在")
+    details = list(state.get("multiplierDetails") or [])
+    details.append(
+        {
+            "scope": "PLAYER",
+            "type": detail_type,
+            "playerId": player_id,
+            "multiplier": multiplier,
             "eventType": event_type,
         }
     )

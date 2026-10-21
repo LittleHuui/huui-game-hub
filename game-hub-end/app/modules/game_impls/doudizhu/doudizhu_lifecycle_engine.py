@@ -35,6 +35,10 @@ from app.modules.game_impls.doudizhu.doudizhu_settlement_service import (
     DoudizhuSettlementService,
 )
 from app.modules.game_impls.doudizhu.doudizhu_state_codec import parse_state
+from app.modules.game_impls.doudizhu.doudizhu_rule_policy import (
+    CLASSIC_RULES_VERSION,
+    LEGACY_RULES_VERSION,
+)
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import (
     empty_player_state,
     resolve_room_config,
@@ -55,7 +59,7 @@ from app.modules.strategy_turn.schemas import (
 
 
 class DoudizhuLifecycleEngine(GameLifecycleEngine):
-    """斗地主生命周期编排：发牌、叫抢地主、出牌与结算。"""
+    """斗地主生命周期编排：发牌、叫分、出牌与结算。"""
 
     def __init__(
         self,
@@ -119,6 +123,8 @@ class DoudizhuLifecycleEngine(GameLifecycleEngine):
         for seat_index, player_id in enumerate(player_ids):
             players[player_id] = empty_player_state(player_id, seat_index)
         state = {
+            "rulesVersion": CLASSIC_RULES_VERSION,
+            "bidScore": 0,
             "phase": PHASE_DEALING,
             "phaseStep": "DEAL_DISPLAY",
             "playerIds": player_ids,
@@ -192,7 +198,7 @@ class DoudizhuLifecycleEngine(GameLifecycleEngine):
         elif action_type == ACTION_SKIP_SHOW_CARDS:
             self._bidding.apply_skip_show_cards(working, action, context)
         elif action_type == ACTION_CALL_LANDLORD:
-            self._bidding.apply_call_landlord(working, action, context)
+            self._bidding.apply_call_landlord(working, action, context, self._deal)
         elif action_type == ACTION_PASS_CALL:
             self._bidding.apply_pass_call(working, action, context, self._deal)
         elif action_type == ACTION_ROB_LANDLORD:
@@ -296,6 +302,8 @@ class DoudizhuLifecycleEngine(GameLifecycleEngine):
                 ),
             )
         rule_details = {
+            "rulesVersion": settlement_raw.get("rulesVersion", LEGACY_RULES_VERSION),
+            "bidScore": settlement_raw.get("bidScore"),
             "landlordPlayerId": settlement_raw.get("landlordPlayerId"),
             "winnerRole": settlement_raw.get("winnerRole"),
             "baseScore": settlement_raw.get("baseScore"),

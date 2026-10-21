@@ -15,8 +15,9 @@
         <strong>{{ winnerLabel }}</strong>
       </p>
 
-      <p class="doudizhu-settlement__multiplier" data-test="settlement-multiplier">
-        全桌倍率 ×{{ globalMultiplier }}
+      <p class="doudizhu-settlement__multiplier">
+        <span data-test="settlement-base-score">底分 {{ baseScore }}</span>
+        <span data-test="settlement-multiplier">倍率 ×{{ globalMultiplier }}</span>
       </p>
 
       <ul v-if="isCompleted && playerRows.length" class="doudizhu-settlement__list">
@@ -79,6 +80,7 @@ import botAvatar from '../../../assets/games/doudizhu/doudizhu-bot-avatar.png';
 import farmerVictoryBanner from '../../../assets/games/doudizhu/settlement-farmer-victory.png';
 import landlordVictoryBanner from '../../../assets/games/doudizhu/settlement-landlord-victory.png';
 import {
+  formatDoudizhuBaseScore,
   formatDoudizhuRoleLabel,
   formatDoudizhuWinnerRoleLabel
 } from '../doudizhuDisplayText.js';
@@ -154,6 +156,7 @@ const winnerBanner = computed(() =>
 const globalMultiplier = computed(() =>
   Math.max(1, Number(props.settlement?.globalMultiplier) || 1)
 );
+const baseScore = computed(() => formatDoudizhuBaseScore(props.settlement?.baseScore));
 const settlementStatus = computed(() =>
   String(props.terminalMetadata?.settlementStatus || '').trim()
 );

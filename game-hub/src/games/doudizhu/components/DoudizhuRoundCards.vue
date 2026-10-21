@@ -17,8 +17,9 @@
         :face-down="!revealedBottomCards.length"
       />
     </div>
-    <p class="doudizhu-round-cards__caption" data-test="global-multiplier">
-      全桌倍率 ×{{ globalMultiplier }}
+    <p class="doudizhu-round-cards__caption doudizhu-round-cards__scoring">
+      <span data-test="base-score">底分 {{ baseScore }}</span>
+      <span data-test="global-multiplier">倍率 ×{{ globalMultiplier }}</span>
     </p>
   </div>
 </template>
@@ -26,6 +27,7 @@
 <script setup>
 import { computed } from 'vue';
 import { normalizeHandCard } from '../doudizhuGameViewUtils.js';
+import { formatDoudizhuBaseScore } from '../doudizhuDisplayText.js';
 import DoudizhuCard from './DoudizhuCard.vue';
 
 const props = defineProps({
@@ -38,6 +40,7 @@ const laiziRankCode = computed(() => props.gameState?.enableLaizi
   : ''
 );
 const laiziIndicator = computed(() => ({ rankCode: laiziRankCode.value, isLaizi: true }));
+const baseScore = computed(() => formatDoudizhuBaseScore(props.gameState?.baseScore));
 const globalMultiplier = computed(() => Math.max(1, Number(props.gameState?.globalMultiplier) || 1));
 const revealedBottomCards = computed(() => {
   if (!props.gameState?.bottomCardsRevealed) return [];
@@ -61,7 +64,7 @@ const bottomCardSlots = computed(() => revealedBottomCards.value.length
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  width: max-content;
+  width: 134px;
   margin-inline: auto;
 }
 
@@ -109,5 +112,15 @@ const bottomCardSlots = computed(() => revealedBottomCards.value.length
   font-size: 0.66rem;
   line-height: 1;
   white-space: nowrap;
+}
+
+.doudizhu-round-cards__scoring {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  width: 100%;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 </style>

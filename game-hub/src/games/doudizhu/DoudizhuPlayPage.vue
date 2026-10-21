@@ -162,6 +162,13 @@
             @hint="onHint"
           />
           <div class="doudizhu-page__hand-shell">
+            <div v-if="viewerPlayer" class="doudizhu-page__viewer-info" aria-label="你的玩家信息">
+              <span class="doudizhu-page__viewer-name" :title="viewerPlayer.nickname">
+                {{ viewerPlayer.nickname }}
+              </span>
+              <span v-if="viewerRoleLabel" class="doudizhu-page__viewer-role">{{ viewerRoleLabel }}</span>
+              <DoudizhuPlayerTags :player-state="viewerPlayer.playerState" />
+            </div>
             <div class="doudizhu-page__hand-row">
               <DoudizhuHand
                 :hand-cards="handCards"
@@ -204,6 +211,7 @@ import DoudizhuActionPanel from './components/DoudizhuActionPanel.vue';
 import DoudizhuCard from './components/DoudizhuCard.vue';
 import DoudizhuHand from './components/DoudizhuHand.vue';
 import DoudizhuPlayerPanel from './components/DoudizhuPlayerPanel.vue';
+import DoudizhuPlayerTags from './components/DoudizhuPlayerTags.vue';
 import DoudizhuRoundCards from './components/DoudizhuRoundCards.vue';
 import DoudizhuTerminalSettlementDialog from './components/DoudizhuTerminalSettlementDialog.vue';
 import { applyDoudizhuConfig, DOUDIZHU_CODE } from './doudizhuConfig.js';
@@ -218,6 +226,7 @@ import { buildPlayedCardDisplays } from './doudizhuGameViewUtils.js';
 import {
   formatDoudizhuActionLabel,
   formatDoudizhuComboLabel,
+  formatDoudizhuRoleLabel,
   resolveDoudizhuActionFeedbackTone
 } from './doudizhuDisplayText.js';
 import { useDoudizhuTableView } from './composables/useDoudizhuTableView.js';
@@ -296,6 +305,7 @@ const {
   turnDeadlineAtMs,
   handCards,
   viewerManagedActive,
+  viewerPlayer,
   leftOpponent,
   rightOpponent,
   lastActionEvent
@@ -305,6 +315,10 @@ const {
   currentPlayerIdRef: gameViewCurrentPlayerId,
   viewerIdRef: gameViewViewerId,
   currentRoomRef: currentRoom
+});
+const viewerRoleLabel = computed(() => {
+  const player = viewerPlayer.value?.playerState;
+  return formatDoudizhuRoleLabel(player?.isLandlord ? 'landlord' : player?.role);
 });
 
 const systemActionDisabled = computed(
@@ -372,7 +386,7 @@ const lastActionLabel = computed(() => {
   if (!actionType || actionType === 'PLAY_CARDS') {
     return '';
   }
-  return formatDoudizhuActionLabel(actionType);
+  return formatDoudizhuActionLabel(actionType, lastActionEvent.value?.payload);
 });
 const lastActionFeedbackTone = computed(() => (
   resolveDoudizhuActionFeedbackTone(lastActionEvent.value?.actionType)

@@ -132,10 +132,12 @@ class DoudizhuSettlementResult(BaseModel):
 
     model_config = CAMEL_MODEL_CONFIG
 
+    rulesVersion: int = Field(description="本局规则版本：1 为旧全桌，2 为经典叫分成对")
+    bidScore: Optional[int] = Field(default=None, description="最终叫分；旧叫抢规则为空")
     landlordPlayerId: str = Field(min_length=1, description="地主玩家 ID")
     winnerRole: str = Field(min_length=1, description="胜方角色：landlord / farmer")
     baseScore: int = Field(description="底分")
-    globalMultiplier: int = Field(description="全局倍数")
+    globalMultiplier: int = Field(description="本局规则对应的牌局倍率；新版仅含公共事件")
     springType: Optional[str] = Field(default=None, description="春天类型")
     multiplierDetails: Dict[str, Any] = Field(
         default_factory=dict,

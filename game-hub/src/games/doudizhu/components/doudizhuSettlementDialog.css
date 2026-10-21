@@ -72,10 +72,18 @@
 }
 
 .doudizhu-settlement__multiplier {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
   margin: 8px 0 14px;
   color: #f6cf72;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.doudizhu-settlement__multiplier span {
+  white-space: nowrap;
 }
 
 .doudizhu-settlement__item {

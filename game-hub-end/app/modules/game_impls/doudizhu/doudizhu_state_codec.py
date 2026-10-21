@@ -4,11 +4,15 @@ import copy
 from typing import Any, Dict
 
 from app.common.exceptions import ValidationException
+from app.modules.game_impls.doudizhu.doudizhu_rule_policy import (
+    CLASSIC_RULES_VERSION,
+    resolve_rules_version,
+)
 
 
 def parse_state(raw_state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    复制快照，将未结算旧局的个人倍率一次性合并为全桌倍率。
+    复制快照，按明确版本保持本局规则，并读取旧版历史倍率结构。
 
     已生成的结算可能已交给平台入账，必须保留原理论结果。旧局明细与倍率
     不一致时显式拒绝归一化，不猜测或重放动作。移除旧字段后再次读取不会翻倍。
@@ -17,7 +21,12 @@ def parse_state(raw_state: Dict[str, Any]) -> Dict[str, Any]:
     :return: 独立的规范状态副本。
     """
     state = copy.deepcopy(raw_state)
+    state["rulesVersion"] = resolve_rules_version(state)
     players = state.get("players") or {}
+    if state["rulesVersion"] == CLASSIC_RULES_VERSION:
+        if any("personalMultiplier" in player for player in players.values()):
+            raise ValidationException("新版斗地主快照混入旧个人倍率字段")
+        return state
     legacy_players = [
         player for player in players.values() if "personalMultiplier" in player
     ]

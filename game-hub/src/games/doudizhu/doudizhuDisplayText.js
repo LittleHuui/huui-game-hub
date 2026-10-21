@@ -77,13 +77,27 @@ export const DOUDIZHU_WINNER_ROLE_LABELS = Object.freeze({
 });
 
 /**
- * 将 actionType 转为按钮文案。
+ * 根据动作及公开参数生成按钮、操作反馈共用文案。
  * @param {string} actionType
+ * @param {object} [payload]
  * @returns {string}
  */
-export function formatDoudizhuActionLabel(actionType) {
+export function formatDoudizhuActionLabel(actionType, payload = {}) {
   const key = String(actionType || '').trim();
+  if (key === 'CALL_LANDLORD' && Object.hasOwn(payload || {}, 'bidScore')) {
+    const score = payload.bidScore;
+    return Number.isInteger(score) && score >= 1 && score <= 3 ? `${score}分` : '';
+  }
   return DOUDIZHU_ACTION_LABELS[key] || key;
+}
+
+/**
+ * 展示服务端已确定的本局底分；未知值不从规则或倍率推算。
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function formatDoudizhuBaseScore(value) {
+  return Number.isSafeInteger(value) && value > 0 ? String(value) : '—';
 }
 
 /**

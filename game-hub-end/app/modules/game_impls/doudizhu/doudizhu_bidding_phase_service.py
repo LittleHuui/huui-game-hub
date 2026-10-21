@@ -1,6 +1,12 @@
-"""斗地主叫抢地主阶段服务。"""
+"""斗地主明牌、叫分与加倍阶段服务，兼容旧版叫抢规则。"""
 from typing import Any, Dict, List, TYPE_CHECKING
 
+from app.common.exceptions import ValidationException
+from app.modules.game_impls.doudizhu.doudizhu_bidding_rule import (
+    BID_SCORES,
+    can_decide_bid,
+    validate_bid_score,
+)
 from app.modules.game_impls.doudizhu.doudizhu_clock_service import DoudizhuClockService
 from app.modules.game_impls.doudizhu.doudizhu_constants import (
     PHASE_CALLING,
@@ -15,10 +21,12 @@ from app.modules.game_impls.doudizhu.doudizhu_event_factory import (
     DoudizhuEventContext,
     DoudizhuEventFactory,
 )
+from app.modules.game_impls.doudizhu.doudizhu_rule_policy import uses_classic_bid_rules
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import (
     all_players_decided,
     animation_durations,
     apply_global_multiplier,
+    apply_personal_multiplier,
     build_phase_auto_advance,
     first_seat_player_id,
     next_calling_player_id,
@@ -39,7 +47,7 @@ if TYPE_CHECKING:
 
 
 class DoudizhuBiddingPhaseService(object):
-    """处理斗地主明牌、叫抢地主与加倍阶段。"""
+    """处理斗地主明牌、叫分与加倍，旧叫抢流程由快照版本明确选择。"""
 
     def __init__(
         self,
@@ -48,7 +56,7 @@ class DoudizhuBiddingPhaseService(object):
         playing_service: "DoudizhuPlayingPhaseService" = None,
     ) -> None:
         """
-        初始化叫抢地主阶段服务。
+        初始化叫分阶段服务。
 
         :param event_factory: 事件工厂，可空则使用默认实例。
         :param clock_service: 计时服务，可空则使用默认实例。
@@ -116,7 +124,7 @@ class DoudizhuBiddingPhaseService(object):
         players[player_id] = player
         state["players"] = players
         record_seat_action_feedback(state, player_id, "SHOW_CARDS")
-        apply_global_multiplier(
+        self._apply_player_choice_multiplier(
             state,
             "SHOW_CARDS",
             player_id,
@@ -160,15 +168,20 @@ class DoudizhuBiddingPhaseService(object):
         state: Dict[str, Any],
         action: ResolvedGameAction,
         context: DoudizhuEventContext,
+        deal_service: "DoudizhuDealPhaseService",
     ) -> None:
         """
-        应用叫地主操作。
+        按快照规则版本应用叫分或旧版叫地主操作。
 
         :param state: 对局状态。
         :param action: 已解析操作。
         :param context: 事件上下文。
+        :param deal_service: 全员不叫时重新发牌的阶段服务。
         :return: 无。
         """
+        if uses_classic_bid_rules(state):
+            self._apply_score_bid(state, action, context, deal_service)
+            return
         player_id = action.playerId
         players = state.get("players") or {}
         player = dict(players.get(player_id) or {})
@@ -197,6 +210,32 @@ class DoudizhuBiddingPhaseService(object):
         )
         self.enter_robbing_phase(state)
 
+    def _apply_score_bid(
+        self,
+        state: Dict[str, Any],
+        action: ResolvedGameAction,
+        context: DoudizhuEventContext,
+        deal_service: "DoudizhuDealPhaseService",
+    ) -> None:
+        """提交本次叫分，最高档立即确定地主，其余按座次推进。"""
+        player_id = action.playerId
+        score = validate_bid_score(state, player_id, action.payload.get("bidScore"))
+        player = state["players"][player_id]
+        player["callDecided"] = True
+        player["bidScore"] = score
+        state["bidScore"] = score
+        state["landlordCandidatePlayerId"] = player_id
+        record_seat_action_feedback(
+            state, player_id, "CALL_LANDLORD", {"bidScore": score},
+        )
+        self._events.append(
+            context, "DOUDIZHU_CALL_LANDLORD", player_id, {"bidScore": score},
+        )
+        if score == max(BID_SCORES):
+            self.enter_landlord_confirm_phase(state, context)
+            return
+        self.advance_calling_turn(state, deal_service, context)
+
     def apply_pass_call(
         self,
         state: Dict[str, Any],
@@ -214,9 +253,12 @@ class DoudizhuBiddingPhaseService(object):
         :return: 无。
         """
         player_id = action.playerId
+        if not can_decide_bid(state, player_id):
+            raise ValidationException("当前不能执行不叫操作")
         players = state.get("players") or {}
         player = dict(players.get(player_id) or {})
         player["callDecided"] = True
+        player["bidScore"] = 0
         players[player_id] = player
         state["players"] = players
         record_seat_action_feedback(state, player_id, "PASS_CALL")
@@ -237,6 +279,7 @@ class DoudizhuBiddingPhaseService(object):
         :param context: 事件上下文。
         :return: 无。
         """
+        self._require_legacy_robbing(state)
         player_id = action.playerId
         rule_config = state.get("ruleConfig") or {}
         rob_multiplier = int(rule_config.get("robLandlordMultiplier", 2))
@@ -275,6 +318,7 @@ class DoudizhuBiddingPhaseService(object):
         :param context: 事件上下文。
         :return: 无。
         """
+        self._require_legacy_robbing(state)
         player_id = action.playerId
         self.record_robbing_response(state, player_id)
         record_seat_action_feedback(state, player_id, "PASS_ROB")
@@ -305,7 +349,7 @@ class DoudizhuBiddingPhaseService(object):
         players[player_id] = player
         state["players"] = players
         record_seat_action_feedback(state, player_id, "DOUBLE")
-        apply_global_multiplier(
+        self._apply_player_choice_multiplier(
             state,
             "DOUBLE",
             player_id,
@@ -319,6 +363,27 @@ class DoudizhuBiddingPhaseService(object):
             {"globalMultiplier": state.get("globalMultiplier")},
         )
         self.advance_doubling_turn(state)
+
+    @staticmethod
+    def _apply_player_choice_multiplier(
+        state: Dict[str, Any],
+        detail_type: str,
+        player_id: str,
+        multiplier: int,
+        event_type: str,
+    ) -> None:
+        """依本局规则记录个人选择，旧版在途局保持原全桌倍率语义。"""
+        apply_multiplier = (
+            apply_personal_multiplier if uses_classic_bid_rules(state)
+            else apply_global_multiplier
+        )
+        apply_multiplier(state, detail_type, player_id, multiplier, event_type)
+
+    @staticmethod
+    def _require_legacy_robbing(state: Dict[str, Any]) -> None:
+        """旧版抢地主动作仅允许在对应快照的抢地主阶段执行。"""
+        if uses_classic_bid_rules(state) or state.get("phase") != PHASE_ROBBING:
+            raise ValidationException("当前规则不支持抢地主操作")
 
     def apply_pass_double(
         self,
@@ -346,7 +411,7 @@ class DoudizhuBiddingPhaseService(object):
 
     def enter_calling_phase(self, state: Dict[str, Any]) -> None:
         """
-        进入叫地主阶段并确定本轮起叫座位。
+        进入叫分阶段并确定本轮起叫座位。
 
         :param state: 对局状态。
         :return: 无。
@@ -361,6 +426,7 @@ class DoudizhuBiddingPhaseService(object):
         state["callingStartSeatIndex"] = start_index
         state["currentPlayerId"] = start_player_id
         state["landlordCandidatePlayerId"] = None
+        state["bidScore"] = 0
         state["robPendingPlayerIds"] = []
         state["robRespondedPlayerIds"] = []
         state["phaseAutoAdvance"] = None
@@ -368,6 +434,7 @@ class DoudizhuBiddingPhaseService(object):
         for player_id in player_ids:
             player = dict(players.get(player_id) or {})
             player["callDecided"] = False
+            player["bidScore"] = 0
             players[player_id] = player
         state["players"] = players
         self._clock.stamp_decision_clock(state, "biddingTimeoutSeconds")
@@ -539,6 +606,8 @@ class DoudizhuBiddingPhaseService(object):
         if all_players_decided(state, "callDecided"):
             if state.get("landlordCandidatePlayerId") is None:
                 deal_service.reshuffle_and_redeal(state, context)
+            else:
+                self.enter_landlord_confirm_phase(state, context)
             return
         state["currentPlayerId"] = next_calling_player_id(state)
         self._clock.stamp_decision_clock(state, "biddingTimeoutSeconds")

@@ -39,9 +39,12 @@ export function useStrategyTurnTerminalFlow(input) {
    * @returns {boolean}
    */
   function showIfReady() {
+    if (!input.isGameOverRef.value) {
+      visible.value = false;
+      return false;
+    }
     if (
       dismissed.value ||
-      !input.isGameOverRef.value ||
       !input.versionRef.value ||
       input.playbackBusyRef.value
     ) {

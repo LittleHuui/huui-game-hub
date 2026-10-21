@@ -27,8 +27,6 @@ _DOUDIZHU_FIXED_RULE_CONFIG = {
     "biddingTimeoutSeconds": 20,
     "doublingTimeoutSeconds": 15,
     "baseScore": 1,
-    "callLandlordMultiplier": 1,
-    "robLandlordMultiplier": 2,
     "showCardsMultiplier": 2,
     "doubleMultiplier": 2,
     "bombMultiplier": 2,
@@ -111,11 +109,11 @@ def _build_doudizhu_card_definitions() -> List[CardDefinition]:
 
 DOUDIZHU_ONLINE_GAME_RULE_SEED = OnlineGameRuleSeed(
     gameCode="doudizhu",
-    ruleVersion="1.0.0",
+    ruleVersion="2.0.0",
     runtimeType="strategy-turn-multiplayer",
     gameRuleInfo=GameRuleInfo(
         description="经典三人斗地主",
-        ruleDescription="三人叫地主、抢地主，地主获得底牌后先出牌，先出完手牌者所在阵营获胜。",
+        ruleDescription="按座次叫 1、2、3 分或不叫，最高叫分者成为地主；全员不叫则重新发牌。地主取得底牌并完成加倍阶段后先出牌，先出完手牌者所在阵营获胜。",
         cardBackImage="games/doudizhu/cards/card_back.png",
         singleDeckCardCount=DOUDIZHU_SINGLE_DECK_CARD_COUNT,
     ),

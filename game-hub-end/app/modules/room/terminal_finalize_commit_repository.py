@@ -130,7 +130,7 @@ else
   redis.call('DEL', presenceKey)
   redis.call('SET', metaKey, metaPayload, 'EX', ttl)
   redis.call('SET', roomVersionKey, tostring(nextRoomVersion), 'EX', ttl)
-  redis.call('SET', gameVersionKey, '0', 'EX', ttl)
+  redis.call('SET', gameVersionKey, tostring(currentGameVersion), 'EX', ttl)
   for index = 1, #removeIds do
     redis.call('HDEL', playersKey, removeIds[index])
   end

@@ -227,9 +227,21 @@ class DoudizhuDealPhaseService(object):
         state["laiziCardCodes"] = []
         state["landlordCandidatePlayerId"] = None
         state["landlordPlayerId"] = None
+        state["bidScore"] = 0
         clear_seat_action_feedback(state)
         state["globalMultiplier"] = 1
         state["multiplierDetails"] = []
+        state["bombCount"] = 0
+        state["rocketCount"] = 0
+        state["lastPlay"] = None
+        state["lastPlayCards"] = []
+        state["lastPlayPlayerId"] = None
+        state["passPlayerIds"] = []
+        state["consecutivePassCount"] = 0
+        state["roundLeadPlayerId"] = None
+        state["winnerRole"] = None
+        state["springType"] = None
+        state["settlement"] = None
         state["currentPlayerId"] = None
         self._clock.clear_turn_clock(state)
         state["callingStartPlayerId"] = None

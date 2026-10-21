@@ -8,6 +8,7 @@ from app.modules.game_impls.doudizhu.doudizhu_combo_rule import (
     recognize_combo,
 )
 from app.modules.game_impls.doudizhu.doudizhu_constants import ROLE_FARMER, ROLE_LANDLORD
+from app.modules.game_impls.doudizhu.doudizhu_rule_policy import resolve_rules_version
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import (
     build_combo_config,
     parse_cards,
@@ -38,6 +39,8 @@ class DoudizhuScoreContext(object):
     last_play_player_id: Optional[str]
     landlord_player_id: Optional[str]
     combo_config: DoudizhuComboRuleConfig
+    rules_version: int
+    highest_bid_score: int
 
 
 def build_score_context(
@@ -69,6 +72,7 @@ def build_score_context(
                 "role": str(item.get("role") or ""),
                 "isLandlord": bool(item.get("isLandlord")),
                 "callDecided": bool(item.get("callDecided")),
+                "bidScore": int(item.get("bidScore") or 0),
                 "showCards": bool(item.get("showCards")),
             }
     player_raw = players_raw.get(normalized_player_id) or {}
@@ -109,6 +113,8 @@ def build_score_context(
         last_play_player_id=last_play_player_id,
         landlord_player_id=landlord_player_id,
         combo_config=combo_config,
+        rules_version=resolve_rules_version(state),
+        highest_bid_score=int(state.get("bidScore") or 0),
     )
 
 

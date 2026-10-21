@@ -7,10 +7,10 @@
         type="button"
         class="game-action-btn game-action-btn--md"
         :class="resolveButtonClass(action.actionType)"
-        :disabled="isDisabled"
+        :disabled="isDisabled || !resolveLabel(action)"
         @click="$emit('action', action)"
       >
-        {{ resolveLabel(action.actionType) }}
+        {{ resolveLabel(action) || '操作不可用' }}
       </button>
       <button
         v-if="canHint"
@@ -54,7 +54,7 @@ import { TurnCountdown } from '../../../components/game/index.js';
 import { formatDoudizhuActionLabel } from '../doudizhuDisplayText.js';
 
 const props = defineProps({
-  /** @type {import('vue').PropType<Array<{ actionType: string; actionId: string }>>} */
+  /** @type {import('vue').PropType<Array<{ actionType: string; actionId: string; payload?: object }>>} */
   buttonActions: { type: Array, default: () => [] },
   canPlayCards: { type: Boolean, default: false },
   previewMessage: { type: String, default: '' },
@@ -87,11 +87,11 @@ const isHintDisabled = computed(() => {
 });
 
 /**
- * @param {string} actionType
+ * @param {{actionType: string; payload?: object}} action
  * @returns {string}
  */
-function resolveLabel(actionType) {
-  return formatDoudizhuActionLabel(actionType);
+function resolveLabel(action) {
+  return formatDoudizhuActionLabel(action.actionType, action.payload);
 }
 
 /**

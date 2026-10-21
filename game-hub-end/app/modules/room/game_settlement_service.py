@@ -2,14 +2,13 @@
 
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict
 from app.common.exceptions import ValidationException
 from app.modules.room.game_presentation_service import GamePresentationService
 from app.modules.room.game_settlement_calculator import validate_theoretical_zero_sum
 from app.modules.room.game_settlement_schemas import GameSettlementResult, SettlementExecutionResult, SettlementExecutionStatus, SettlementPersistenceStatus, build_player_ai_map
 from app.modules.room.game_state_reader import GameStateReader
 from app.modules.room.repository import RoomRepository
-from app.modules.strategy_turn.schemas import RuntimeSnapshot
 from app.modules.room.game_settlement_failure import (
     limit_settlement_failure_reason,
     SETTLEMENT_FAILURE_CODE_CONTRACT,
@@ -204,7 +203,7 @@ class GameSettlementService:
             )
 
         try:
-            next_version, committed_snapshot, committed_meta = await self._state_committer.commit_success(
+            next_version, _committed_snapshot, _committed_meta = await self._state_committer.commit_success(
                 normalized_room_id,
                 snapshot,
                 meta,
@@ -214,10 +213,7 @@ class GameSettlementService:
             )
             await self._push_settlement_game_view(
                 normalized_room_id,
-                committed_meta,
-                members,
                 settlement_result,
-                committed_snapshot,
                 next_version,
             )
         except Exception as exc:
@@ -243,30 +239,41 @@ class GameSettlementService:
     async def _push_settlement_game_view(
         self,
         room_id: str,
-        meta: Dict[str, Any],
-        members: List[Dict[str, Any]],
         settlement_result: GameSettlementResult,
-        committed_snapshot: RuntimeSnapshot,
         game_version: int,
     ) -> None:
         """
         结算成功后将含实际结果的权威 GameView 推送给仍在房间的玩家。
 
         :param room_id: 房间 ID。
-        :param meta: 房间元信息。
-        :param members: 成员列表。
         :param settlement_result: 平台结算结果。
-        :param committed_snapshot: 提交后的运行时快照。
         :param game_version: 提交后对局版本。
         :return: 无。
         """
         try:
+            room_snapshot = await self._repository.read_room_snapshot(room_id)
+            if room_snapshot is None:
+                return
+            meta, members, room_version = room_snapshot
+            if meta.get("status") != "playing":
+                return
+            consistent_state = await self._state_reader.load_consistent(room_id)
+            snapshot = consistent_state.snapshot
+            terminal_metadata = snapshot.terminalMetadata
+            if (
+                int(consistent_state.gameVersion) != int(game_version)
+                or not snapshot.isGameOver
+                or terminal_metadata is None
+                or terminal_metadata.settlementId != settlement_result.settlementId
+            ):
+                return
             await self._presentation_service.push_authoritative_terminal_game_view(
                 room_id,
                 meta,
                 members,
-                committed_snapshot,
+                snapshot,
                 int(game_version),
+                int(room_version),
             )
         except Exception:
             logger.exception(

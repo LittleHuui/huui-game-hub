@@ -62,6 +62,10 @@ Outbox 的外层读取统一使用受保护 Lua 解析。损坏记录隔离为�
 
 结算由 `GameSettlementTransaction` 拥有数据库事务、settlementId 幂等、钱包与历史事实写入，`GameSettlementCommitService` 拥有 Runtime 元数据、CAS 和 Finalize Outbox；`GameSettlementService` 校验合同并按数据库 → Redis → 展示顺序编排。展示失败不撤销已经提交的结算。
 
+展示推送严格区分 `roomVersion` 与 `gameVersion`：前者绑定房间 meta/成员事实，后者绑定 RuntimeSnapshot/GameView，两个版本不得互相回退。公共展示入口必须显式接收房间版本。结算展示重新读取原子房间快照，并核对一致 Runtime 的对局版本与 settlementId；房间已等待、删除或进入其他对局时不再推送旧终局，迟到房间消息仍由客户端的单调版本校验拒绝。
+
+`gameVersion` 在同一房间存续期间跨局单调递增。Finalize 保留房间时只删除本局 Runtime、事件与在线探测，不归零对局版本；下一局沿现存版本通过 CAS 递增。房间变更同步续期已有对局版本键，只有房间删除或整体过期才结束该版本流。GameView 必须使用其一致 RuntimeSnapshot 所属的版本，不能在读取快照后另查版本并拼接。
+
 Finalize 的后续清理携带最终 CAS 的 `terminalRoomVersion`，与开局共用房间锁；清理 Lua 原子核对当前房间仍为 waiting 且 roomVersion 相等，再删除 playing 索引。仍在等待房间内的真人非 shell 成员保留活跃占用；被移除成员和 shell 的派生索引仅在 owner 仍指向该房间时删除。新局或新房间版本使旧清理过期。无法证明代际的清理载荷进入失败审计。
 
 ## 房间成员归属
@@ -79,6 +83,8 @@ Finalize 的后续清理携带最终 CAS 的 `terminalRoomVersion`，与开局�
 ## 前端版本恢复
 
 `strategyTurnGameViewService` 按版本顺序应用实时增量。当 `incomingVersion > highestAcceptedVersion + 1` 时，取消事件展示、丢弃旧展示任务并重新拉取权威 GameView。权威状态立即可交互，展示不锁住输入。连续缺口合并目标版本并共用在途请求，低于目标的完整快照可以应用，但不能提前宣布恢复完成。请求生命周期与展示生命周期独立；reset、切房和重试同时取消网络、timer 与等待 Promise，旧响应不能回写。
+
+公共对局页面入口在确认房间 playing 与成员资格后总是读取一次权威 GameView，不能因抢先到达的推送已填入本地版本而跳过。跨局单调版本使旧局迟到推送低于新局快照，页面入口查询保证重入同一房间也能收敛到当前局。终局弹窗随当前 GameView 派生可见性，收到非终局快照时收回弹窗；该显示变化不重置单次导航保护。
 
 房间查询、成员命令、对局请求和实时订阅分别位于 `roomQueryService`、`roomService`、`roomGameService`、`roomRealtimeService`。页面使用可取消上下文管理查询、订阅和后续导航，房间版本与请求代次在写回边界校验。大厅/等待页的弹窗及命令各有实际流程模块，不保留旧服务转发别名。
 

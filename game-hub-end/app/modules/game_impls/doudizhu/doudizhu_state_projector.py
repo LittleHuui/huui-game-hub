@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 from app.modules.game_impls.doudizhu.doudizhu_constants import PHASE_FINISHED, PHASE_SETTLEMENT
 from app.modules.game_impls.doudizhu.doudizhu_state_codec import parse_state
+from app.modules.game_impls.doudizhu.doudizhu_rule_policy import resolve_base_score, resolve_rules_version
 from app.modules.game_impls.doudizhu.doudizhu_state_helpers import parse_cards
 from app.modules.strategy_turn.lifecycle import GameStateProjector
 from app.modules.strategy_turn.schemas import GameStateProjection
@@ -89,6 +90,7 @@ class DoudizhuStateProjector(GameStateProjector):
         :return: 公开 gameState。
         """
         return {
+            "rulesVersion": resolve_rules_version(state),
             "phase": state.get("phase"),
             "currentPlayerId": state.get("currentPlayerId"),
             "landlordPlayerId": state.get("landlordPlayerId"),
@@ -105,6 +107,8 @@ class DoudizhuStateProjector(GameStateProjector):
             "passPlayerIds": list(state.get("passPlayerIds") or []),
             "consecutivePassCount": int(state.get("consecutivePassCount") or 0),
             "roundLeadPlayerId": state.get("roundLeadPlayerId"),
+            "baseScore": resolve_base_score(state),
+            "bidScore": state.get("bidScore"),
             "globalMultiplier": int(state.get("globalMultiplier") or 1),
             "multiplierDetails": list(state.get("multiplierDetails") or []),
             "bombCount": int(state.get("bombCount") or 0),
@@ -122,7 +126,7 @@ class DoudizhuStateProjector(GameStateProjector):
         }
 
     @staticmethod
-    def _build_public_last_action_event(state: Dict[str, Any]) -> Dict[str, str]:
+    def _build_public_last_action_event(state: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建最近竞价动作的公开展示事件。
 
@@ -136,7 +140,11 @@ class DoudizhuStateProjector(GameStateProjector):
         action_type = str(raw_event.get("actionType") or "").strip()
         if not player_id or not action_type:
             return {}
-        return {"playerId": player_id, "actionType": action_type}
+        result = {"playerId": player_id, "actionType": action_type}
+        payload = raw_event.get("payload")
+        if isinstance(payload, dict) and "bidScore" in payload:
+            result["payload"] = {"bidScore": payload["bidScore"]}
+        return result
 
     def _build_private_state(
         self,

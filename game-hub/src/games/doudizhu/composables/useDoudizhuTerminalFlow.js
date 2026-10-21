@@ -50,9 +50,12 @@ export function useDoudizhuTerminalFlow(input) {
    * @returns {void}
    */
   function showSettlementIfReady() {
+    if (!gameViewIsGameOver.value) {
+      settlementVisible.value = false;
+      return;
+    }
     if (
       settlementDismissed.value ||
-      !gameViewIsGameOver.value ||
       !gameViewVersion.value ||
       gameViewPlaybackBusy.value
     ) {

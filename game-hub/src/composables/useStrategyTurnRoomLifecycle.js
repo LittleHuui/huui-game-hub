@@ -155,9 +155,7 @@ export function useStrategyTurnRoomLifecycle(input) {
         return;
       }
       gameViewService.setActiveRoom(roomId);
-      if (!gameViewService.getCurrentGameViewVersion()) {
-        await input.loadGameView(roomId, { signal: controller.signal });
-      }
+      await input.loadGameView(roomId, { signal: controller.signal });
     } catch (error) {
       if (!controller.signal.aborted && localGeneration === generation) {
         loadError.value = error?.message || '加载房间失败';
