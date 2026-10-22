@@ -3,16 +3,6 @@
     <div class="turn-action-bar__actions">
       <button
         type="button"
-        class="game-action-btn turn-action-bar__btn--play game-action-btn--md"
-        :disabled="isPlayDisabled"
-        :title="managedBlockedHint"
-        @click="onBarAction(TURN_ACTION_BAR_KEY.PLAY)"
-      >
-        出牌
-      </button>
-      <slot name="middle" />
-      <button
-        type="button"
         class="game-action-btn turn-action-bar__btn--draw game-action-btn--md"
         :disabled="isDrawDisabled"
         :title="managedBlockedHint"
@@ -28,6 +18,16 @@
         @click="onBarAction(TURN_ACTION_BAR_KEY.UI_ACTION_HINT)"
       >
         提示
+      </button>
+      <slot name="middle" />
+      <button
+        type="button"
+        class="game-action-btn turn-action-bar__btn--play game-action-btn--md"
+        :disabled="isPlayDisabled"
+        :title="managedBlockedHint"
+        @click="onBarAction(TURN_ACTION_BAR_KEY.PLAY)"
+      >
+        出牌
       </button>
       <button
         v-if="canEndTurn"

@@ -12,44 +12,34 @@
       draggable="false"
       @error="onImageError"
     />
-    <div v-else class="doudizhu-card__face">
-      <span v-if="faceDown" class="doudizhu-card__back-mark">牌</span>
+    <svg v-else class="doudizhu-card__face" viewBox="0 0 72 104" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="cardTitle">
+      <text v-if="faceDown" class="doudizhu-card__back-mark" x="36" y="58" text-anchor="middle">牌</text>
       <template v-else>
         <template v-if="isJoker">
-          <span class="doudizhu-card__corner doudizhu-card__corner--top doudizhu-card__joker-label">
-            JOKER
-          </span>
-          <img
+          <text class="doudizhu-card__joker-label" x="11" y="19" text-anchor="middle">
+            <tspan v-for="(letter, index) in 'JOKER'" :key="index" x="11" :dy="index ? 13 : 0">{{ letter }}</tspan>
+          </text>
+          <image
             class="doudizhu-card__joker-clown"
-            :src="jokerClownImage"
-            alt=""
+            :href="jokerClownImage"
+            x="24" y="29" width="39" height="46"
+            preserveAspectRatio="xMidYMid meet"
             aria-hidden="true"
-            draggable="false"
           />
         </template>
-        <template v-else-if="isLaizi">
-          <span class="doudizhu-card__laizi-index doudizhu-card__laizi-index--top" aria-hidden="true">
-            <span>{{ laiziDisplayRank }}</span>
-            <span class="doudizhu-card__laizi-star" />
-            <span v-if="isSubstituted" class="doudizhu-card__laizi-source-rank">{{ originalRankCode }}</span>
-          </span>
-          <span class="doudizhu-card__laizi-star doudizhu-card__laizi-star--center" aria-hidden="true" />
-          <span class="doudizhu-card__laizi-index doudizhu-card__laizi-index--bottom" aria-hidden="true">
-            <span>{{ laiziDisplayRank }}</span>
-            <span class="doudizhu-card__laizi-star" />
-          </span>
-        </template>
         <template v-else>
-          <span class="doudizhu-card__corner doudizhu-card__corner--top">
-            {{ cornerTop }}
-          </span>
-          <span class="doudizhu-card__suit-center" aria-hidden="true">{{ suitSymbol }}</span>
-          <span class="doudizhu-card__corner doudizhu-card__corner--bottom">
-            {{ cornerBottom }}
-          </span>
+          <g v-for="position in ['top', 'bottom']" :key="position" class="doudizhu-card__index"
+            :transform="position === 'bottom' ? 'rotate(180 36 52)' : undefined" aria-hidden="true">
+            <text class="doudizhu-card__rank" x="6" y="23">{{ isLaizi ? laiziDisplayRank : displayRank }}</text>
+            <path v-if="isLaizi" class="doudizhu-card__laizi-star" :d="starPath" transform="translate(7 28) scale(.5)" />
+            <text v-else class="doudizhu-card__suit" x="12" y="47" text-anchor="middle">{{ suitSymbol }}</text>
+            <text v-if="isSubstituted && position === 'top'" class="doudizhu-card__laizi-source-rank" x="12" y="53" text-anchor="middle">{{ originalRankCode }}</text>
+          </g>
+          <path v-if="isLaizi" class="doudizhu-card__laizi-star doudizhu-card__center" :d="starPath" transform="translate(26 39) scale(1.15)" aria-hidden="true" />
+          <text v-else class="doudizhu-card__suit-center doudizhu-card__center" x="38" y="63" text-anchor="middle" aria-hidden="true">{{ suitSymbol }}</text>
         </template>
       </template>
-    </div>
+    </svg>
   </figure>
 </template>
 
@@ -78,6 +68,8 @@ const props = defineProps({
 });
 
 const imageBroken = ref(false);
+// All face geometry uses the same 72 × 104 design coordinates, scaled by the SVG viewport.
+const starPath = 'M12 2 15 8.5 22 9.5 17 14.5 18 22 12 18.5 6 22 7 14.5 2 9.5 9 8.5Z';
 
 watch(
   () => `${String(props.card?.cardInstanceId || '').trim()}\u0000${String(props.card?.image || '').trim()}`,
@@ -135,12 +127,7 @@ const suitSymbol = computed(() => {
   return '';
 });
 
-const cornerTop = computed(() => {
-  const label = displayLabel.value || props.card?.rankCode || '';
-  return suitSymbol.value ? `${label}${suitSymbol.value}` : label;
-});
-
-const cornerBottom = computed(() => cornerTop.value);
+const displayRank = computed(() => displayLabel.value || props.card?.rankCode || '');
 
 const imageUrl = computed(() => {
   if (props.faceDown || isJoker.value || isLaizi.value || imageBroken.value) {

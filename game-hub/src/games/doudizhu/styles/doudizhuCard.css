@@ -1,175 +1,39 @@
-/* Card */
+/* Card content is drawn in one SVG coordinate system; callers only size the card box. */
 .doudizhu-card {
-  --doudizhu-laizi-rank-size: 14px;
-  --doudizhu-laizi-corner-star-size: 10px;
-  --doudizhu-laizi-center-star-size: 28px;
-  --doudizhu-laizi-source-rank-size: 11px;
-  --doudizhu-laizi-index-inset: 5px;
   position: relative;
   width: 74px;
   height: 104px;
   margin: 0;
-  border-radius: 9px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
-  transition: transform 0.15s ease;
+  border: 1px solid #d1d5db;
+  border-radius: 12% / 8.5%;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 4px #0000001f;
+  transition: transform .15s ease;
 }
 
 .doudizhu-card__image,
 .doudizhu-card__face {
+  display: block;
   width: 100%;
   height: 100%;
-  border-radius: 9px;
-  display: block;
-}
-
-.doudizhu-card__face {
-  position: relative;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  box-sizing: border-box;
-}
-
-.doudizhu-card--red .doudizhu-card__face {
-  color: #dc2626;
-}
-
-.doudizhu-card--black .doudizhu-card__face {
-  color: #111827;
-}
-
-.doudizhu-card--joker .doudizhu-card__face {
-  background: #fffdf6;
-}
-
-.doudizhu-card--joker-big .doudizhu-card__face {
-  color: #dc2626;
-}
-
-.doudizhu-card--joker-small .doudizhu-card__face {
-  color: #111827;
-}
-
-.doudizhu-card--face-down .doudizhu-card__face {
-  background: #dfeaf6;
-  border-color: #b7cbe1;
-}
-
-.doudizhu-card--laizi .doudizhu-card__face {
-  color: #9b6015;
-}
-
-.doudizhu-card__laizi-index {
-  position: absolute;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  min-width: 1.4em;
-  font-size: var(--doudizhu-laizi-rank-size);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.doudizhu-card__laizi-index--top {
-  top: var(--doudizhu-laizi-index-inset);
-  left: var(--doudizhu-laizi-index-inset);
-}
-
-.doudizhu-card__laizi-index--bottom {
-  right: var(--doudizhu-laizi-index-inset);
-  bottom: var(--doudizhu-laizi-index-inset);
-  transform: rotate(180deg);
-}
-
-.doudizhu-card__laizi-star {
-  display: block;
-  width: var(--doudizhu-laizi-corner-star-size);
-  height: var(--doudizhu-laizi-corner-star-size);
-  flex: 0 0 auto;
-  background-color: #cc8a24;
-  -webkit-mask: url('../../../assets/games/doudizhu/icons/star-filled.svg') center / contain no-repeat;
-  mask: url('../../../assets/games/doudizhu/icons/star-filled.svg') center / contain no-repeat;
-}
-
-.doudizhu-card__laizi-star--center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: var(--doudizhu-laizi-center-star-size);
-  height: var(--doudizhu-laizi-center-star-size);
-  transform: translate(-50%, -50%);
-}
-
-.doudizhu-card--substituted .doudizhu-card__laizi-star--center {
-  left: 60%;
-}
-
-.doudizhu-card__laizi-source-rank {
-  font-size: var(--doudizhu-laizi-source-rank-size);
-}
-
-.doudizhu-card__corner {
-  position: absolute;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.1;
-  padding: 0.3rem;
-}
-
-.doudizhu-card__corner--top {
-  top: 0;
-  left: 0;
-}
-
-.doudizhu-card__corner--bottom {
-  bottom: 0;
-  right: 0;
-  transform: rotate(180deg);
-}
-
-.doudizhu-card__suit-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-
-.doudizhu-card__joker-label {
-  top: 0.3rem;
-  bottom: auto;
-  left: 0.25rem;
-  right: auto;
-  padding: 0;
-  font-size: clamp(0.42rem, 0.82vw, 0.56rem);
-  font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1;
-  writing-mode: vertical-rl;
-  text-orientation: upright;
-  transform: none;
-  z-index: 1;
-}
-
-.doudizhu-card__joker-clown {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 54%;
-  max-height: 54%;
-  object-fit: contain;
+  border-radius: inherit;
   pointer-events: none;
-  transform: translate(-50%, -50%);
 }
 
-.doudizhu-card__back-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: #6986a5;
-  font-weight: 700;
-}
+.doudizhu-card__image { object-fit: contain; }
+.doudizhu-card__face { overflow: visible; fill: currentColor; font-family: Arial, sans-serif; font-weight: 700; }
+.doudizhu-card--red,.doudizhu-card--joker-big { color: #dc2626; }
+.doudizhu-card--black,.doudizhu-card--joker-small { color: #111827; }
+.doudizhu-card--joker { background: #fffdf6; }
+.doudizhu-card--face-down { background: #dfeaf6; border-color: #b7cbe1; color: #6986a5; }
+.doudizhu-card--laizi { color: #9b6015; }
+
+/* Font sizes are SVG user units and scale together with positions, stars and images. */
+.doudizhu-card__rank { font-size: 20px; }
+.doudizhu-card__suit { font-size: 17px; }
+.doudizhu-card__suit-center { font-size: 32px; }
+.doudizhu-card__joker-label { font-size: 11px; font-weight: 800; }
+.doudizhu-card__laizi-star { fill: #cc8a24; }
+.doudizhu-card__laizi-source-rank { font-size: 11px; }
+.doudizhu-card__back-mark { font-size: 20px; }

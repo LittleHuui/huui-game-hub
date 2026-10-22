@@ -4,7 +4,6 @@
 .doudizhu-page .strategy-turn-multiplayer-layout__stage { flex:0 0 auto; }
 .doudizhu-page .strategy-turn-multiplayer-layout__center { margin-top:8px; }
 .doudizhu-page__hand-shell { padding-top:10px; }
-.doudizhu-hand .doudizhu-card__corner { font-size:15px; padding:3px; }
 .doudizhu-round-cards .doudizhu-card { width:36px; height:52px; }
 .doudizhu-player-panel__operation-feedback { padding:0; margin-top:12px; }
 .doudizhu-player-panel--right .doudizhu-player-panel__operation-feedback { padding:0; }

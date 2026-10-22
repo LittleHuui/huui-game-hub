@@ -1,5 +1,4 @@
 .doudizhu-page { --dd-hand-width:52px; --dd-hand-height:78px; --dd-hand-step:30px; --dd-play-width:42px; --dd-play-height:60px; }
-.doudizhu-hand .doudizhu-card__corner { font-size:16px; }
 .doudizhu-page__bottom-stack { gap:8px; }
 .doudizhu-round-cards .doudizhu-card { width:36px; height:52px; }
 .doudizhu-player-panel__operation-feedback { padding-left:4px; }
