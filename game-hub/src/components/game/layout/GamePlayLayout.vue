@@ -1,13 +1,13 @@
 <template>
-  <div class="game-layout">
-    <aside class="game-layout__side">
+  <div class="game-play-layout">
+    <aside class="game-play-layout__side">
       <slot name="config" />
       <slot name="shop" />
       <slot name="ranking" />
     </aside>
-    <main class="game-layout__main">
+    <main class="game-play-layout__main">
       <slot name="hud" />
-      <div class="game-board-area">
+      <div class="game-play-layout__board">
         <slot name="board" />
       </div>
       <slot name="inventory" />

@@ -16,7 +16,6 @@
 <script setup>
 import { computed } from 'vue';
 import { resolveUnoCardAssetUrl, UNO_ASSET_CONFIG } from '../unoAssetConfig.js';
-import './unoCard.css';
 
 const props = defineProps({
   cardCode: {

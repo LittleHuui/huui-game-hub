@@ -1,0 +1,8 @@
+.uno-card { width:48px; }
+.uno-page__hand .selectable-item-hand { gap:5px; }
+.uno-page__players { gap:14px; }
+.uno-page__center { min-height:140px; }
+.uno-discard-area .uno-card { width:64px; }
+.uno-page .strategy-turn-multiplayer-layout__stage { flex:0 0 auto; }
+.uno-player-action__card { width:34px; height:48px; }
+.uno-color-picker__options { grid-template-columns:repeat(2,minmax(0,1fr)); }

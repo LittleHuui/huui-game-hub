@@ -53,7 +53,6 @@
 <script setup>
 import { computed } from 'vue';
 import RoomSeatBoard from './RoomSeatBoard.vue';
-import './roomHub.css';
 
 const props = defineProps({
   room: { type: Object, default: null },

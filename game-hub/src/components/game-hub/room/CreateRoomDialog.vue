@@ -67,7 +67,6 @@ import {
   buildRoomConfigPayload,
   filterVisibleRoomConfigFields
 } from '../../../utils/roomConfigFormUtils.js';
-import './roomHub.css';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

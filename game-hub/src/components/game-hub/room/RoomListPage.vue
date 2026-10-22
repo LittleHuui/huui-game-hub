@@ -1,42 +1,18 @@
 <template>
   <div class="room-hub-page">
-    <header class="room-hub-page__toolbar">
-      <div class="room-hub-page__toolbar-main">
-        <h2 class="room-hub-page__title">{{ title }}</h2>
-        <p v-if="subtitle" class="room-hub-page__subtitle muted-small">{{ subtitle }}</p>
-      </div>
-      <div class="room-hub-page__toolbar-actions">
-        <input
-          v-model="searchKeyword"
-          type="search"
-          class="room-hub-page__search"
-          placeholder="搜索房间名称"
-          :disabled="disabled || loading"
-          aria-label="搜索房间"
-        />
-        <button
-          type="button"
-          class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-          :disabled="disabled || loading"
-          @click="$emit('refresh')"
-        >
-          刷新
-        </button>
-        <button
-          type="button"
-          class="game-action-btn game-action-btn--primary game-action-btn--sm"
-          :disabled="disabled || loading"
-          @click="$emit('create')"
-        >
-          创建房间
-        </button>
-      </div>
-    </header>
+    <AppPageHeader :title="title">
+      <template #actions><button type="button" class="gh-primary" :disabled="disabled || loading" @click="$emit('create')"><AppIcon name="plus" :size="16" />创建房间</button></template>
+    </AppPageHeader>
+    <div class="room-hub-searchbar">
+      <label class="room-hub-search"><AppIcon name="search" :size="17" /><input v-model="searchKeyword" type="search" placeholder="搜索房间或房主" aria-label="搜索房间" :disabled="disabled || loading" /></label>
+      <button type="button" :disabled="disabled || loading" @click="$emit('refresh')"><AppIcon name="refresh" :size="16" /><span>刷新</span></button>
+    </div>
 
     <slot />
 
     <RoomListPanel
       :rooms="filteredRooms"
+      :reset-key="searchKeyword"
       :loading="loading"
       :disabled="disabled || loading"
       :error-message="errorMessage"
@@ -50,7 +26,8 @@
 <script setup>
 import { computed, ref } from 'vue';
 import RoomListPanel from './RoomListPanel.vue';
-import './roomHub.css';
+import AppPageHeader from '../../ui/AppPageHeader.vue';
+import AppIcon from '../../ui/AppIcon.vue';
 
 const props = defineProps({
   title: { type: String, default: '房间列表' },

@@ -1,10 +1,12 @@
 <template>
-  <div class="match3-board-wrap">
+  <div class="match3-board-host">
     <div
+      ref="boardElement"
       class="match3-board"
       :style="{
-        gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
-        gridTemplateRows: `repeat(${rows}, ${cellSize}px)`
+        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+        aspectRatio: `${cols} / ${rows}`
       }"
     >
       <button
@@ -14,16 +16,17 @@
         class="match3-cell"
         :class="cellClass(cell)"
         :style="cellStyle(cell)"
+        :aria-label="`${itemMap[cell.type]?.name || cell.type}，第 ${cell.row + 1} 行第 ${cell.col + 1} 列`"
         @pointerdown="onPointerDown($event, cell)"
       >
-        <span v-if="itemMap[cell.type]?.icon" class="match3-cell-icon">{{ itemMap[cell.type].icon }}</span>
+        <span class="match3-cell-icon" :data-shape="items.findIndex((item) => item.itemCode === cell.type) % 6" aria-hidden="true" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const props = defineProps({
   board: { type: Array, required: true },
@@ -40,6 +43,19 @@ const props = defineProps({
 const emit = defineEmits(['swap-request', 'cell-click']);
 
 const dragState = ref(null);
+const boardElement = ref(null);
+const renderedWidth = ref(0);
+const renderedHeight = ref(0);
+let resizeObserver = null;
+onMounted(() => {
+  resizeObserver = new ResizeObserver(([entry]) => {
+    renderedWidth.value = entry.contentRect.width;
+    renderedHeight.value = entry.contentRect.height;
+  });
+  resizeObserver.observe(boardElement.value);
+});
+const visualScaleX = computed(() => renderedWidth.value > 0 && cols.value ? (renderedWidth.value + 6) / (cols.value * (props.cellSize + 6)) : 1);
+const visualScaleY = computed(() => renderedHeight.value > 0 && rows.value ? (renderedHeight.value + 6) / (rows.value * (props.cellSize + 6)) : 1);
 
 const rows = computed(() => props.board.length);
 const cols = computed(() => props.board[0]?.length || 0);
@@ -81,8 +97,8 @@ function cellTransform(cell) {
   if (!visual) {
     return '';
   }
-  const tx = visual.translateX || 0;
-  const ty = visual.translateY || 0;
+  const tx = (visual.translateX || 0) * visualScaleX.value;
+  const ty = (visual.translateY || 0) * visualScaleY.value;
   if (tx === 0 && ty === 0) {
     return '';
   }
@@ -106,9 +122,10 @@ function cellStyle(cell) {
   const style = {
     gridRowStart: cell.row + 1,
     gridColumnStart: cell.col + 1,
-    width: `${props.cellSize}px`,
-    height: `${props.cellSize}px`,
-    background: item.color || '#64748b',
+    width: '100%',
+    height: '100%',
+    background: `color-mix(in srgb, ${item.color || '#64748b'} 15%, white)`,
+    color: item.color || '#64748b',
     '--match3-transition-ms': `${transitionMs}ms`
   };
   if (transform) {
@@ -205,96 +222,7 @@ function clearDrag() {
 }
 
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
   clearDrag();
 });
 </script>
-
-<style scoped>
-.match3-board-wrap {
-  padding: 18px;
-  border-radius: 24px;
-  background: rgba(15, 23, 42, 0.72);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
-  touch-action: none;
-  user-select: none;
-}
-
-.match3-board {
-  display: grid;
-  gap: 6px;
-}
-
-.match3-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  text-box-trim: trim-both;
-  text-box-edge: cap alphabetic;
-  border: 2px solid rgba(255, 255, 255, 0.42);
-  border-radius: 12px;
-  cursor: grab;
-  box-shadow:
-    inset 0 2px 10px rgba(255, 255, 255, 0.42),
-    inset 0 -8px 14px rgba(0, 0, 0, 0.18),
-    0 4px 10px rgba(0, 0, 0, 0.22);
-  transition:
-    transform var(--match3-transition-ms, 180ms) ease,
-    opacity var(--match3-transition-ms, 220ms) ease,
-    box-shadow 160ms ease,
-    filter 160ms ease;
-  will-change: transform, opacity;
-}
-
-.match3-cell:active {
-  cursor: grabbing;
-}
-
-.match3-cell.is-dragging {
-  z-index: 2;
-  transform: translateY(-3px) scale(1.08);
-  box-shadow:
-    0 0 0 3px rgba(255, 255, 255, 0.95),
-    0 10px 22px rgba(0, 0, 0, 0.28),
-    inset 0 2px 10px rgba(255, 255, 255, 0.5);
-}
-
-.match3-cell.is-bomb-target:hover {
-  box-shadow:
-    0 0 0 3px rgba(252, 165, 165, 0.95),
-    0 0 24px rgba(248, 113, 113, 0.45),
-    inset 0 2px 8px rgba(255, 255, 255, 0.35);
-}
-
-.match3-cell.is-removing {
-  opacity: 0;
-  transform: scale(0.2) rotate(12deg);
-  pointer-events: none;
-}
-
-.match3-cell.is-shuffling {
-  animation: match3Shuffle 380ms ease;
-}
-
-.match3-cell-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  line-height: 1;
-  text-box-trim: trim-both;
-  text-box-edge: cap alphabetic;
-}
-
-@keyframes match3Shuffle {
-  0% {
-    transform: rotate(0deg) scale(1);
-  }
-  50% {
-    transform: rotate(8deg) scale(0.86);
-  }
-  100% {
-    transform: rotate(0deg) scale(1);
-  }
-}
-</style>

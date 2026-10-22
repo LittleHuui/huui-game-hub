@@ -6,11 +6,3 @@
     </div>
   </div>
 </template>
-
-<script setup></script>
-
-<style scoped>
-.gh-root {
-  min-height: 100vh;
-}
-</style>

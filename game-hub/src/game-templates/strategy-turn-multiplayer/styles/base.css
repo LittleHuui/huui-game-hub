@@ -1,0 +1,17 @@
+@import '../../../components/game/controls/turnGame.css';
+@import '../../../games/doudizhu/styles/base.css';
+@import '../../../games/uno/styles/base.css';
+@import '../../../games/gomoku/styles/base.css';
+.strategy-turn-multiplayer-layout { display:flex; flex-direction:column; gap:12px; width:100%; min-width:0; }
+.strategy-turn-multiplayer-layout__top { min-width:0; }
+.strategy-turn-multiplayer-layout__top .app-page-header,.gomoku-page__playing > .app-page-header { margin-bottom:0; }
+.strategy-turn-multiplayer-layout__table { display:flex; flex-direction:column; gap:16px; min-width:0; padding:20px; border:1px solid var(--gh-line); border-radius:var(--gh-radius); background:#f8f9fb; }
+.strategy-turn-multiplayer-layout__stage { display:grid; grid-template-columns:minmax(0,1fr) 180px minmax(0,1fr); gap:16px; flex:1; min-width:0; }
+.strategy-turn-multiplayer-layout__zone { min-width:0; }
+.strategy-turn-multiplayer-layout__center { align-self:start; }
+.strategy-turn-multiplayer-layout__right { text-align:right; }
+.strategy-turn-multiplayer-layout__bottom { width:100%; min-width:0; margin-top:auto; }
+.strategy-turn-multiplayer-layout__animation:empty { display:none; }
+.uno-page,.doudizhu-page,.gomoku-page { width:100%; min-width:0; color:var(--gh-ink); }
+.uno-page__actions,.doudizhu-page__actions,.gomoku-page__actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:center; gap:8px; }
+.uno-page__status,.doudizhu-page__status,.gomoku-page__status,.uno-page__loading-shell { padding:24px; border:1px solid var(--gh-line); border-radius:var(--gh-radius); background:var(--gh-surface); }

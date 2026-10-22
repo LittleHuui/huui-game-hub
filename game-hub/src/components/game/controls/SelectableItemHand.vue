@@ -6,7 +6,7 @@
       'selectable-item-hand--disabled': disabled || busy,
       'selectable-item-hand--selecting': multiple && isSelecting
     }"
-    :style="{ touchAction: multiple ? 'none' : 'manipulation' }"
+    style="touch-action: pan-x pan-y pinch-zoom"
     role="list"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
@@ -29,6 +29,9 @@
       }"
       :style="stackItems ? { zIndex: resolveStackOrder(item, index) } : undefined"
       role="listitem"
+      tabindex="0"
+      @keydown.enter.prevent="onItemClick(item, { detail: 0 })"
+      @keydown.space.prevent="onItemClick(item, { detail: 0 })"
       :aria-disabled="isItemDisabled(item)"
       @pointerdown="onItemPointerDown(item, index, $event)"
       @click="onItemClick(item, $event)"
@@ -49,7 +52,6 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useSelectableItemGesture } from './useSelectableItemGesture.js';
-import './turnGame.css';
 
 const ILLEGAL_SELECTION_FEEDBACK_MS = 380;
 

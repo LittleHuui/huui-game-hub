@@ -1,0 +1,14 @@
+.doudizhu-page { --dd-hand-width:48px; --dd-hand-height:70px; --dd-hand-step:28px; --dd-play-width:36px; --dd-play-height:52px; }
+.doudizhu-page__bottom-stack { gap:12px; }
+.doudizhu-page__bottom-play { min-height:40px; }
+.doudizhu-page .strategy-turn-multiplayer-layout__stage { flex:0 0 auto; }
+.doudizhu-page .strategy-turn-multiplayer-layout__center { margin-top:8px; }
+.doudizhu-page__hand-shell { padding-top:10px; }
+.doudizhu-hand .doudizhu-card__corner { font-size:15px; padding:3px; }
+.doudizhu-round-cards .doudizhu-card { width:36px; height:52px; }
+.doudizhu-player-panel__operation-feedback { padding:0; margin-top:12px; }
+.doudizhu-player-panel--right .doudizhu-player-panel__operation-feedback { padding:0; }
+.doudizhu-player-panel__visible-cards,.doudizhu-player-panel__terminal-hand { max-width:150px; }
+.doudizhu-player-panel .turn-player-panel__identity { flex-wrap:wrap; }
+.doudizhu-player-panel .turn-player-panel__info { flex:1; }
+.doudizhu-page__viewer-info .turn-player-panel__name { font-size:12px; }

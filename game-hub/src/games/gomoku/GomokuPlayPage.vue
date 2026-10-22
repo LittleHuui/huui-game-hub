@@ -32,67 +32,24 @@
     </div>
 
     <div v-else class="gomoku-page__playing">
-      <header class="gomoku-page__play-bar">
-        <span class="muted-small">{{ playRoomLabel }}</span>
-        <button
-          type="button"
-          class="game-action-btn game-action-btn--warning game-action-btn--sm"
-          @click="onExitRoomWithShell"
-        >
-          离开房间
-        </button>
-      </header>
-
+      <AppPageHeader title="五子棋" :aria-label="`五子棋 · ${playRoomLabel}`">
+          <template #actions>
+            <button type="button" class="game-action-btn game-action-btn--ghost game-action-btn--sm" @click="backToRoomOrLobby">返回房间</button>
+            <AppMenu label="更多操作" :items="[
+              { id: 'manage', label: viewerManagedActive ? '取消托管' : '托管', icon: 'pause', disabled: gameViewActionBusy || !canShowGameView },
+              { id: 'exit', label: '退出并托管', icon: 'logout', danger: true }
+            ]" @select="onPlayMenuSelect" />
+          </template>
+        </AppPageHeader>
       <div class="gomoku-battle-layout">
-        <div v-if="opponentPanel" class="gomoku-opponent-panel">
-          <article
-            class="gomoku-player-card"
-            :class="{ 'gomoku-player-card--active': opponentPanel.isCurrentTurn }"
-          >
-            <div class="gomoku-player-card__avatar">
-              <img
-                v-if="opponentPanel.avatar"
-                :src="opponentPanel.avatar"
-                :alt="opponentPanel.nickname"
-              />
-              <span v-else aria-hidden="true">{{ opponentPanel.avatarInitial }}</span>
-            </div>
-            <div class="gomoku-player-card__main">
-              <h3 class="gomoku-player-card__name" :title="opponentPanel.nickname">
-                {{ opponentPanel.nickname }}
-              </h3>
-              <div v-if="opponentPanel.stoneTone" class="gomoku-player-card__stone">
-                <span
-                  class="gomoku-stone-indicator"
-                  :class="opponentPanel.stoneTone"
-                />
-              </div>
-              <div
-                v-if="opponentPanel.isAi || opponentPanel.managedLabel"
-                class="gomoku-player-card__tags"
-              >
-                <span
-                  v-if="opponentPanel.managedLabel"
-                  class="gomoku-player-card__tag"
-                  :class="opponentPanel.managedBadgeClass"
-                >
-                  {{ opponentPanel.managedLabel }}
-                </span>
-                <span v-if="opponentPanel.isAi" class="gomoku-player-card__tag gomoku-player-card__tag--ai">
-                  AI
-                </span>
-              </div>
-            </div>
-            <div v-if="opponentPanel.isCurrentTurn" class="gomoku-player-card__timer">
-              <TurnCountdown
-                :seconds="turnTimeoutSeconds"
-                :expires-at-ms="turnDeadlineAtMs"
-                compact
-              />
-            </div>
-          </article>
+        <div class="gomoku-seats">
+          <TurnPlayerPanel v-for="(player, index) in [opponentPanel, selfPanel].filter(Boolean)" :key="player.playerId || index"
+            :nickname="player.nickname" :avatar="player.avatar" :is-current-turn="player.isCurrentTurn"
+            :is-ai="player.isAi" :managed-label="player.managedLabel" :managed-badge-class="player.managedBadgeClass"
+            :show-countdown="player.isCurrentTurn && !gameViewIsGameOver" :countdown-seconds="turnTimeoutSeconds" :countdown-expires-at-ms="turnDeadlineAtMs">
+            <template #meta><span v-if="player.stoneTone" class="gomoku-stone-indicator" :class="player.stoneTone" />{{ index === 1 ? '你' : '对手' }}</template>
+          </TurnPlayerPanel>
         </div>
-
         <div class="gomoku-board-area">
           <div v-if="gameViewVersion > 0" class="gomoku-board-wrap">
             <GomokuBoard
@@ -127,72 +84,9 @@
             >
               认输
             </button>
-            <button
-              v-if="!viewerManagedActive"
-              type="button"
-              class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-              :disabled="gameViewActionBusy"
-              @click="onStartManagedMode"
-            >
-              托管
-            </button>
-            <button
-              v-else
-              type="button"
-              class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-              :disabled="gameViewActionBusy"
-              @click="onStopManagedMode"
-            >
-              取消托管
-            </button>
           </div>
         </div>
 
-        <div v-if="selfPanel" class="gomoku-self-panel">
-          <article
-            class="gomoku-player-card"
-            :class="{ 'gomoku-player-card--active': selfPanel.isCurrentTurn }"
-          >
-            <div class="gomoku-player-card__avatar">
-              <img
-                v-if="selfPanel.avatar"
-                :src="selfPanel.avatar"
-                :alt="selfPanel.nickname"
-              />
-              <span v-else aria-hidden="true">{{ selfPanel.avatarInitial }}</span>
-            </div>
-            <div class="gomoku-player-card__main">
-              <h3 class="gomoku-player-card__name" :title="selfPanel.nickname">
-                {{ selfPanel.nickname }}
-              </h3>
-              <div v-if="selfPanel.stoneTone" class="gomoku-player-card__stone">
-                <span class="gomoku-stone-indicator" :class="selfPanel.stoneTone" />
-              </div>
-              <div
-                v-if="selfPanel.isAi || selfPanel.managedLabel"
-                class="gomoku-player-card__tags"
-              >
-                <span
-                  v-if="selfPanel.managedLabel"
-                  class="gomoku-player-card__tag"
-                  :class="selfPanel.managedBadgeClass"
-                >
-                  {{ selfPanel.managedLabel }}
-                </span>
-                <span v-if="selfPanel.isAi" class="gomoku-player-card__tag gomoku-player-card__tag--ai">
-                  AI
-                </span>
-              </div>
-            </div>
-            <div v-if="selfPanel.isCurrentTurn" class="gomoku-player-card__timer">
-              <TurnCountdown
-                :seconds="turnTimeoutSeconds"
-                :expires-at-ms="turnDeadlineAtMs"
-                compact
-              />
-            </div>
-          </article>
-        </div>
       </div>
     </div>
 
@@ -238,9 +132,11 @@
 </template>
 
 <script setup>
+import AppPageHeader from '../../components/ui/AppPageHeader.vue';
+import AppMenu from '../../components/ui/AppMenu.vue';
 import { computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { TurnCountdown } from '../../components/game/index.js';
+import { TurnPlayerPanel } from '../../components/game/index.js';
 import { usePlatformStore } from '../../stores/platformStore.js';
 import { useStrategyTurnGameView } from '../../composables/useStrategyTurnGameView.js';
 import { useStrategyTurnRoomLifecycle } from '../../composables/useStrategyTurnRoomLifecycle.js';
@@ -255,7 +151,6 @@ import GomokuSettlementDialog from './components/GomokuSettlementDialog.vue';
 import { useGomokuInteraction } from './composables/useGomokuInteraction.js';
 import { useGomokuPlayViewModel } from './composables/useGomokuPlayViewModel.js';
 import { useGomokuUndoRequestExpiry } from './composables/useGomokuUndoRequestExpiry.js';
-import './gomokuPage.css';
 
 const GOMOKU_CODE = 'gomoku';
 
@@ -442,4 +337,9 @@ onUnmounted(() => {
   resetActionController();
   resetUndoRequestExpiry();
 });
+/** Dispatches page menu actions through the existing room lifecycle. */
+function onPlayMenuSelect(id) {
+  if (id === 'manage') return viewerManagedActive.value ? onStopManagedMode() : onStartManagedMode();
+  if (id === 'exit') return onExitRoomWithShell();
+}
 </script>

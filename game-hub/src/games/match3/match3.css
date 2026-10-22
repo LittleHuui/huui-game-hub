@@ -1,0 +1,18 @@
+.match3-board-wrap { position: relative; width: 100%; display: flex; justify-content: center; }
+.match3-board-host { width: min(100%, var(--single-board-size)); min-width: 0; padding: 8px; border: 1px solid var(--gh-line); border-radius: 14px; background: #f7f8fa; touch-action: none; user-select: none; }
+.match3-board { display: grid; gap: 6px; width: 100%; }
+.match3-cell { display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; padding: 0; border: 0; border-radius: 8px; cursor: grab; transition: transform var(--match3-transition-ms,180ms) ease,opacity var(--match3-transition-ms,220ms) ease; will-change: transform,opacity; }
+.match3-cell:active { cursor: grabbing; }
+.match3-cell.is-dragging { z-index: 2; box-shadow: 0 0 0 2px var(--gh-blue); }
+.match3-cell.is-bomb-target { outline: 1px dashed var(--gh-red); outline-offset: -2px; }
+.match3-cell.is-removing { opacity: 0; transform: scale(.2) rotate(12deg); pointer-events: none; }
+.match3-cell.is-shuffling { animation: single-match-shuffle 380ms ease; }
+.match3-cell-icon { display: block; width: 52%; aspect-ratio: 1; background: currentColor; border-radius: 4px; opacity: .9; }
+.match3-cell-icon[data-shape="0"] { border-radius: 50%; }
+.match3-cell-icon[data-shape="1"] { transform: rotate(45deg) scale(.78); }
+.match3-cell-icon[data-shape="2"] { clip-path: polygon(50% 0,100% 100%,0 100%); border-radius: 0; }
+.match3-cell-icon[data-shape="3"] { clip-path: polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%); }
+.match3-cell-icon[data-shape="4"] { clip-path: polygon(35% 0,65% 0,65% 35%,100% 35%,100% 65%,65% 65%,65% 100%,35% 100%,35% 65%,0 65%,0 35%,35% 35%); }
+.match3-cell-icon[data-shape="5"] { clip-path: polygon(50% 0,63% 35%,100% 38%,72% 61%,80% 100%,50% 78%,20% 100%,28% 61%,0 38%,37% 35%); }
+.match3-chain-hint { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 4; padding: 5px 12px; border-radius: 20px; background: #fff5d9; color: #956619; font-size: 12px; font-weight: 600; box-shadow: 0 2px 8px #0001; pointer-events: none; }
+@keyframes single-match-shuffle { 50% { transform: rotate(8deg) scale(.86); } }

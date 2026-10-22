@@ -4,6 +4,7 @@
       <slot name="topRoomBar" />
     </header>
 
+    <section class="strategy-turn-multiplayer-layout__table">
     <div class="strategy-turn-multiplayer-layout__stage">
       <aside class="strategy-turn-multiplayer-layout__zone strategy-turn-multiplayer-layout__left">
         <slot name="leftPlayers" />
@@ -21,6 +22,7 @@
     <footer class="strategy-turn-multiplayer-layout__bottom">
       <slot name="bottomActionArea" />
     </footer>
+    </section>
 
     <div class="strategy-turn-multiplayer-layout__animation">
       <slot name="animationLayer" />
@@ -29,5 +31,4 @@
 </template>
 
 <script setup>
-import './strategy-turn-multiplayer.css';
 </script>

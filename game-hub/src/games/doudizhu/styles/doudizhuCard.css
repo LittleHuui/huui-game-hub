@@ -10,17 +10,8 @@
   height: 104px;
   margin: 0;
   border-radius: 9px;
-  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   transition: transform 0.15s ease;
-}
-
-.doudizhu-card--selected {
-  transform: translateY(-10px);
-}
-
-.doudizhu-hand .selectable-item-hand__item--drag-selected .doudizhu-card,
-.doudizhu-hand .selectable-item-hand__item--selected .doudizhu-card {
-  box-shadow: 0 0 0 3px #fbbf24, 0 4px 12px rgba(0, 0, 0, 0.42);
 }
 
 .doudizhu-card__image,
@@ -33,7 +24,7 @@
 
 .doudizhu-card__face {
   position: relative;
-  background: linear-gradient(180deg, #fff 0%, #f3f4f6 100%);
+  background: #fff;
   border: 1px solid #d1d5db;
   box-sizing: border-box;
 }
@@ -47,7 +38,7 @@
 }
 
 .doudizhu-card--joker .doudizhu-card__face {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  background: #fffdf6;
 }
 
 .doudizhu-card--joker-big .doudizhu-card__face {
@@ -59,8 +50,8 @@
 }
 
 .doudizhu-card--face-down .doudizhu-card__face {
-  background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
-  border-color: #1e40af;
+  background: #dfeaf6;
+  border-color: #b7cbe1;
 }
 
 .doudizhu-card--laizi .doudizhu-card__face {
@@ -120,7 +111,7 @@
 
 .doudizhu-card__corner {
   position: absolute;
-  font-size: 0.88rem;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.1;
   padding: 0.3rem;
@@ -143,7 +134,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
+  font-size: 24px;
 }
 
 .doudizhu-card__joker-label {
@@ -179,6 +170,6 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #dbeafe;
+  color: #6986a5;
   font-weight: 700;
 }

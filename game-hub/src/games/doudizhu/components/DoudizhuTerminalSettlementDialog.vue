@@ -179,5 +179,3 @@ const playerRows = computed(() =>
   })
 );
 </script>
-
-<style scoped src="./doudizhuSettlementDialog.css"></style>

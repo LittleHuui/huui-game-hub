@@ -1,0 +1,50 @@
+.app-main {
+  padding: 14px 16px 18px;
+}
+
+.site-topbar-inner {
+  padding: 0 16px;
+  gap: 16px;
+}
+
+.game-selector-tabs {
+  display: none;
+}
+
+.game-selector-menu {
+  display: block;
+}
+
+.site-topbar-games {
+  flex: 0 1 auto;
+}
+
+.app-page-header h1 {
+  font-size: 18px;
+}
+
+.app-page-header__meta {
+  font-size: 11px;
+}
+
+.room-hub-list {
+  grid-template-columns: repeat(2,minmax(0,1fr));
+}
+
+.room-seat-board {
+  grid-template-columns: repeat(3,minmax(0,1fr));
+}
+
+.room-seat-avatar {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.room-active-notice {
+  flex-wrap: wrap;
+}
+
+.room-hub-panel {
+  --gh-room-page-size: 4;
+}

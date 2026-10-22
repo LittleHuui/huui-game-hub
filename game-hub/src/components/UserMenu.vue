@@ -1,49 +1,22 @@
 <template>
-  <div class="user-menu-anchor" ref="anchor">
-    <button
-      type="button"
-      class="user-menu-trigger"
-      :aria-expanded="open ? 'true' : 'false'"
-      aria-label="打开菜单"
-      @click.stop="open = !open"
-    >
-      ▾
-    </button>
-    <div v-if="open" class="user-menu-panel" @click.stop>
-      <button type="button" class="user-menu-item" @click="pick('ledger')">
-        <span class="user-menu-label">积分信息</span>
-        <span class="user-menu-value">{{ user.score || 0 }} / {{ user.totalScore || 0 }}</span>
-      </button>
-      <button type="button" class="user-menu-item" @click="pick('history')">历史对局</button>
-      <button type="button" class="user-menu-item" @click="pick('propUsage')">道具使用记录</button>
-      <button type="button" class="user-menu-item" @click="pick('purchase')">购买记录</button>
-      <button type="button" class="user-menu-item" @click="pick('settings')">设置</button>
-      <div class="user-menu-divider" />
-      <button type="button" class="user-menu-item user-menu-item--bottom" :disabled="disableSwitch" @click="pick('user')">
-        切换账户
-      </button>
-    </div>
-  </div>
+  <AppMenu class="account-menu" label="账户菜单" title="我的账户" :items="items" @select="emit('open-modal', $event)">
+    <template #trigger><span class="account-menu-avatar">{{ (user.nickname || user.username || '我').slice(0, 1) }}</span></template>
+    <template #header><div class="account-menu-summary"><strong>{{ user.nickname }}</strong><span>{{ user.username }}</span><span>积分 {{ user.score || 0 }} · 总积分 {{ user.totalScore || 0 }}</span></div></template>
+  </AppMenu>
 </template>
-
 <script setup>
-import { ref } from 'vue';
-import { useOutsideClick } from '../composables/useOutsideClick.js';
-
-defineProps({
-  user: { type: Object, required: true },
-  disableSwitch: { type: Boolean, default: false }
-});
-
+import { computed } from 'vue';
+import AppMenu from './ui/AppMenu.vue';
+const props = defineProps({ user: { type: Object, required: true }, disableSwitch: { type: Boolean, default: false } });
 const emit = defineEmits(['open-modal']);
-
-const open = ref(false);
-const anchor = ref(null);
-
-function pick(type) {
-  open.value = false;
-  emit('open-modal', type);
-}
-
-useOutsideClick(open, anchor, () => { open.value = false; });
+const items = computed(() => [
+  { id: 'nickname', label: '修改昵称', icon: 'edit', disabled: props.disableSwitch },
+  { id: 'ledger', label: '积分流水', icon: 'coins' },
+  { id: 'history', label: '历史对局', icon: 'clock' },
+  { id: 'propUsage', label: '道具使用记录', icon: 'backpack' },
+  { id: 'purchase', label: '购买记录', icon: 'receipt' },
+  { id: 'settings', label: '显示与数据设置', icon: 'settings' },
+  { id: 'divider', type: 'separator' },
+  { id: 'user', label: '切换或创建用户', icon: 'user', disabled: props.disableSwitch }
+]);
 </script>

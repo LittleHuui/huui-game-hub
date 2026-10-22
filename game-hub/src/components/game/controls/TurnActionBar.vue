@@ -54,7 +54,6 @@ import {
   hasActionOfferType
 } from './turnActionUtils.js';
 import { STRATEGY_TURN_ACTION_TYPE, TURN_ACTION_BAR_KEY } from './turnControlEnums.js';
-import './turnGame.css';
 
 const props = defineProps({
   /** @type {import('vue').PropType<import('../../services/action-interaction/actionOfferUtils.js').ActionOffer[]>} */

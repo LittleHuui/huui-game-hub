@@ -10,7 +10,6 @@ import { SUDOKU_CODE, SUDOKU_MODE, SUDOKU_PROP, getSudokuPropRule } from './sudo
 import { useGameSwitchLock } from '../../composables/useGameSwitchLock.js';
 import { usePageVisibilityPause } from '../../composables/usePageVisibilityPause.js';
 import { activateGame } from '../../services/gameLifecycleService.js';
-import './styles/sudoku.css';
 
 export const pageComponents = {
   SudokuBoard,

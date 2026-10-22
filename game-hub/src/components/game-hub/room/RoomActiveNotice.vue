@@ -1,5 +1,5 @@
 <template>
-  <section v-if="room || errorMessage" class="room-hub-panel" aria-label="我的活跃房间">
+  <section v-if="room || errorMessage" class="room-active-notice" aria-label="我的活跃房间">
     <template v-if="room">
       <p class="muted-small">
         我的活跃房间：{{ gameName || room.gameCode || '未知游戏' }} · {{ room.roomName || room.roomId }}

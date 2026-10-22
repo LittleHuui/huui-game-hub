@@ -2,10 +2,9 @@
   <header class="site-topbar">
     <div class="site-topbar-inner">
       <div class="site-brand">
-        <div class="site-logo-mark" aria-hidden="true">⚡</div>
+        <img class="site-logo-mark" src="/favicon.svg" alt="" />
         <div class="site-brand-text">
           <span class="site-title gh-site-title">Game Hub</span>
-          <span class="site-tag">轻量小游戏平台</span>
         </div>
       </div>
       <div v-if="hasGamesSlot" class="site-topbar-games">
@@ -21,18 +20,18 @@
             @blur="saveNickname"
             @keyup.enter="onEnterBlur"
           />
-          <span
+          <button
             v-else
+            type="button"
             class="nickname-text site-nickname-text"
             :class="{ 'is-locked': lockNickname }"
             :title="lockNickname ? '对局进行中不可修改昵称' : '点击修改昵称'"
             @click="startNicknameEdit"
           >
             {{ user.nickname }}
-          </span>
+          </button>
         </div>
         <div class="site-user-trail">
-          <span class="user-name site-username">{{ user.username }}</span>
           <slot name="menu" />
         </div>
       </div>

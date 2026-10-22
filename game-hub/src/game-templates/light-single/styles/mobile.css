@@ -1,0 +1,21 @@
+.game-play-layout { grid-template-columns: minmax(0,1fr); }
+.light-single-layout { --single-board-reserve: 330px; --single-board-size: clamp(260px, calc(var(--gh-viewport-height, 100dvh) - var(--single-board-reserve)), 440px); gap: 8px; }
+.light-single-layout__main { border-radius: 12px; padding: 10px 6px; gap: 8px; }
+.light-single-header { margin-bottom: 0; }
+.light-single-header .app-page-header__meta { display: none; }
+.light-single-header .game-action-btn,.light-single-config-trigger { min-height: 36px; padding: 6px 8px; font-size: 12px; }
+.single-stat-strip { gap: 6px; }
+.single-stat strong { font-size: 16px; }
+.single-stat > span { font-size: 11px; }
+.single-stat-details { min-width: 32px; min-height: 26px; }
+.single-board-tools button,.sudoku-draft-toggle { min-height: 44px; }
+.light-single-resources { gap: 2px; }
+.light-single-resources button { min-height: 44px; font-size: 12px; }
+.game-inventory-use { min-height: 38px; min-width: 44px; }
+.game-inventory-slot { padding: 3px 4px 3px 8px; gap: 5px; }
+.game-inventory-name { font-size: 12px; }
+.sudoku-number-popup { display: none; }
+.sudoku-number-panel { position: sticky; bottom: 0; z-index: 6; padding: 5px 0; background: var(--gh-surface); }
+.sudoku-number-panel__item { min-height: 48px; }
+.sudoku-cell__value { font-size: 20px; }
+.single-board-tools__hint { font-size: 11px; }

@@ -18,12 +18,3 @@ defineProps({
   }
 });
 </script>
-
-<style scoped>
-.game-hud-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 4px;
-}
-</style>

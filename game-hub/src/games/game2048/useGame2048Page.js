@@ -1,5 +1,4 @@
-﻿import './game2048.css';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+﻿import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import Game2048Board from './components/Game2048Board.vue';
 import { LightSingleGameLayout } from '../../game-templates/light-single/index.js';
 import {

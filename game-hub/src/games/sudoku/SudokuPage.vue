@@ -1,6 +1,6 @@
 <template>
   <div>
-    <LightSingleGameLayout
+    <LightSingleGameLayout class="sudoku-layout"
       :game-title="layoutGameTitle"
       :game-subtitle="layoutGameSubtitle"
       :game-description="layoutGameDescription"
@@ -38,6 +38,7 @@
       <template #match-stats>
         <GameMatchStatsPanel
           :stats="matchStats"
+          :summary-keys="['duration','filled','empty']"
           :quotas="matchQuotas"
           :message="matchStatsMessage"
           theme-seed="sudoku"
@@ -63,7 +64,9 @@
           @update:draft-mode="draftMode = $event"
           @close-popup="closePopup"
         />
-        <SudokuNumberPanel class="sudoku-board-number-panel" :remaining="remainingCounts" />
+        <SudokuNumberPanel class="sudoku-board-number-panel" :remaining="remainingCounts"
+          :available-numbers="popupAvailableNumbers" :disabled="!canInteractBoard || selectedRow < 0 || selectedCol < 0 || cells[selectedRow]?.[selectedCol]?.fixed"
+          @pick="onPickNumber" />
       </template>
 
       <template #inventory>
@@ -101,9 +104,3 @@ export default {
   setup: useSudokuPage
 };
 </script>
-
-<style scoped>
-.sudoku-stats-panel {
-  margin-top: 12px;
-}
-</style>

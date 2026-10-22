@@ -1,9 +1,5 @@
 <template>
-  <section class="game-card light-single-board-frame">
-    <header v-if="title || subtitle" class="light-single-board-frame__head">
-      <h2 v-if="title" class="light-single-board-frame__title">{{ title }}</h2>
-      <p v-if="subtitle" class="light-single-board-frame__subtitle">{{ subtitle }}</p>
-    </header>
+  <section class="light-single-board-frame" :aria-label="title || '棋盘'">
     <div class="light-single-board-frame__body">
       <slot />
       <GamePauseOverlay

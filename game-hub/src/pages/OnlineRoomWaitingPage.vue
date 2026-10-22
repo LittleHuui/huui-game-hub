@@ -140,7 +140,6 @@ import * as roomRealtimeService from '../services/roomRealtimeService.js';
 import { loadOnlineRuleDefinition } from '../services/onlineRoomService.js';
 import { canFetchRemote } from '../services/remoteGate.js';
 import { resolveGamePlayRoute } from '../games/gameModuleRegistry.js';
-import '../components/game-hub/room/roomHub.css';
 
 const context = useAsyncContext();
 const route = useRoute();

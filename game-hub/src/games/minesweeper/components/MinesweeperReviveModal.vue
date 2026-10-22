@@ -1,18 +1,15 @@
 <template>
-  <div v-if="visible" class="modal-mask revive-offer-mask" @click.self="$emit('decline')">
-    <div class="modal" @click.stop>
-      <h2 style="margin-bottom: 8px">踩到地雷</h2>
-      <p>是否使用复活卡复活本局？也可等待倒计时结束放弃复活。</p>
-      <div class="revive-countdown">{{ secondsLeft }} 秒</div>
-      <div class="revive-actions">
-        <button type="button" class="success" :disabled="reviveDisabled" @click="$emit('confirm')">使用复活卡</button>
-        <button type="button" class="danger" @click="$emit('decline')">放弃复活</button>
-      </div>
-    </div>
-  </div>
+  <AppModal :visible="visible" title="踩到地雷" @close="$emit('decline')">
+    <p>使用复活卡继续本局，或等待倒计时结束放弃复活。</p>
+    <div class="revive-countdown" role="timer">{{ secondsLeft }} 秒</div>
+    <template #footer>
+      <button type="button" class="secondary" @click="$emit('decline')">放弃复活</button>
+      <button type="button" class="gh-primary" :disabled="reviveDisabled" @click="$emit('confirm')">使用复活卡</button>
+    </template>
+  </AppModal>
 </template>
-
 <script setup>
+import AppModal from '../../../components/AppModal.vue';
 defineProps({
   visible: { type: Boolean, required: true },
   secondsLeft: { type: Number, required: true },

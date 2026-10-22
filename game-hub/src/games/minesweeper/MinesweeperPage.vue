@@ -21,13 +21,8 @@
       @action="handleControlAction"
       @resume="resumeGame"
     >
-      <template #title-extra>
-        <div class="info-tip-wrap" tabindex="0">
-          <button type="button" class="info-tip-btn" aria-label="积分规则说明">!</button>
-          <div class="info-tip-bubble" role="tooltip">
-            积分规则：胜利直接获得当前难度满积分（初级100 / 中级300 / 高级800）；失败或主动结束时，按正确标记雷数 × 3 结算。
-          </div>
-        </div>
+      <template #game-info-extra>
+        <p>积分规则：胜利获得当前难度满积分（初级 100 / 中级 300 / 高级 800）；失败或主动结束时，按正确标记雷数 × 3 结算。</p>
       </template>
 
       <template #shop>
@@ -47,6 +42,7 @@
       <template #match-stats>
         <GameMatchStatsPanel
           :stats="matchStats"
+          :summary-keys="['remainMines','duration','opened','flagged']"
           :quotas="matchQuotas"
           :message="gameMessage"
           :theme-seed="statThemeSeed"
@@ -86,10 +82,11 @@
               class="game-inventory-use minesweeper-auto-revive-btn"
               :class="{ 'minesweeper-auto-revive-btn--active': user.autoRevive }"
               :disabled="reviveQty <= 0"
+              :aria-pressed="user.autoRevive"
               title="有卡且本局未复活时，踩雷自动消耗一张"
               @click="setAutoRevive(!user.autoRevive)"
             >
-              用
+              自动复活
             </button>
           </template>
         </GameInventoryPanel>

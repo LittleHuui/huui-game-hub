@@ -9,7 +9,6 @@ import { MINESWEEPER_GAME_CODE, MINESWEEPER_MODE } from './minesweeperConfig.js'
 import { activateGame } from '../../services/gameLifecycleService.js';
 import { useGameSwitchLock } from '../../composables/useGameSwitchLock.js';
 import { usePageVisibilityPause } from '../../composables/usePageVisibilityPause.js';
-import './minesweeper.css';
 
 export const pageComponents = {
   MinesweeperReviveModal,

@@ -1,0 +1,62 @@
+@import './doudizhuCard.css';
+.doudizhu-page { --dd-hand-width:72px; --dd-hand-height:104px; --dd-hand-step:46px; --dd-play-width:56px; --dd-play-height:80px; }
+.doudizhu-page__bottom-stack { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.doudizhu-page__bottom-play { display:flex; align-items:flex-end; justify-content:center; min-height:40px; }
+.doudizhu-page__bottom-play-cards,.doudizhu-player-panel__played-cards { display:flex; position:relative; align-items:center; padding-bottom:20px; max-width:100%; }
+.doudizhu-page__bottom-play-cards .doudizhu-card,.doudizhu-player-panel__played-cards .doudizhu-card { flex:0 0 auto; width:var(--dd-play-width); height:var(--dd-play-height); }
+.doudizhu-page__bottom-play-cards .doudizhu-card + .doudizhu-card,.doudizhu-player-panel__played-cards .doudizhu-card + .doudizhu-card { margin-left:calc(var(--dd-play-width) * -.56); }
+.doudizhu-page__bottom-play-label,.doudizhu-player-panel__played-label { color:var(--gh-muted); font-size:10px; white-space:nowrap; }
+.doudizhu-page__bottom-play-label { position:absolute; left:50%; bottom:0; transform:translateX(-50%); }
+.doudizhu-page__bottom-action-feedback,.doudizhu-player-panel__action-feedback { display:inline-flex; margin:0; padding:4px 10px; border-radius:7px; background:#edeff3; color:#79818c; font-size:12px; }
+.doudizhu-action-panel { display:flex; flex-direction:column; align-items:center; gap:6px; }
+.doudizhu-action-panel__buttons { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
+.doudizhu-action-panel__hint { border-color:#ead6a8; background:#fff5df; color:#93670d; }
+.doudizhu-action-panel__preview { margin:0; text-align:center; font-size:12px; }
+.doudizhu-action-panel__countdown--hidden { display:none; }
+.doudizhu-page__hand-shell { min-width:0; border-top:1px solid var(--gh-line); padding-top:10px; }
+.doudizhu-page__viewer-info { width:max-content; max-width:100%; margin-inline:auto; }
+.doudizhu-page__viewer-info .turn-player-panel__avatar { display:none; }
+.doudizhu-page__viewer-info .turn-player-panel__info { display:flex; align-items:center; gap:8px; }
+.doudizhu-page__viewer-info .turn-player-panel__meta { margin:0; }
+.doudizhu-page__hand-row,.doudizhu-hand { width:100%; min-width:0; }
+.doudizhu-hand .selectable-item-hand { gap:0; }
+.doudizhu-hand .selectable-item-hand__item { width:var(--dd-hand-width); }
+.doudizhu-hand .selectable-item-hand__item + .selectable-item-hand__item { margin-left:calc(var(--dd-hand-step) - var(--dd-hand-width)); }
+.doudizhu-hand .doudizhu-card { width:var(--dd-hand-width); height:var(--dd-hand-height); }
+.doudizhu-hand .selectable-item-hand__item--selected .doudizhu-card { outline:2px solid #8ebdff; outline-offset:0; }
+.doudizhu-player-panel { min-width:0; }
+.doudizhu-player-panel__role { color:var(--gh-gold); }
+.doudizhu-player-panel__operation-feedback { display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-height:36px; margin-top:14px; padding-left:18px; }
+.doudizhu-player-panel--right .doudizhu-player-panel__operation-feedback { align-items:flex-end; padding-left:0; padding-right:18px; }
+.doudizhu-player-panel__played-cards { padding-bottom:0; }
+.doudizhu-player-panel__visible-cards,.doudizhu-player-panel__terminal-hand { display:flex; justify-content:flex-start; gap:2px; overflow-x:auto; max-width:100%; padding:6px 2px; }
+.doudizhu-player-panel--right .doudizhu-player-panel__visible-cards,.doudizhu-player-panel--right .doudizhu-player-panel__terminal-hand { justify-content:safe flex-end; }
+.doudizhu-player-panel__mini-card,.doudizhu-player-panel__terminal-card { flex:0 0 auto; width:28px; height:40px; }
+.doudizhu-player-panel__mini-card + .doudizhu-player-panel__mini-card,.doudizhu-player-panel__terminal-card + .doudizhu-player-panel__terminal-card { margin-left:-10px; }
+.doudizhu-player-panel__terminal-empty { color:var(--gh-muted); font-size:11px; }
+.doudizhu-player-tags { display:inline-flex; gap:4px; margin:0; color:var(--gh-gold); font-size:10px; white-space:nowrap; }
+.doudizhu-player-tags:empty { display:none; }
+.doudizhu-player-tags span { padding:1px 4px; border-radius:4px; background:#fff3d9; }
+.doudizhu-round-cards { position:relative; display:flex; flex-direction:column; align-items:center; gap:7px; width:max-content; max-width:100%; margin-inline:auto; }
+.doudizhu-round-cards__bottom { display:flex; justify-content:center; gap:4px; }
+.doudizhu-round-cards .doudizhu-card { width:42px; height:60px; }
+.doudizhu-round-cards__caption { margin:0; color:var(--gh-muted); font-size:10px; line-height:1.4; white-space:nowrap; }
+.doudizhu-round-cards__scoring { display:flex; justify-content:center; gap:10px; font-variant-numeric:tabular-nums; }
+.doudizhu-round-cards__laizi { display:flex; align-items:center; gap:5px; order:2; }
+.doudizhu-round-cards__laizi .doudizhu-card { width:28px; height:40px; }
+.doudizhu-settlement__banner img { display:block; max-width:100%; max-height:92px; margin:auto; object-fit:contain; }
+.doudizhu-settlement__multiplier { display:flex; justify-content:center; gap:16px; margin:12px 0; color:var(--gh-muted); font-size:12px; }
+.doudizhu-settlement__list { margin:0; padding:0; list-style:none; }
+.doudizhu-settlement__item { display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:center; gap:10px; padding:12px 8px; border-bottom:1px solid var(--gh-line); }
+.doudizhu-settlement__item--viewer { border-radius:8px; background:#f1f7ff; }
+.doudizhu-settlement__avatar { display:grid; place-items:center; overflow:hidden; width:36px; height:36px; border-radius:50%; color:#517090; background:#eaf2fd; }
+.doudizhu-settlement__avatar img { width:100%; height:100%; object-fit:cover; }
+.doudizhu-settlement__identity { display:grid; gap:4px; min-width:0; }
+.doudizhu-settlement__name { overflow:hidden; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+.doudizhu-settlement__role { font-size:11px; color:var(--gh-muted); }
+.doudizhu-settlement__score { display:flex; align-items:baseline; gap:6px; font-size:20px; font-variant-numeric:tabular-nums; }
+.doudizhu-settlement__score-label { font-size:10px; color:var(--gh-muted); }
+.doudizhu-settlement__score--positive { color:#248b4b; }
+.doudizhu-settlement__score--negative { color:var(--gh-red); }
+.doudizhu-settlement__waiting,.doudizhu-settlement__winner { text-align:center; }
+.doudizhu-settlement__actions { display:flex; justify-content:center; }

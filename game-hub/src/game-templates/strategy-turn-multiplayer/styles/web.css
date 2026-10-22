@@ -1,0 +1,4 @@
+@import '../../../games/doudizhu/styles/web.css';
+@import '../../../games/uno/styles/web.css';
+@import '../../../games/gomoku/styles/web.css';
+.strategy-turn-multiplayer-layout__table { min-height:clamp(360px,calc(var(--gh-viewport-height) - 160px),560px); }

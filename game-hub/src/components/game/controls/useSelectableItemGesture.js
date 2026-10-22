@@ -75,6 +75,7 @@ export function useSelectableItemGesture(props, input) {
     const baseline = readSelection();
     gesture.value = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       startX: event.clientX,
       startY: event.clientY,
       anchorIndex: index,
@@ -83,8 +84,10 @@ export function useSelectableItemGesture(props, input) {
       removing: baseline.includes(item.id),
       moved: false
     };
-    input.handRef.value?.setPointerCapture(event.pointerId);
-    event.preventDefault();
+    if (event.pointerType !== 'touch') {
+      input.handRef.value?.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }
   }
 
   /**
@@ -95,6 +98,10 @@ export function useSelectableItemGesture(props, input) {
   function onPointerMove(event) {
     const current = gesture.value;
     if (!current || event.pointerId !== current.pointerId) return;
+    if (current.pointerType === 'touch') {
+      current.moved ||= Math.hypot(event.clientX - current.startX, event.clientY - current.startY) > TAP_SLOP_PX;
+      return;
+    }
     if ((event.buttons & 1) === 0) {
       cancelGesture();
       return;
@@ -122,6 +129,10 @@ export function useSelectableItemGesture(props, input) {
       event.clientX - current.startX,
       event.clientY - current.startY
     ) <= TAP_SLOP_PX;
+    if (current.pointerType === 'touch' && !isTap) {
+      cancelGesture();
+      return;
+    }
     const index = isTap ? current.anchorIndex : hitItemIndex(event);
     if ((!props.multiple && index !== current.anchorIndex) || (index < 0 && !current.moved)) {
       cancelGesture();

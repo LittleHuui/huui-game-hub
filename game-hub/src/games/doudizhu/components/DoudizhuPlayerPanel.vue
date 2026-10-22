@@ -3,68 +3,12 @@
     class="doudizhu-player-panel"
     :class="panelClassList"
   >
-    <div class="doudizhu-player-panel__identity">
-      <div class="doudizhu-player-panel__portrait">
-        <div class="doudizhu-player-panel__avatar" aria-hidden="true">
-          <img v-if="isAi" :src="botAvatarUrl" alt="" />
-          <span v-else>{{ avatarInitial }}</span>
-        </div>
-        <div class="doudizhu-player-panel__countdown-slot">
-          <TurnCountdown
-            v-if="showCountdown"
-            :seconds="countdownSeconds"
-            :expires-at-ms="countdownExpiresAtMs"
-            compact
-          />
-        </div>
-      </div>
-      <div class="doudizhu-player-panel__main">
-        <div class="doudizhu-player-panel__heading">
-          <h3
-            class="doudizhu-player-panel__name-anchor"
-            @mouseenter="showNameTooltip"
-            @mouseleave="hideNameTooltip"
-          >
-            <span
-              class="doudizhu-player-panel__name"
-              tabindex="0"
-              :aria-describedby="nameTooltipVisible ? nameTooltipId : undefined"
-              @focus="showNameTooltip"
-              @blur="hideNameTooltip"
-              @keydown.esc="hideNameTooltip"
-            >{{ nickname }}</span>
-            <span
-              v-if="nameTooltipVisible"
-              :id="nameTooltipId"
-              class="doudizhu-player-panel__name-tooltip"
-              role="tooltip"
-            >{{ nickname }}</span>
-          </h3>
-          <span v-if="roleLabel" class="doudizhu-player-panel__role">
-            <span
-              class="doudizhu-player-panel__icon"
-              :class="isLandlord ? 'doudizhu-player-panel__icon--landlord' : 'doudizhu-player-panel__icon--farmer'"
-              aria-hidden="true"
-            />
-            {{ roleLabel }}
-          </span>
-        </div>
-        <div class="doudizhu-player-panel__status">
-          <DoudizhuPlayerTags class="doudizhu-player-panel__status-row" :player-state="playerState" />
-          <p class="doudizhu-player-panel__status-row">
-            <span v-if="managedLabel" :class="managedBadgeClass">{{ managedLabel }}</span>
-            <span v-if="isAi">AI</span>
-          </p>
-        </div>
-        <p class="doudizhu-player-panel__meta" :aria-label="`手牌 ${handCount} 张`">
-          <span
-            class="doudizhu-player-panel__icon doudizhu-player-panel__icon--cards"
-            aria-hidden="true"
-          />
-          <span>{{ handCount }}</span>
-        </p>
-      </div>
-    </div>
+    <TurnPlayerPanel :nickname="nickname" :avatar="isAi ? botAvatarUrl : ''" :hand-count="handCount"
+      :is-current-turn="isCurrentTurn" :is-ai="isAi" :managed-label="managedLabel" :managed-badge-class="managedBadgeClass"
+      :show-countdown="showCountdown" :countdown-seconds="countdownSeconds" :countdown-expires-at-ms="countdownExpiresAtMs"
+      :layout="layout === 'right' ? 'edge-right' : 'edge-left'">
+      <template #meta><span class="doudizhu-player-panel__role">{{ roleLabel }}</span><DoudizhuPlayerTags :player-state="playerState" /></template>
+    </TurnPlayerPanel>
     <div
       v-if="showRemainingHand"
       class="doudizhu-player-panel__terminal-hand"
@@ -122,8 +66,8 @@
 </template>
 
 <script setup>
-import { computed, ref, useId } from 'vue';
-import { TurnCountdown } from '../../../components/game/index.js';
+import { computed } from 'vue';
+import { TurnPlayerPanel } from '../../../components/game/index.js';
 import botAvatarUrl from '../../../assets/games/doudizhu/doudizhu-bot-avatar.png';
 import { formatDoudizhuRoleLabel } from '../doudizhuDisplayText.js';
 import { normalizeHandCard, sortHandCards } from '../doudizhuGameViewUtils.js';
@@ -148,28 +92,7 @@ const props = defineProps({
   layout: { type: String, default: 'default' }
 });
 
-const avatarInitial = computed(() => {
-  const name = String(props.nickname || '').trim();
-  return name ? name.charAt(0) : '?';
-});
-
 const handCount = computed(() => Number(props.playerState?.handCount) || 0);
-const nameTooltipId = useId();
-const nameTooltipVisible = ref(false);
-
-/** 显示完整昵称，不改变姓名栏的布局宽度。 */
-function showNameTooltip() {
-  nameTooltipVisible.value = true;
-}
-
-/** 隐藏昵称提示，支持失焦、离开及 Escape。 */
-function hideNameTooltip() {
-  nameTooltipVisible.value = false;
-}
-
-const isLandlord = computed(() => (
-  Boolean(props.playerState?.isLandlord) || props.playerState?.role === 'landlord'
-));
 
 const roleLabel = computed(() => {
   if (props.playerState?.isLandlord) {
@@ -198,5 +121,3 @@ const panelClassList = computed(() => ({
   [`doudizhu-player-panel--${props.layout}`]: Boolean(props.layout)
 }));
 </script>
-
-<style scoped src="./doudizhuPlayerPanel.css"></style>

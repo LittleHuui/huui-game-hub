@@ -1,8 +1,6 @@
 <template>
-  <div v-if="visible" class="uno-color-picker" role="dialog" aria-modal="true" :aria-label="title">
-    <div class="uno-color-picker__backdrop" @click="onCancel" />
-    <div class="uno-color-picker__panel game-card">
-      <h3 class="uno-color-picker__title">{{ title }}</h3>
+  <AppModal :visible="visible" :title="title" :closable="!disabled" :mask-closable="!disabled" @close="onCancel">
+    <div class="uno-color-picker">
       <p v-if="description" class="muted-small uno-color-picker__description">{{ description }}</p>
       <div class="uno-color-picker__options">
         <button
@@ -27,10 +25,11 @@
         取消
       </button>
     </div>
-  </div>
+  </AppModal>
 </template>
 
 <script setup>
+import AppModal from '../../../components/AppModal.vue';
 import { UNO_COLOR_OPTIONS } from '../unoGameConstants.js';
 
 defineProps({

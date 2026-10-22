@@ -1,0 +1,13 @@
+@import '../../../games/doudizhu/styles/mobile.css';
+@import '../../../games/uno/styles/mobile.css';
+@import '../../../games/gomoku/styles/mobile.css';
+.strategy-turn-multiplayer-layout__table { gap:12px; padding:12px; min-height:calc(var(--gh-viewport-height) - var(--gh-header-height) - 84px); }
+.strategy-turn-multiplayer-layout__stage { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-content:start; }
+.strategy-turn-multiplayer-layout__center { grid-column:1 / -1; grid-row:2; }
+.strategy-turn-multiplayer-layout__right { grid-column:2; grid-row:1; }
+.turn-player-panel__avatar { width:28px; height:28px; font-size:12px; }
+.turn-player-panel__identity { gap:6px; }
+.turn-player-panel__name { font-size:12px; }
+.turn-player-panel__meta { gap:4px; font-size:10px; }
+.turn-countdown { gap:3px; padding:3px 5px; font-size:11px; }
+.selectable-item-hand { scroll-padding-inline:6px; }

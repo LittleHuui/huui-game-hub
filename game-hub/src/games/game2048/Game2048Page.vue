@@ -37,6 +37,7 @@
       <template #match-stats>
         <GameMatchStatsPanel
           :stats="matchStats"
+          :summary-keys="['score','maxTile','moves','duration']"
           :quotas="matchQuotas"
           :message="matchStatsMessage"
           theme-seed="2048"

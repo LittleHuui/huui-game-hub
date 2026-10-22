@@ -30,7 +30,6 @@
 import { computed } from 'vue';
 import { resolveUnoCardAssetUrl } from '../unoAssetConfig.js';
 import { UNO_PLAYER_ACTION_TYPE } from '../unoPlayerActionViewModel.js';
-import './unoPlayerActionDisplay.css';
 
 const props = defineProps({
   viewModel: {

@@ -1,0 +1,2 @@
+.light-single-layout { --single-board-reserve: 315px; --single-board-size: clamp(260px, calc(var(--gh-viewport-height, 100dvh) - var(--single-board-reserve)), 400px); gap: 8px; }
+.light-single-layout__main { padding: 10px; gap: 8px; }

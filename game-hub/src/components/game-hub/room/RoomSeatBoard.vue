@@ -39,7 +39,6 @@
 <script setup>
 import { computed } from 'vue';
 import RoomSeatAvatar from './RoomSeatAvatar.vue';
-import './roomHub.css';
 
 const props = defineProps({
   seats: { type: Array, default: () => [] },

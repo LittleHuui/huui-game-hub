@@ -1,74 +1,46 @@
 <template>
-  <GameControlPanel
-    class="light-single-side-panel"
-    :title="gameTitle"
-    :subtitle="gameSubtitle"
-    :description="gameDescription"
-    :status-text="gameStatusText"
-    :info-stats="infoStats"
-    :fields="fields"
-    :actions="actionItems"
-    @field-change="$emit('field-change', $event)"
-    @action="$emit('action', $event)"
-  >
-    <template v-if="$slots['title-extra']" #title-extra>
-      <slot name="title-extra" />
+  <AppPageHeader class="light-single-header" :title="gameTitle" :meta="gameStatusText">
+    <template #actions>
+      <button v-if="fields.length" type="button" class="light-single-config-trigger" @click="configOpen = true">
+        {{ fieldSummary || '配置' }}<AppIcon name="chevron" :size="14" />
+      </button>
+      <GameActionBar :actions="primaryActions" @action="$emit('action', $event)" />
+      <AppMenu v-if="secondaryActions.length" label="更多操作" :items="secondaryActions" @select="$emit('action', $event)">
+        <template #trigger><AppIcon name="more" /></template>
+      </AppMenu>
     </template>
-    <template #extra>
-      <slot name="game-info-extra" />
-    </template>
-    <template
-      v-for="field in customFields"
-      :key="field.key"
-      #[`field-${field.key}`]="slotProps"
-    >
-      <slot :name="`field-${field.key}`" v-bind="slotProps" />
-    </template>
-  </GameControlPanel>
+  </AppPageHeader>
+  <AppModal :visible="configOpen" title="游戏配置" @close="configOpen = false">
+    <div class="light-single-config">
+      <GameControlField v-for="field in fields" :key="field.key" :field="field" @change="$emit('field-change', $event)">
+        <slot :name="`field-${field.key}`" :field="field" />
+      </GameControlField>
+      <p class="light-single-config__description">{{ gameDescription }}</p>
+      <slot name="title-extra" /><slot name="game-info-extra" />
+      <dl v-if="infoStats.length" class="single-detail-list">
+        <div v-for="stat in infoStats" :key="stat.key || stat.label"><dt>{{ stat.label }}</dt><dd>{{ stat.value }}</dd></div>
+      </dl>
+    </div>
+    <template #footer><button type="button" class="gh-primary" @click="configOpen = false">完成</button></template>
+  </AppModal>
 </template>
-
 <script setup>
-import { computed } from 'vue';
-import { GameControlPanel, GAME_CONTROL_TYPE } from '../../components/game/index.js';
-
+import { computed, ref } from 'vue';
+import AppModal from '../../components/AppModal.vue';
+import AppPageHeader from '../../components/ui/AppPageHeader.vue';
+import AppMenu from '../../components/ui/AppMenu.vue';
+import AppIcon from '../../components/ui/AppIcon.vue';
+import GameControlField from '../../components/game/controls/GameControlField.vue';
+import GameActionBar from '../../components/game/controls/GameActionBar.vue';
 const props = defineProps({
-  gameTitle: {
-    type: String,
-    default: ''
-  },
-  gameSubtitle: {
-    type: String,
-    default: ''
-  },
-  gameDescription: {
-    type: String,
-    default: ''
-  },
-  gameStatusText: {
-    type: String,
-    default: ''
-  },
-  /** @type {import('vue').PropType<Array<{ label: string; value: string|number; key?: string }>>} */
-  infoStats: {
-    type: Array,
-    default: () => []
-  },
-  /** @type {import('vue').PropType<Array<{ key: string; type?: string; label?: string; value?: unknown; options?: Array; disabled?: boolean }>>} */
-  fields: {
-    type: Array,
-    default: () => []
-  },
-  /** @type {import('vue').PropType<Array<{ key: string; label: string; type?: string; size?: string; visible?: boolean; disabled?: boolean }>>} */
-  actionItems: {
-    type: Array,
-    default: () => []
-  }
+  gameTitle: { type: String, default: '' }, gameSubtitle: { type: String, default: '' },
+  gameDescription: { type: String, default: '' }, gameStatusText: { type: String, default: '' },
+  infoStats: { type: Array, default: () => [] }, fields: { type: Array, default: () => [] },
+  actionItems: { type: Array, default: () => [] }
 });
-
 defineEmits(['action', 'field-change']);
-
-/** custom 类型字段，用于向 GameControlPanel 透传具名 slot */
-const customFields = computed(() =>
-  (props.fields || []).filter((f) => f?.type === GAME_CONTROL_TYPE.CUSTOM)
-);
+const configOpen = ref(false);
+const primaryActions = computed(() => props.actionItems.filter((item) => item.visible !== false && !['secondary', 'danger'].includes(item.type)));
+const secondaryActions = computed(() => props.actionItems.filter((item) => item.visible !== false && ['secondary', 'danger'].includes(item.type)).map((item) => ({ id: item.key, label: item.label, disabled: item.disabled, danger: item.type === 'danger' })));
+const fieldSummary = computed(() => props.fields.map((field) => field.options?.find((option) => option.value === field.value)?.label).filter(Boolean).join(' · '));
 </script>

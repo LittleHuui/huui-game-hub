@@ -25,7 +25,6 @@
 
 <script setup>
 import { computed } from 'vue';
-import '../controls/turnGame.css';
 
 const props = defineProps({
   title: {

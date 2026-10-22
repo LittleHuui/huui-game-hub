@@ -1,11 +1,19 @@
 <template>
   <div class="gomoku-board" :style="boardStyle">
+    <svg class="gomoku-board__grid" :viewBox="`0 0 ${geometry.size} ${geometry.size}`" aria-hidden="true">
+      <template v-for="(coordinate, index) in geometry.coordinates" :key="index">
+        <line :x1="geometry.first" :y1="coordinate" :x2="geometry.last" :y2="coordinate" />
+        <line :x1="coordinate" :y1="geometry.first" :x2="coordinate" :y2="geometry.last" />
+      </template>
+      <circle v-for="star in starPoints" :key="star.key" :cx="star.x" :cy="star.y" r="3" />
+    </svg>
     <button
       v-for="cell in cells"
       :key="cell.key"
       type="button"
       class="gomoku-board__intersection"
       :class="cell.classList"
+      :style="cell.position"
       :disabled="cell.disabled"
       :aria-label="cell.label"
       @click="onCellClick(cell.row, cell.col)"
@@ -64,9 +72,19 @@ const emit = defineEmits(['cell-click']);
 
 const hoverCell = ref(null);
 
-const boardStyle = computed(() => ({
-  '--gomoku-size': String(props.boardSize || 15)
-}));
+const geometry = computed(() => {
+  const count = Math.max(2, Number(props.boardSize) || 15);
+  const size = 480;
+  const step = size / count;
+  const first = step / 2;
+  return { size, step, first, last: size - first, coordinates: Array.from({ length: count }, (_, i) => first + i * step) };
+});
+const boardStyle = computed(() => ({ '--gomoku-hit-size': `${100 / geometry.value.coordinates.length}%` }));
+const starPoints = computed(() => {
+  const coordinates = geometry.value.coordinates;
+  if (coordinates.length !== 15) return [];
+  return [[3, 3], [3, 11], [7, 7], [11, 3], [11, 11]].map(([row, col]) => ({ key: `${row}-${col}`, x: coordinates[col], y: coordinates[row] }));
+});
 
 const previewStoneClass = computed(() => {
   const stone = String(props.currentStone || 'BLACK').toUpperCase();
@@ -101,6 +119,7 @@ const cells = computed(() => {
         key: `${row}-${col}`,
         row,
         col,
+        position: { left: `${geometry.value.coordinates[col] / geometry.value.size * 100}%`, top: `${geometry.value.coordinates[row] / geometry.value.size * 100}%` },
         stone,
         isLast,
         stoneClass:

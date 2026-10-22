@@ -29,7 +29,6 @@
 
 <script setup>
 import AppModal from '../../AppModal.vue';
-import './roomHub.css';
 
 defineProps({
   visible: { type: Boolean, default: false },

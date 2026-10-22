@@ -29,6 +29,7 @@
       />
     </div>
 
+    <div class="single-board-tools">
     <label class="sudoku-draft-toggle">
       <input
         type="checkbox"
@@ -38,12 +39,15 @@
       />
       草稿模式
     </label>
+      <button type="button" :disabled="interactionDisabled || !selectedCell || selectedCell.fixed || selectedCell.hinted" @click="onCellErase(selectedCell, $event)"><AppIcon name="erase" :size="16" />擦除</button>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue';
 import SudokuCell from './SudokuCell.vue';
+import AppIcon from '../../../components/ui/AppIcon.vue';
 import SudokuNumberPopup from './SudokuNumberPopup.vue';
 
 const props = defineProps({
@@ -101,6 +105,8 @@ const emit = defineEmits([
 
 const wrapRef = ref(null);
 const boardRef = ref(null);
+
+const selectedCell = computed(() => props.cells[props.selectedRow]?.[props.selectedCol]);
 
 const flatCells = computed(() => {
   const list = [];

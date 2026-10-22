@@ -6,24 +6,30 @@
           <GameSelector layout="topbar" />
         </template>
         <template #menu>
-          <UserMenu :user="user" :disable-switch="sessionLocked" @open-modal="openModal" />
           <OnlineUsersDropdown />
+          <UserMenu :user="user" :disable-switch="sessionLocked" @open-modal="openModal" />
         </template>
       </AppTopbar>
     </template>
 
     <AppModal :visible="!!activeModal" :title="modalTitle" @close="closeModal">
-      <template v-if="activeModal === 'user'">
+      <template v-if="activeModal === 'nickname'">
+        <form class="login-form" @submit.prevent="saveNicknameDialog">
+          <label>昵称<input v-model="nicknameForm" :disabled="sessionLocked" autocomplete="nickname" /></label>
+          <button type="submit" class="gh-primary" :disabled="sessionLocked || !nicknameForm.trim()">保存</button>
+        </form>
+      </template>
+      <template v-else-if="activeModal === 'user'">
         <div class="modal-actions">
-          <input v-model="registerForm.username" placeholder="用户名" />
-          <input v-model="registerForm.nickname" placeholder="昵称" />
+          <input v-model="registerForm.username" placeholder="用户名" aria-label="用户名" />
+          <input v-model="registerForm.nickname" placeholder="昵称" aria-label="昵称" />
           <button type="button" class="success" :disabled="sessionLocked" @click="createUser">创建用户</button>
         </div>
         <div class="user-list">
           <div
             v-for="u in userStore.users"
             :key="u.userId"
-            class="user-card"
+            class="user-card" role="button" tabindex="0" @keydown.enter="switchUser(u.userId)" @keydown.space.prevent="switchUser(u.userId)"
             :class="{ 'is-disabled': sessionLocked }"
             @click="switchUser(u.userId)"
           >
@@ -76,7 +82,7 @@
           <div v-for="(row, i) in ledgerRows" :key="row.clientId || i" class="log-item">
             <span class="muted-small">{{ formatDisplayTime(row.createdAt) }}</span>
             · {{ walletLedgerDisplayLabel(row) }}
-            <strong :style="{ color: row.type === 'gain' ? '#6ee7b7' : '#fca5a5' }">
+            <strong :class="row.type === 'gain' ? 'gh-positive' : 'gh-negative'">
               {{ row.type === 'gain' ? '+' : '-' }}{{ row.amount }}
             </strong>
             ｜ 余额 {{ walletAfter(row) }}
@@ -90,16 +96,16 @@
             <strong>数据模式</strong>
             <p>自动模式会探测接口并优先使用远程数据，失败时降级为本地缓存；本地模式仅读写本机；接口模式仅走远程，失败会报错。</p>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start">
-            <label class="checkbox-row" style="margin-top: 0">
+          <div class="settings-options">
+            <label class="checkbox-row">
               <input type="radio" name="repoMode" value="auto" :checked="repositoryModeModel === 'auto'" @change="setRepositoryMode('auto')" />
               <span>自动模式（推荐）</span>
             </label>
-            <label class="checkbox-row" style="margin-top: 0">
+            <label class="checkbox-row">
               <input type="radio" name="repoMode" value="local" :checked="repositoryModeModel === 'local'" @change="setRepositoryMode('local')" />
               <span>本地模式</span>
             </label>
-            <label class="checkbox-row" style="margin-top: 0" :class="{ 'is-disabled': !repositoryRemoteEnabled }">
+            <label class="checkbox-row" :class="{ 'is-disabled': !repositoryRemoteEnabled }">
               <input
                 type="radio"
                 name="repoMode"
@@ -207,6 +213,7 @@ const gamePageRef = ref(null);
 
 const registerForm = reactive({ username: '', nickname: '' });
 const activeModal = ref('');
+const nicknameForm = ref('');
 
 const repositoryModeModel = computed(() => settingStore.settings.repositoryMode || 'auto');
 const repositoryRemoteEnabled = computed(() => platform.remoteAvailable);
@@ -249,6 +256,7 @@ const ledgerRows = computed(() => {
 
 const modalTitle = computed(() => {
   const map = {
+    nickname: '修改昵称',
     history: '历史对局',
     propUsage: '道具使用记录',
     purchase: '道具购买记录',
@@ -260,10 +268,11 @@ const modalTitle = computed(() => {
 });
 
 function openModal(type) {
-  if (type === 'user' && sessionLocked.value) {
-    toastService.push('对局进行中，无法切换或创建用户', 'warning');
+  if (['user', 'nickname'].includes(type) && sessionLocked.value) {
+    toastService.push(type === 'nickname' ? '对局进行中，无法修改昵称' : '对局进行中，无法切换或创建用户', 'warning');
     return;
   }
+  if (type === 'nickname') nicknameForm.value = user.value.nickname || '';
   activeModal.value = type;
   userService.refreshModalData(type);
 }
@@ -408,6 +417,12 @@ function switchUser(userId) {
   }
 }
 
+async function saveNicknameDialog() {
+  if (sessionLocked.value || !nicknameForm.value.trim()) return;
+  await onNicknameUpdate(nicknameForm.value.trim());
+  closeModal();
+}
+
 async function onNicknameUpdate(name) {
   await userService.updateNickname(name);
 }
@@ -426,36 +441,3 @@ watch(
   }
 );
 </script>
-
-<style scoped>
-.gh-game-shell {
-  position: relative;
-}
-
-.gh-game-shell--locked {
-  pointer-events: none;
-  opacity: 0.55;
-  filter: grayscale(0.08);
-}
-
-.settings-game-group {
-  margin-top: 8px;
-}
-
-.settings-game-group:first-of-type {
-  margin-top: 4px;
-}
-
-.settings-game-title {
-  margin: 0 0 4px;
-  padding: 8px 0 4px;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.88);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.settings-row--nested {
-  padding-left: 8px;
-}
-</style>

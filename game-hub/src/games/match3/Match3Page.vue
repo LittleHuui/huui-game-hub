@@ -38,6 +38,7 @@
       <template #match-stats>
         <GameMatchStatsPanel
           :stats="matchStats"
+          :summary-keys="['score','time','moves','comboMax']"
           :quotas="matchQuotas"
           :message="gameMessage"
           :theme-seed="statThemeSeed"
@@ -99,38 +100,3 @@ export default {
   setup: useMatch3Page
 };
 </script>
-
-<style scoped>
-.match3-board-wrap {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-}
-
-.match3-chain-hint {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  padding: 8px 16px;
-  border-radius: 999px;
-  color: #fff7ed;
-  background: rgba(249, 115, 22, 0.86);
-  animation: match3Hint 420ms ease;
-  pointer-events: none;
-}
-
-@keyframes match3Hint {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(10px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-}
-</style>

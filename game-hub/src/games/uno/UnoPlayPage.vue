@@ -33,23 +33,15 @@
 
     <StrategyTurnMultiplayerLayout v-else>
       <template #topRoomBar>
-        <div class="uno-page__play-bar">
-          <span class="uno-page__play-room muted-small">{{ playRoomLabel }}</span>
-          <button
-            type="button"
-            class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-            @click="backToRoomOrLobby"
-          >
-            返回房间
-          </button>
-          <button
-            type="button"
-            class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-            @click="onExitRoomWithShell"
-          >
-            退出并托管
-          </button>
-        </div>
+<AppPageHeader title="UNO" :aria-label="`UNO · ${playRoomLabel}`">
+          <template #actions>
+            <button type="button" class="game-action-btn game-action-btn--ghost game-action-btn--sm" @click="backToRoomOrLobby">返回房间</button>
+            <AppMenu label="更多操作" :items="[
+              { id: 'manage', label: viewerManagedActive ? '取消托管' : '托管', icon: 'pause', disabled: gameViewActionBusy || !canShowGameView },
+              { id: 'exit', label: '退出并托管', icon: 'logout', danger: true }
+            ]" @select="onPlayMenuSelect" />
+          </template>
+        </AppPageHeader>
       </template>
 
       <template #leftPlayers>
@@ -65,7 +57,7 @@
             :managed-badge-class="player.managedBadgeClass"
             :is-current-turn="player.isCurrentTurn"
             :finish-rank="player.finishRank"
-            :show-countdown="player.isCurrentTurn"
+            :show-countdown="player.isCurrentTurn && !gameViewIsGameOver"
             :countdown-seconds="turnTimeoutSeconds"
             :countdown-expires-at-ms="player.isCurrentTurn ? turnDeadlineAtMs : null"
             low-hand-count-label="UNO"
@@ -94,7 +86,7 @@
             :managed-badge-class="player.managedBadgeClass"
             :is-current-turn="player.isCurrentTurn"
             :finish-rank="player.finishRank"
-            :show-countdown="player.isCurrentTurn"
+            :show-countdown="player.isCurrentTurn && !gameViewIsGameOver"
             :countdown-seconds="turnTimeoutSeconds"
             :countdown-expires-at-ms="player.isCurrentTurn ? turnDeadlineAtMs : null"
             low-hand-count-label="UNO"
@@ -121,16 +113,9 @@
 
       <template #bottomActionArea>
         <div class="uno-page__bottom-stack">
-          <div
-            class="uno-page__self-countdown"
-            :class="{ 'uno-page__self-countdown--hidden': !viewerIsCurrentTurn }"
-          >
-            <TurnCountdown
-              v-if="viewerIsCurrentTurn"
-              :seconds="turnTimeoutSeconds"
-              :expires-at-ms="turnDeadlineAtMs"
-            />
-          </div>
+          <TurnPlayerPanel class="uno-page__self-player" nickname="你" :hand-count="handCards.length" :is-current-turn="viewerIsCurrentTurn"
+            :is-managed="viewerManagedActive" :show-countdown="viewerIsCurrentTurn && !gameViewIsGameOver"
+            :countdown-seconds="turnTimeoutSeconds" :countdown-expires-at-ms="turnDeadlineAtMs" low-hand-count-label="UNO" />
           <div class="uno-page__actions">
             <TurnActionBar
               :action-offers="gameViewActionOffers"
@@ -141,26 +126,6 @@
               :show-countdown="false"
               @action="onTurnBarAction"
             >
-              <template #middle>
-                <button
-                  v-if="!viewerManagedActive"
-                  type="button"
-                  class="game-action-btn turn-action-bar__btn--manage game-action-btn--md"
-                  :disabled="gameViewActionBusy || !canShowGameView"
-                  @click="onStartManagedMode"
-                >
-                  托管
-                </button>
-                <button
-                  v-else
-                  type="button"
-                  class="game-action-btn turn-action-bar__btn--manage game-action-btn--md"
-                  :disabled="gameViewActionBusy || !canShowGameView"
-                  @click="onStopManagedMode"
-                >
-                  取消托管
-                </button>
-              </template>
             </TurnActionBar>
           </div>
           <div class="uno-page__hand">
@@ -202,12 +167,13 @@
 </template>
 
 <script setup>
+import AppPageHeader from '../../components/ui/AppPageHeader.vue';
+import AppMenu from '../../components/ui/AppMenu.vue';
 import { computed, onMounted, watch } from 'vue';
 import { StrategyTurnMultiplayerLayout } from '../../game-templates/strategy-turn-multiplayer/index.js';
 import {
   SelectableItemHand,
   TurnActionBar,
-  TurnCountdown,
   TurnPlayerPanel
 } from '../../components/game/index.js';
 import { TURN_ACTION_BAR_KEY } from '../../components/game/controls/turnControlEnums.js';
@@ -233,7 +199,6 @@ import {
 } from './unoActionOffersAdapter.js';
 import * as unoService from './unoService.js';
 import { applyUnoConfig, UNO_CODE } from './unoConfig.js';
-import './unoPage.css';
 
 const platform = usePlatformStore();
 
@@ -477,4 +442,9 @@ onMounted(() => {
   }
 });
 
+/** Dispatches page menu actions through the existing room lifecycle. */
+function onPlayMenuSelect(id) {
+  if (id === 'manage') return viewerManagedActive.value ? onStopManagedMode() : onStartManagedMode();
+  if (id === 'exit') return onExitRoomWithShell();
+}
 </script>

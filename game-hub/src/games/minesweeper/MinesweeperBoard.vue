@@ -1,13 +1,15 @@
 <template>
   <div
-    class="board board--adaptive"
+    class="minesweeper-board"
     :style="wrapStyle"
     @mouseleave="$emit('clear-ring')"
   >
-    <div
+    <button
       v-for="cell in flat"
       :key="cell.row + '-' + cell.col"
-      class="cell"
+      type="button"
+      class="minesweeper-cell"
+      :aria-label="`第 ${cell.row + 1} 行第 ${cell.col + 1} 列${cell.opened ? (cell.isMine ? '地雷' : cell.mineCount || '空格') : cell.flagged ? '已标记' : '未翻开'}`"
       :class="{
         opened: cell.opened,
         mine: cell.opened && cell.isMine,
@@ -20,21 +22,21 @@
       @mouseleave="$emit('ring-leave')"
     >
       <template v-if="cell.opened">
-        <span v-if="cell.isMine">💣</span>
+        <AppIcon v-if="cell.isMine" name="mine" :size="17" />
         <span v-else-if="cell.mineCount > 0">{{ cell.mineCount }}</span>
       </template>
       <template v-else>
-        <span v-if="cell.flagged">🚩</span>
-        <span v-else-if="cell.question">❔</span>
+        <AppIcon v-if="cell.flagged" name="flag" :size="17" />
+        <span v-else-if="cell.question">?</span>
       </template>
-    </div>
+    </button>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import * as Svc from './minesweeperEngine.js';
-import { computeCellPx } from './minesweeperBoardLayout.js';
+import AppIcon from '../../components/ui/AppIcon.vue';
 
 const props = defineProps({
   board: { type: Array, default: () => [] },
@@ -50,10 +52,11 @@ defineEmits(['cell-click', 'cell-right', 'ring-enter', 'ring-leave', 'clear-ring
 const flat = computed(() => Svc.flattenBoard(props.board, props.rows, props.cols));
 
 const wrapStyle = computed(() => {
-  const cellPx = computeCellPx(props.availableWidth, props.cols, props.windowWidth);
+  const availableCell = Math.max(28, Math.floor(((props.availableWidth || props.windowWidth) - 28) / props.cols));
+  const cellSize = props.cols > 9 ? '32px' : `min(var(--single-mine-cell), ${availableCell}px)`;
   return {
-    '--cell': `${cellPx}px`,
-    gridTemplateColumns: `repeat(${props.cols}, ${cellPx}px)`
+    '--cell': cellSize,
+    gridTemplateColumns: `repeat(${props.cols}, var(--cell))`
   };
 });
 </script>

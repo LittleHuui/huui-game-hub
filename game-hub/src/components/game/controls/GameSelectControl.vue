@@ -1,54 +1,15 @@
 <template>
-  <div class="game-select-control" :class="extraClass">
-    <select
-      :id="inputId || undefined"
-      :value="modelValue"
-      :disabled="disabled"
-      @change="onChange"
-    >
-      <option v-for="opt in options" :key="String(opt.value)" :value="opt.value">
-        {{ opt.label }}
-      </option>
-    </select>
-  </div>
+  <AppMenu class="game-select-control" :class="extraClass" :trigger-id="inputId" :disabled="disabled" :label="selectedLabel || '选择选项'" title="选择选项" :items="items" @select="onChange">
+    <template #trigger><span>{{ selectedLabel }}</span><AppIcon name="chevron" :size="13" /></template>
+  </AppMenu>
 </template>
-
 <script setup>
 import { computed } from 'vue';
-
-const props = defineProps({
-  modelValue: {
-    type: [String, Number, Boolean],
-    default: ''
-  },
-  options: {
-    type: Array,
-    default: () => []
-  },
-  disabled: {
-    type: Boolean,
-    default: false
-  },
-  inputId: {
-    type: String,
-    default: ''
-  },
-  extraClass: {
-    type: String,
-    default: ''
-  }
-});
-
+import AppMenu from '../../ui/AppMenu.vue';
+import AppIcon from '../../ui/AppIcon.vue';
+const props = defineProps({ modelValue: { type: [String, Number, Boolean], default: '' }, options: { type: Array, default: () => [] }, disabled: { type: Boolean, default: false }, inputId: { type: String, default: '' }, extraClass: { type: String, default: '' } });
 const emit = defineEmits(['update:modelValue', 'change']);
-
-const inputId = computed(() => props.inputId || undefined);
-
-/**
- * @param {Event} event
- */
-function onChange(event) {
-  const value = event.target?.value;
-  emit('update:modelValue', value);
-  emit('change', value);
-}
+const selectedLabel = computed(() => props.options.find(opt => String(opt.value) === String(props.modelValue))?.label || '选择选项');
+const items = computed(() => props.options.map(opt => ({ id: String(opt.value), label: opt.label, selected: String(opt.value) === String(props.modelValue) })));
+function onChange(value) { emit('update:modelValue', value); emit('change', value); }
 </script>

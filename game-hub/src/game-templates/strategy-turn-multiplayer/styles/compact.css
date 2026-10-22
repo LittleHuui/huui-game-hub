@@ -1,0 +1,6 @@
+@import '../../../games/doudizhu/styles/compact.css';
+.strategy-turn-multiplayer-layout__table { padding:14px; gap:12px; }
+.strategy-turn-multiplayer-layout__stage { grid-template-columns:minmax(0,1fr) 128px minmax(0,1fr); gap:10px; }
+.turn-player-panel__avatar { width:30px; height:30px; }
+.turn-player-panel__identity { gap:7px; }
+.turn-player-panel__name { font-size:12px; }

@@ -33,43 +33,15 @@
 
     <StrategyTurnMultiplayerLayout v-else>
       <template #topRoomBar>
-        <div class="doudizhu-page__table-topbar">
-          <div class="doudizhu-page__play-bar">
-            <button
-              type="button"
-              class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-              @click="onBackToRoom"
-            >
-              返回房间
-            </button>
-            <button
-              type="button"
-              class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-              @click="onExitRoomWithShell"
-            >
-              退出并托管
-            </button>
-            <button
-              v-if="!viewerManagedActive"
-              type="button"
-              class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-              :disabled="gameViewActionBusy || !canShowGameView"
-              @click="onStartManagedMode"
-            >
-              托管
-            </button>
-            <button
-              v-else
-              type="button"
-              class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-              :disabled="gameViewActionBusy || !canShowGameView"
-              @click="onStopManagedMode"
-            >
-              取消托管
-            </button>
-          </div>
-          <DoudizhuRoundCards :game-state="gameState" />
-        </div>
+<AppPageHeader title="斗地主">
+          <template #actions>
+            <button type="button" class="game-action-btn game-action-btn--ghost game-action-btn--sm" @click="onBackToRoom">返回房间</button>
+            <AppMenu label="更多操作" :items="[
+              { id: 'manage', label: viewerManagedActive ? '取消托管' : '托管', icon: 'pause', disabled: gameViewActionBusy || !canShowGameView },
+              { id: 'exit', label: '退出并托管', icon: 'logout', danger: true }
+            ]" @select="onPlayMenuSelect" />
+          </template>
+        </AppPageHeader>
       </template>
 
       <template #leftPlayers>
@@ -82,7 +54,7 @@
             :is-ai="leftOpponent.isAi"
             :managed-label="leftOpponent.managedLabel"
             :managed-badge-class="leftOpponent.managedBadgeClass"
-            :show-countdown="leftOpponent.isCurrentTurn"
+            :show-countdown="leftOpponent.isCurrentTurn && !gameViewIsGameOver"
             :countdown-seconds="turnTimeoutSeconds"
             :countdown-expires-at-ms="leftOpponent.isCurrentTurn ? turnDeadlineAtMs : null"
             :action-feedback="leftActionFeedback"
@@ -105,7 +77,7 @@
             :is-ai="rightOpponent.isAi"
             :managed-label="rightOpponent.managedLabel"
             :managed-badge-class="rightOpponent.managedBadgeClass"
-            :show-countdown="rightOpponent.isCurrentTurn"
+            :show-countdown="rightOpponent.isCurrentTurn && !gameViewIsGameOver"
             :countdown-seconds="turnTimeoutSeconds"
             :countdown-expires-at-ms="rightOpponent.isCurrentTurn ? turnDeadlineAtMs : null"
             :action-feedback="rightActionFeedback"
@@ -119,7 +91,7 @@
       </template>
 
       <template #centerStage>
-        <div v-if="gameViewVersion > 0" class="doudizhu-page__center" />
+        <div v-if="gameViewVersion > 0" class="doudizhu-page__center"><DoudizhuRoundCards :game-state="gameState" /></div>
         <p v-else class="empty-text">正在加载对局…</p>
       </template>
 
@@ -154,7 +126,7 @@
             :busy="gameViewActionBusy"
             :play-enabled="playActionEnabled"
             :hint-enabled="hintEnabled"
-            :show-countdown="canTakeActionOffer"
+            :show-countdown="false"
             :countdown-seconds="turnTimeoutSeconds"
             :countdown-expires-at-ms="turnDeadlineAtMs"
             @action="onPanelAction"
@@ -162,13 +134,11 @@
             @hint="onHint"
           />
           <div class="doudizhu-page__hand-shell">
-            <div v-if="viewerPlayer" class="doudizhu-page__viewer-info" aria-label="你的玩家信息">
-              <span class="doudizhu-page__viewer-name" :title="viewerPlayer.nickname">
-                {{ viewerPlayer.nickname }}
-              </span>
-              <span v-if="viewerRoleLabel" class="doudizhu-page__viewer-role">{{ viewerRoleLabel }}</span>
-              <DoudizhuPlayerTags :player-state="viewerPlayer.playerState" />
-            </div>
+            <TurnPlayerPanel v-if="viewerPlayer" class="doudizhu-page__viewer-info" :nickname="viewerPlayer.nickname"
+              :is-current-turn="viewerPlayer.isCurrentTurn" :managed-label="viewerPlayer.managedLabel"
+              :show-countdown="viewerPlayer.isCurrentTurn && !gameViewIsGameOver" :countdown-seconds="turnTimeoutSeconds" :countdown-expires-at-ms="turnDeadlineAtMs">
+              <template #meta><span>{{ viewerRoleLabel }}</span><DoudizhuPlayerTags :player-state="viewerPlayer.playerState" /></template>
+            </TurnPlayerPanel>
             <div class="doudizhu-page__hand-row">
               <DoudizhuHand
                 :hand-cards="handCards"
@@ -199,6 +169,9 @@
 </template>
 
 <script setup>
+import { TurnPlayerPanel } from '../../components/game/index.js';
+import AppPageHeader from '../../components/ui/AppPageHeader.vue';
+import AppMenu from '../../components/ui/AppMenu.vue';
 import { computed, onMounted, watch } from 'vue';
 import { usePlatformStore } from '../../stores/platformStore.js';
 import * as roomGameService from '../../services/roomGameService.js';
@@ -231,7 +204,6 @@ import {
 } from './doudizhuDisplayText.js';
 import { useDoudizhuTableView } from './composables/useDoudizhuTableView.js';
 import * as doudizhuService from './doudizhuService.js';
-import './doudizhuPage.css';
 
 const platform = usePlatformStore();
 
@@ -308,7 +280,8 @@ const {
   viewerPlayer,
   leftOpponent,
   rightOpponent,
-  lastActionEvent
+  lastActionEvent,
+  passPlayerIds
 } = useDoudizhuTableView({
   publicStateRef: gameViewPublicState,
   privateStateRef: gameViewPrivateState,
@@ -392,13 +365,13 @@ const lastActionFeedbackTone = computed(() => (
   resolveDoudizhuActionFeedbackTone(lastActionEvent.value?.actionType)
 ));
 const leftActionFeedback = computed(() => (
-  lastActionPosition.value === 'left' ? lastActionLabel.value : ''
+  passPlayerIds.value.includes(String(leftOpponent.value?.playerId || '').trim()) ? '不出' : lastActionPosition.value === 'left' ? lastActionLabel.value : ''
 ));
 const rightActionFeedback = computed(() => (
-  lastActionPosition.value === 'right' ? lastActionLabel.value : ''
+  passPlayerIds.value.includes(String(rightOpponent.value?.playerId || '').trim()) ? '不出' : lastActionPosition.value === 'right' ? lastActionLabel.value : ''
 ));
 const bottomActionFeedback = computed(() => (
-  lastActionPosition.value === 'bottom' ? lastActionLabel.value : ''
+  passPlayerIds.value.includes(String(gameViewViewerId.value || '').trim()) ? '不出' : lastActionPosition.value === 'bottom' ? lastActionLabel.value : ''
 ));
 const leftActionFeedbackTone = computed(() => (
   leftActionFeedback.value ? lastActionFeedbackTone.value : 'affirmative'
@@ -607,4 +580,9 @@ onMounted(() => {
   }
 });
 
+/** Dispatches page menu actions through the existing room lifecycle. */
+function onPlayMenuSelect(id) {
+  if (id === 'manage') return viewerManagedActive.value ? onStopManagedMode() : onStartManagedMode();
+  if (id === 'exit') return onExitRoomWithShell();
+}
 </script>

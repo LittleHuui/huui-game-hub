@@ -1,35 +1,9 @@
 <template>
-  <AppModal :visible="visible" title="登录 / 创建用户" @close="() => {}">
+  <AppModal :visible="visible" title="欢迎来到 Game Hub" :closable="false" :mask-closable="false">
     <p v-if="platform.syncMessage" class="login-hint muted-small">{{ platform.syncMessage }}</p>
-    <div class="modal-actions">
-      <input
-        v-model="loginUsername"
-        placeholder="用户名"
-        autocomplete="username"
-        :disabled="busy"
-        @keyup.enter="onLogin"
-      />
-      <button type="button" class="success" :disabled="busy" @click="onLogin">登录</button>
-    </div>
-    <p v-if="loginError" class="login-error">{{ loginError }}</p>
-
-    <div class="modal-actions" style="margin-top: 16px">
-      <input
-        v-model="createUsername"
-        placeholder="新用户名"
-        autocomplete="off"
-        :disabled="busy"
-      />
-      <input
-        v-model="createNickname"
-        placeholder="昵称"
-        autocomplete="off"
-        :disabled="busy"
-        @keyup.enter="onCreate"
-      />
-      <button type="button" class="success" :disabled="busy" @click="onCreate">创建用户</button>
-    </div>
-    <p v-if="createError" class="login-error">{{ createError }}</p>
+    <div class="login-tabs"><button type="button" :class="{ 'is-active': view === 'login' }" @click="view = 'login'">登录</button><button type="button" :class="{ 'is-active': view === 'create' }" @click="view = 'create'">创建用户</button></div>
+    <form v-if="view === 'login'" class="login-form" @submit.prevent="onLogin"><label>用户名<input v-model="loginUsername" autocomplete="username" placeholder="输入用户名" :disabled="busy" /></label><button type="submit" class="success" :disabled="busy">{{ busy ? '正在登录…' : '登录' }}</button><p v-if="loginError" class="login-error" role="alert">{{ loginError }}</p></form>
+    <form v-else class="login-form" @submit.prevent="onCreate"><label>用户名<input v-model="createUsername" autocomplete="off" placeholder="新用户名" :disabled="busy" /></label><label>昵称<input v-model="createNickname" autocomplete="off" placeholder="游戏中显示的名字" :disabled="busy" /></label><button type="submit" class="success" :disabled="busy">{{ busy ? '正在创建…' : '创建用户' }}</button><p v-if="createError" class="login-error" role="alert">{{ createError }}</p></form>
   </AppModal>
 </template>
 
@@ -53,6 +27,7 @@ const createNickname = ref('');
 const loginError = ref('');
 const createError = ref('');
 const busy = ref(false);
+const view = ref('login');
 
 /**
  * 提交登录。
@@ -96,17 +71,3 @@ async function onCreate() {
   }
 }
 </script>
-
-<style scoped>
-.login-hint {
-  margin: 0 0 12px;
-  line-height: 1.5;
-}
-
-.login-error {
-  margin: 8px 0 0;
-  color: #fca5a5;
-  font-size: 13px;
-  line-height: 1.45;
-}
-</style>

@@ -51,7 +51,6 @@
 import { computed } from 'vue';
 import AppModal from '../../AppModal.vue';
 import { buildRoomConfigDisplayRows } from '../../../utils/roomConfigFormUtils.js';
-import './roomHub.css';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

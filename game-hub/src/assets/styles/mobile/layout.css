@@ -1,0 +1,253 @@
+.app-main {
+  padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
+}
+
+.site-topbar-inner {
+  padding: 0 12px;
+  gap: 12px;
+}
+
+.site-title {
+  display: none;
+}
+
+.site-topbar-games {
+  flex: 0 1 auto;
+}
+
+.site-user-meta {
+  display: none;
+}
+
+.game-selector-tabs {
+  display: none;
+}
+
+.game-selector-menu {
+  display: block;
+}
+
+.site-user-bar,.site-user-trail {
+  gap: 5px;
+}
+
+.site-logo-mark {
+  width: 24px;
+  height: 24px;
+}
+
+.app-page-header {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.app-page-header h1 {
+  font-size: 18px;
+}
+
+.app-page-header__meta {
+  display: none;
+}
+
+.app-page-header__actions {
+  gap: 5px;
+}
+
+.app-page-header__actions button {
+  padding: 6px 9px;
+}
+
+.app-menu__backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 8010;
+  background: var(--gh-backdrop);
+}
+
+.app-menu__panel {
+  position: fixed;
+  inset: auto 0 0;
+  max-width: none;
+  width: 100%;
+  max-height: 80dvh;
+  overflow: auto;
+  border-radius: 18px 18px 0 0;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+  border-bottom: 0;
+}
+
+.app-menu__mobile-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 6px 12px;
+}
+
+.app-menu__mobile-title button {
+  width: 28px;
+  min-height: 28px;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: #f0f0f3;
+}
+
+.app-menu__item {
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.modal-mask {
+  padding: 0;
+  align-items: flex-end;
+}
+
+.modal {
+  width: 100%;
+  max-height: 92dvh;
+  border-radius: 18px 18px 0 0;
+  border-bottom: 0;
+}
+
+.modal-header {
+  padding: 18px 18px 14px;
+}
+
+.modal-body {
+  padding: 0 18px calc(20px + env(safe-area-inset-bottom));
+}
+
+.modal-footer {
+  padding: 12px 18px calc(14px + env(safe-area-inset-bottom));
+}
+
+.modal-footer button,.room-hub-form__actions button {
+  min-height: 42px;
+}
+
+.settings-row {
+  gap: 12px;
+}
+
+.settings-row:has(.settings-options) {
+  flex-direction: column;
+}
+
+.settings-options {
+  width: 100%;
+  gap: 14px;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.modal-actions input {
+  width: 100%;
+}
+
+.toast-stack {
+  top: 62px;
+  left: 12px;
+  right: 12px;
+  max-width: none;
+}
+
+.modal-close-btn {
+  width: 32px;
+  min-height: 32px;
+}
+
+.room-hub-list {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.room-hub-card {
+  min-height: 142px;
+  padding: 14px;
+}
+
+.room-seat-board {
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 9px;
+}
+
+.room-seat-avatar {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  min-height: 94px;
+}
+
+.room-seat-add {
+  min-height: 94px;
+}
+
+.room-waiting-panel {
+  padding: 14px;
+  gap: 14px;
+}
+
+.room-waiting-panel__actions button {
+  min-height: 42px;
+}
+
+.room-active-notice {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.online-users-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: var(--gh-backdrop);
+  z-index: 8010;
+}
+
+.online-users-panel {
+  position: fixed;
+  inset: auto 0 0;
+  width: 100%;
+  max-height: 80dvh;
+  padding: 18px 18px calc(22px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+}
+
+.online-users-list {
+  max-height: 60dvh;
+}
+
+.online-users-close {
+  display: flex;
+  min-height: 28px;
+  width: 28px;
+  padding: 4px;
+  border: 0;
+  background: #f0f0f3;
+  border-radius: 50%;
+}
+
+.online-users-head {
+  margin-bottom: 14px;
+}
+
+.online-users-duration {
+  font-size: 11px;
+}
+
+body:has(.app-menu__panel,.online-users-panel) {
+  overflow: hidden;
+}
+
+.app-menu__panel {
+  overscroll-behavior: contain;
+}
+
+.room-hub-panel {
+  --gh-room-page-size: 4;
+}

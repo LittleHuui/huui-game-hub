@@ -1,76 +1,30 @@
 <template>
-  <article
-    class="turn-player-panel"
-    :class="panelClassList"
-  >
-    <div class="turn-player-panel__outer">
-      <div class="turn-player-panel__card">
-        <div class="turn-player-panel__shell">
-          <div class="turn-player-panel__avatar-wrap">
-            <div class="turn-player-panel__avatar" :title="nickname">
-              <img v-if="avatarUrl" :src="avatarUrl" :alt="nickname" />
-              <span v-else aria-hidden="true">{{ avatarInitial }}</span>
-            </div>
-            <span v-if="statusBadgeText" class="turn-player-panel__badge" :class="statusBadgeClass">
-              {{ statusBadgeText }}
-            </span>
-            <span
-              v-if="isSpectator && !statusBadgeText"
-              class="turn-player-panel__badge turn-player-panel__badge--spectator"
-            >
-              观战
-            </span>
-            <span v-if="finishRankLabel" class="turn-player-panel__rank-badge">
-              {{ finishRankLabel }}
-            </span>
-          </div>
-
-          <div class="turn-player-panel__info">
-            <h3 class="turn-player-panel__name" :title="nickname">{{ nickname }}</h3>
-            <p v-if="handCount != null" class="turn-player-panel__stat">
-              <template v-if="layout === 'edge-right'">
-                <span
-                  v-if="showLowHandCountLabel"
-                  class="turn-player-panel__low-hand-tag"
-                >
-                  {{ lowHandCountLabel }}
-                </span>
-                手牌 {{ handCount }}
-              </template>
-              <template v-else>
-                手牌 {{ handCount }}
-                <span
-                  v-if="showLowHandCountLabel"
-                  class="turn-player-panel__low-hand-tag"
-                >
-                  {{ lowHandCountLabel }}
-                </span>
-              </template>
-            </p>
-          </div>
-
-          <div class="turn-player-panel__countdown-slot">
-            <TurnCountdown
-              v-if="showCountdown"
-              :seconds="countdownSeconds"
-              :expires-at-ms="countdownExpiresAtMs"
-              compact
-            />
-          </div>
+  <article class="turn-player-panel" :class="panelClassList">
+    <div class="turn-player-panel__identity">
+      <div class="turn-player-panel__avatar" :title="nickname">
+        <img v-if="avatarUrl" :src="avatarUrl" :alt="nickname" />
+        <span v-else aria-hidden="true">{{ avatarInitial }}</span>
+      </div>
+      <div class="turn-player-panel__info">
+        <h3 class="turn-player-panel__name" :title="nickname">{{ nickname }}</h3>
+        <div class="turn-player-panel__meta">
+          <span v-if="handCount != null">{{ handCount }} 张</span>
+          <span v-if="showLowHandCountLabel" class="turn-player-panel__low-hand-tag">{{ lowHandCountLabel }}</span>
+          <span v-if="statusBadgeText" class="turn-player-panel__badge" :class="statusBadgeClass">{{ statusBadgeText }}</span>
+          <span v-if="isSpectator && !statusBadgeText" class="turn-player-panel__badge">观战</span>
+          <span v-if="finishRankLabel" class="turn-player-panel__rank-badge">{{ finishRankLabel }}</span>
+          <slot name="meta" />
         </div>
       </div>
-
-      <div class="turn-player-panel__action-slot">
-        <slot name="action-display" />
-      </div>
+      <TurnCountdown v-if="showCountdown" :seconds="countdownSeconds" :expires-at-ms="countdownExpiresAtMs" compact />
     </div>
+    <div v-if="$slots['action-display']" class="turn-player-panel__action-slot"><slot name="action-display" /></div>
   </article>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import TurnCountdown from '../controls/TurnCountdown.vue';
-import '../controls/turnGame.css';
 
 const props = defineProps({
   nickname: {

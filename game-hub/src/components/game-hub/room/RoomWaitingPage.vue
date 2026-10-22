@@ -1,40 +1,8 @@
 <template>
   <div class="room-hub-page room-hub-page--waiting">
-    <header class="room-hub-page__toolbar">
-      <div class="room-hub-page__toolbar-main">
-        <h2 class="room-hub-page__title">{{ roomName }}</h2>
-        <p class="room-hub-page__subtitle muted-small">
-          {{ memberCount }} / {{ maxPlayers }} 人 · {{ statusText }}
-        </p>
-      </div>
-      <div class="room-hub-page__toolbar-actions">
-        <button
-          v-if="showRoomSettings"
-          type="button"
-          class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-          :disabled="actionsDisabled"
-          @click="$emit('settings')"
-        >
-          房间设置
-        </button>
-        <button
-          type="button"
-          class="game-action-btn game-action-btn--ghost game-action-btn--sm"
-          :disabled="actionsDisabled"
-          @click="$emit('detail')"
-        >
-          房间详情
-        </button>
-        <button
-          type="button"
-          class="game-action-btn game-action-btn--warning game-action-btn--sm"
-          :disabled="actionsDisabled"
-          @click="$emit('leave')"
-        >
-          离开房间
-        </button>
-      </div>
-    </header>
+    <AppPageHeader :title="roomName" :meta="`${memberCount} / ${maxPlayers} 人 · ${statusText}`">
+      <template #actions><span class="room-hub-status">{{ statusText }}</span><AppMenu label="房间操作" title="房间" :disabled="actionsDisabled" :items="roomMenuItems" @select="emit($event)" /></template>
+    </AppPageHeader>
 
     <RoomWaitingPanel
       :room="room"
@@ -54,7 +22,8 @@
 <script setup>
 import { computed } from 'vue';
 import RoomWaitingPanel from './RoomWaitingPanel.vue';
-import './roomHub.css';
+import AppPageHeader from '../../ui/AppPageHeader.vue';
+import AppMenu from '../../ui/AppMenu.vue';
 
 const props = defineProps({
   room: { type: Object, default: null },
@@ -63,7 +32,12 @@ const props = defineProps({
   actionsDisabled: { type: Boolean, default: false }
 });
 
-defineEmits(['detail', 'leave', 'invite', 'start', 'add-ai', 'settings', 'remove-member']);
+const emit = defineEmits(['detail', 'leave', 'invite', 'start', 'add-ai', 'settings', 'remove-member']);
+const roomMenuItems = computed(() => [
+  ...(showRoomSettings.value ? [{ id: 'settings', label: '房间设置', icon: 'settings' }] : []),
+  { id: 'detail', label: '房间详情', icon: 'info' },
+  { id: 'leave', label: '离开房间', icon: 'logout', danger: true }
+]);
 
 const isOwner = computed(() => {
   const ownerId = String(props.room?.ownerPlayerId || '').trim();

@@ -1,0 +1,25 @@
+.gomoku-page__playing { display:flex; flex-direction:column; gap:12px; }
+.gomoku-battle-layout { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.gomoku-seats { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; width:min(100%,480px); min-height:44px; }
+.gomoku-seats .turn-player-panel:last-child .turn-player-panel__identity { justify-content:flex-end; }
+.gomoku-board-area { width:100%; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.gomoku-board-wrap { width:min(100%,480px); padding:0; }
+.gomoku-board { position:relative; width:100%; aspect-ratio:1; border:1px solid #dcd5c7; border-radius:8px; background:#f5f0e5; overflow:hidden; }
+.gomoku-board__grid { position:absolute; inset:0; display:block; width:100%; height:100%; pointer-events:none; }
+.gomoku-board__grid line { stroke:#c3b8a1; stroke-width:1; }
+.gomoku-board__grid circle { fill:#a49372; }
+.gomoku-board__intersection { position:absolute; display:grid; place-items:center; width:var(--gomoku-hit-size); height:var(--gomoku-hit-size); min-height:0; margin:0; padding:0; border:0; border-radius:0; background:transparent; transform:translate(-50%,-50%); touch-action:manipulation; cursor:crosshair; }
+.gomoku-board__intersection:hover:not(:disabled) { background:transparent; }
+.gomoku-board__intersection:disabled { cursor:default; opacity:1; }
+.gomoku-board__intersection:focus-visible { outline:2px solid var(--gh-blue); outline-offset:-2px; border-radius:50%; }
+.gomoku-board__stone { position:absolute; left:9%; top:9%; display:block; width:82%; height:82%; border-radius:50%; box-shadow:0 1px 3px #0003; pointer-events:none; }
+.gomoku-board__stone--black { border:1px solid #222; background:radial-gradient(circle at 35% 30%,#555,#1d1d1f 65%); }
+.gomoku-board__stone--white { border:1px solid #d0d0cc; background:radial-gradient(circle at 35% 30%,#fff,#f6f6f2 70%); }
+.gomoku-board__stone--preview { opacity:.35; }
+.gomoku-board__stone--last::after { content:''; position:absolute; inset:38%; border-radius:50%; background:#dba84c; }
+.gomoku-board-actions { display:flex; align-items:center; justify-content:center; gap:8px; min-height:34px; }
+.gomoku-stone-indicator { display:inline-block; width:10px; height:10px; border:1px solid #a9a9a9; border-radius:50%; }
+.gomoku-stone-indicator.black { background:#242424; border-color:#242424; }
+.gomoku-stone-indicator.white { background:white; }
+.gomoku-settlement__winner { margin:0 0 12px; font-size:18px; }
+.gomoku-settlement__meta { margin:6px 0; }

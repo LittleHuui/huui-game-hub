@@ -8,14 +8,14 @@
     }"
     :title="titleText"
   >
-    <span class="turn-countdown__icon" aria-hidden="true">⏰</span>
+    <AppIcon name="clock" :size="14" />
     <span class="turn-countdown__value">{{ displayText }}</span>
   </span>
 </template>
 
 <script setup>
+import AppIcon from '../../ui/AppIcon.vue';
 import { computed, onUnmounted, ref, watch } from 'vue';
-import './turnGame.css';
 
 const props = defineProps({
   /** 剩余秒数（静态展示，不与 expiresAtMs 混用） */

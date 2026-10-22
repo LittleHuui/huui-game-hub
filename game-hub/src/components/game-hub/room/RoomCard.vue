@@ -29,7 +29,6 @@
 <script setup>
 import { computed } from 'vue';
 import { buildRoomConfigSummaryText } from '../../../utils/roomConfigFormUtils.js';
-import './roomHub.css';
 
 const props = defineProps({
   /** @type {import('vue').PropType<{ roomName: string; ownerNickname: string; memberCount: number; maxPlayers: number; status: string; mode?: string; roomConfig?: object }>} */

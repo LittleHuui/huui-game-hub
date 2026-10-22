@@ -10,24 +10,21 @@
       :title="canRefreshOnlineUsers ? '在线用户' : '本地模式不显示在线用户'"
       @click.stop="toggleOpen"
     >
-      <svg class="online-users-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path
-          d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.7-6 3.8V20h12v-2.2C15 15.7 12.3 14 9 14Zm7.5-1.4a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm.5 1.5c-.7 0-1.4.1-2 .3 1.2.9 2 2.1 2 3.4V20h4v-1.8c0-2.2-1.8-4.1-4-4.1Z"
-          fill="currentColor"
-        />
-      </svg>
+      <AppIcon name="users" :size="18" />
       <span v-if="onlineCount > 0" class="online-users-badge">{{ onlineCount }}</span>
     </button>
 
-    <div v-if="open" class="online-users-panel" @click.stop>
+    <div v-if="open" v-viewport-backdrop class="online-users-backdrop" @click="open = false" />
+    <div v-if="open" class="online-users-panel" @click.stop @keydown.esc="open = false">
       <div class="online-users-head">
         <div>
           <strong>在线用户</strong>
-          <span class="online-users-subtitle">{{ canRefreshOnlineUsers ? '仅展示昵称和在线时长' : '本地模式不刷新在线用户' }}</span>
+
         </div>
         <button type="button" class="online-users-refresh" :disabled="loading || !canRefreshOnlineUsers" @click="refreshUsers">
-          刷新
+          <AppIcon name="refresh" :size="16" /><span>刷新</span>
         </button>
+        <button class="online-users-close" type="button" aria-label="关闭在线用户" @click="open = false"><AppIcon name="close" :size="16" /></button>
       </div>
 
       <div v-if="loading && users.length === 0" class="online-users-state">正在加载在线用户...</div>
@@ -47,6 +44,8 @@
 </template>
 
 <script setup>
+import AppIcon from '../ui/AppIcon.vue';
+import vViewportBackdrop from '../ui/viewportBackdrop.js';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useOutsideClick } from '../../composables/useOutsideClick.js';
 import * as onlineService from '../../services/onlineService.js';
@@ -238,158 +237,3 @@ onBeforeUnmount(() => {
   stopTimers();
 });
 </script>
-
-<style scoped>
-.online-users-dropdown {
-  position: relative;
-}
-
-.online-users-trigger {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(248, 250, 252, 0.88);
-  transform: none;
-}
-
-.online-users-trigger:hover {
-  background: rgba(59, 130, 246, 0.38);
-  border-color: rgba(148, 163, 184, 0.45);
-  color: #f8fafc;
-}
-
-.online-users-trigger.is-disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.online-users-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.online-users-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: #22c55e;
-  color: #052e16;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 18px;
-}
-
-.online-users-panel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  width: min(320px, calc(100vw - 16px));
-  padding: 12px;
-  border-radius: 14px;
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
-  z-index: 230;
-}
-
-.online-users-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.online-users-subtitle {
-  display: block;
-  margin-top: 3px;
-  color: rgba(226, 232, 240, 0.68);
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.online-users-refresh {
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(59, 130, 246, 0.18);
-  border: 1px solid rgba(125, 211, 252, 0.28);
-  color: #e0f2fe;
-  font-size: 12px;
-  transform: none;
-}
-
-.online-users-refresh:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-
-.online-users-state {
-  padding: 18px 8px;
-  color: rgba(226, 232, 240, 0.78);
-  text-align: center;
-  font-size: 13px;
-}
-
-.online-users-state--error {
-  color: #fecaca;
-}
-
-.online-users-list {
-  display: flex;
-  max-height: 280px;
-  overflow-y: auto;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.online-users-row {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.online-users-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(125, 211, 252, 0.18);
-  color: #bae6fd;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 28px;
-  text-align: center;
-}
-
-.online-users-name {
-  min-width: 0;
-  overflow: hidden;
-  color: #f8fafc;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.online-users-duration {
-  color: rgba(226, 232, 240, 0.72);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-@media (max-width: 640px) {
-  .online-users-panel {
-    width: min(300px, calc(100vw - 12px));
-  }
-}
-</style>
