@@ -1,7 +1,7 @@
 """UNO 牌型规则注册表。"""
 
 from types import MappingProxyType
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from app.common.exceptions import ValidationException
 from app.modules.game_impls.uno.schemas import (

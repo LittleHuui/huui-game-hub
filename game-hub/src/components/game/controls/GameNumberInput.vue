@@ -11,7 +11,6 @@
     </button>
     <input
       :id="inputId"
-      ref="inputRef"
       class="game-number-input__field"
       type="text"
       inputmode="numeric"
@@ -71,7 +70,6 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change']);
 
 const internalValue = ref('');
-const inputRef = ref(null);
 
 const numericValue = computed(() => {
   const value = String(internalValue.value).trim();

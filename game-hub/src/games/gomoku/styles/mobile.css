@@ -1,4 +1,3 @@
 .gomoku-seats { gap:12px; }
 .gomoku-seats .turn-player-panel__identity { flex-wrap:wrap; }
-.gomoku-board-wrap { width:min(100%,480px); }
 .gomoku-board-actions { gap:12px; }

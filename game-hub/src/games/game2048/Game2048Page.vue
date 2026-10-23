@@ -2,7 +2,6 @@
   <div>
     <LightSingleGameLayout
       :game-title="layoutGameTitle"
-      :game-subtitle="layoutGameSubtitle"
       :game-description="layoutGameDescription"
       :game-status-text="layoutGameStatusText"
       :control-fields="controlFields"
@@ -10,10 +9,6 @@
       :show-shop="true"
       :show-ranking="true"
       :show-inventory="true"
-      :game-code="GAME2048_CODE"
-      :mode="GAME2048_MODE"
-      :difficulty-code="difficultyCode"
-      board-title="对局信息"
       board-frame-title="对局区域"
       board-subtitle="方向键 / WASD / 滑动操作"
       :paused="isPaused"
@@ -40,7 +35,6 @@
           :summary-keys="['score','maxTile','moves','duration']"
           :quotas="matchQuotas"
           :message="matchStatsMessage"
-          theme-seed="2048"
         />
       </template>
 

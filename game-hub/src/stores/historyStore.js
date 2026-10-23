@@ -16,7 +16,7 @@ function sanitizeRecordList(rows, mapper) {
     const mapped = mapper(row);
     return {
       ...mapped,
-      syncStatus: row.syncStatus || mapped.syncStatus || 'pending'
+      syncStatus: row.syncStatus || mapped.syncStatus
     };
   });
 }

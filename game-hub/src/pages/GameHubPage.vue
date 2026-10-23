@@ -3,7 +3,7 @@
     <template #top>
       <AppTopbar :user="user" :lock-nickname="sessionLocked" @update-nickname="onNicknameUpdate">
         <template #games>
-          <GameSelector layout="topbar" />
+          <GameSelector />
         </template>
         <template #menu>
           <OnlineUsersDropdown />
@@ -141,7 +141,7 @@
       </template>
     </AppModal>
 
-    <UserLoginModal :visible="platform.bootStatus === 'waitingLogin'" @success="onLoginSuccess" />
+    <UserLoginModal :visible="platform.bootStatus === 'waitingLogin'" />
 
     <RoomInviteConfirmDialog
       :visible="Boolean(pendingInvite)"
@@ -155,7 +155,7 @@
 
     <div class="gh-game-shell" :class="{ 'gh-game-shell--locked': !platform.isPlayable }">
       <router-view v-slot="{ Component }">
-        <component :is="Component" ref="gamePageRef" />
+        <component :is="Component" />
       </router-view>
     </div>
   </AppLayout>
@@ -209,7 +209,6 @@ const settingStore = useSettingStore();
 
 const user = session.currentUser;
 const sessionLocked = computed(() => platform.gameSwitchLocked);
-const gamePageRef = ref(null);
 
 const registerForm = reactive({ username: '', nickname: '' });
 const activeModal = ref('');
@@ -425,13 +424,6 @@ async function saveNicknameDialog() {
 
 async function onNicknameUpdate(name) {
   await userService.updateNickname(name);
-}
-
-/**
- * 登录/创建成功（状态由 boot 流程更新为 ready）。
- */
-function onLoginSuccess() {
-  /* 弹窗通过 bootStatus 自动关闭 */
 }
 
 watch(

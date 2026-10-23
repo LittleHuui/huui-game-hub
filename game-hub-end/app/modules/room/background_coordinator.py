@@ -32,7 +32,7 @@ def get_background_room_services() -> Optional[RoomApplicationServices]:
     return _background_services
 
 
-def get_post_commit_outbox_worker() -> PostCommitOutboxWorker:
+def get_post_commit_outbox_worker() -> Optional[PostCommitOutboxWorker]:
     """
     获取后台 Outbox Worker 实例。
 

@@ -68,6 +68,6 @@ export function toLocalScoreRecord(rec) {
   const mapped = mapScoreRecord(rec);
   return {
     ...mapped,
-    syncStatus: rec.syncStatus || mapped.syncStatus || 'pending'
+    syncStatus: rec.syncStatus || mapped.syncStatus
   };
 }

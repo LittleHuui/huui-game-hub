@@ -2,7 +2,6 @@
   <div>
     <LightSingleGameLayout class="sudoku-layout"
       :game-title="layoutGameTitle"
-      :game-subtitle="layoutGameSubtitle"
       :game-description="layoutGameDescription"
       :game-status-text="layoutGameStatusText"
       :control-fields="controlFields"
@@ -10,10 +9,6 @@
       :show-shop="true"
       :show-ranking="true"
       :show-inventory="true"
-      :game-code="SUDOKU_CODE"
-      :mode="SUDOKU_MODE"
-      :difficulty-code="difficultyCode"
-      board-title="对局信息"
       board-frame-title="对局区域"
       board-subtitle="点击空格填数 · 可开启草稿模式 · 右键擦除"
       :paused="isPaused"
@@ -41,7 +36,6 @@
           :summary-keys="['duration','filled','empty']"
           :quotas="matchQuotas"
           :message="matchStatsMessage"
-          theme-seed="sudoku"
         />
       </template>
 

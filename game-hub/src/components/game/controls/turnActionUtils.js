@@ -10,7 +10,7 @@ import {
 
 /**
  * 判断 actionOffers 中是否包含指定 actionType 的 Offer。
- * @param {import('../../services/action-interaction/actionOfferUtils.js').ActionOffer[]|null|undefined} actionOffers
+ * @param {import('../../../services/action-interaction/actionOfferUtils.js').ActionOffer[]|null|undefined} actionOffers
  * @param {string} actionType
  * @returns {boolean}
  */
@@ -20,9 +20,9 @@ export function hasActionOfferType(actionOffers, actionType) {
 
 /**
  * 读取指定 actionType 的 ENUMERATED Offer options。
- * @param {import('../../services/action-interaction/actionOfferUtils.js').ActionOffer[]|null|undefined} actionOffers
+ * @param {import('../../../services/action-interaction/actionOfferUtils.js').ActionOffer[]|null|undefined} actionOffers
  * @param {string} actionType
- * @returns {import('../../services/action-interaction/actionOfferUtils.js').EnumeratedActionOption[]}
+ * @returns {import('../../../services/action-interaction/actionOfferUtils.js').EnumeratedActionOption[]}
  */
 export function getEnumeratedOptionsByActionType(actionOffers, actionType) {
   const offer = findOfferByActionType(actionOffers, actionType);

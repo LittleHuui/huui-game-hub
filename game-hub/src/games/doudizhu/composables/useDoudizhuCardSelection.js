@@ -5,7 +5,7 @@ import { isCardSelectionAllowed } from '../doudizhuActionOffersAdapter.js';
  * 管理斗地主手牌受控选择状态。
  * @param {object} input
  * @param {import('vue').Ref<object[]>} input.handCardsRef
- * @param {import('vue').ComputedRef<import('../../services/action-interaction/actionOfferUtils.js').ComposedActionCapability|null>} input.capabilityRef
+ * @param {import('vue').ComputedRef<import('../../../services/action-interaction/actionOfferUtils.js').ComposedActionCapability|null>} input.capabilityRef
  * @param {import('vue').ComputedRef<boolean>} input.interactionDisabledRef
  * @returns {{
  *   selectedCardIds: import('vue').Ref<string[]>;

@@ -1,6 +1,5 @@
 """房间对局动作查询服务。"""
 
-from typing import Optional
 
 from app.common.error_code import ErrorCode
 from app.common.exceptions import BizException

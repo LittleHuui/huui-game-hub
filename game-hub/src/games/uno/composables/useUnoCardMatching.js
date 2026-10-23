@@ -22,7 +22,7 @@ export function useUnoCardMatching(input) {
   const { actionOffersRef, handCardsRef, interactionDisabledRef } = input;
   const selectedCardIds = ref([]);
   const hintCursor = ref(0);
-  /** @type {import('vue').Ref<import('../../services/enumeratedActionMatcher.js').EnumeratedActionMatcherResult|null>} */
+  /** @type {import('vue').Ref<import('../../../services/enumeratedActionMatcher.js').EnumeratedActionMatcherResult|null>} */
   const matchState = ref(null);
 
   const enumeratedSelection = computed(() => {

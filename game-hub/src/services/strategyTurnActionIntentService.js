@@ -107,11 +107,3 @@ export function clearActionIntents(roomId = '') {
     }
   }
 }
-
-/**
- * 测试专用：读取待处理动作意图。
- * @returns {object[]}
- */
-export function __getActionIntentsForTests() {
-  return [...intentsByKey.values()];
-}

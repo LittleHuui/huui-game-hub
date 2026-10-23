@@ -137,7 +137,6 @@
                 :disabled-item-ids="disabledItemIds"
                 :disabled="interactionDisabled"
                 @change="onHandSelectionChange"
-                @illegal-click="onHandIllegalClick"
               >
                 <template #item="{ item }">
                   <UnoCard :card-code="item.cardCode" />
@@ -355,10 +354,6 @@ const { start: onStartManagedMode, stop: onStopManagedMode } = useStrategyTurnMa
  */
 function onHandSelectionChange(ids) {
   selectCards(ids);
-}
-
-function onHandIllegalClick() {
-  // 震动反馈由 SelectableItemHand 处理
 }
 
 /**

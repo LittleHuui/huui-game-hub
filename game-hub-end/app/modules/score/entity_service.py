@@ -1,6 +1,6 @@
 """成绩域单实体服务。"""
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from app.core.database import new_entity_ids
 from app.core.time_utils import now_ms

@@ -193,26 +193,6 @@ export function resolveOpponentLayout(players, viewerPlayerId) {
 }
 
 /**
- * 归一化上一手出牌信息。
- * @param {object|null|undefined} lastPlay
- * @returns {object|null}
- */
-export function normalizeLastPlay(lastPlay) {
-  if (!lastPlay || typeof lastPlay !== 'object') {
-    return null;
-  }
-  const cardInstanceIds = Array.isArray(lastPlay.cardInstanceIds)
-    ? lastPlay.cardInstanceIds.map((id) => String(id || '').trim()).filter(Boolean)
-    : [];
-  return {
-    comboType: String(lastPlay.comboType || '').trim(),
-    cardInstanceIds,
-    mainRankCode: String(lastPlay.mainRankCode || '').trim(),
-    cardCount: Number(lastPlay.cardCount) || cardInstanceIds.length
-  };
-}
-
-/**
  * 从公开玩家列表查找玩家。
  * @param {object[]} players
  * @param {string} playerId

@@ -95,7 +95,6 @@ export function createSudokuPresentation(context) {
   });
   const matchStatsMessage = computed(() => gameMessage.value);
   const layoutGameTitle = computed(() => displayMetadata.name);
-  const layoutGameSubtitle = computed(() => displayMetadata.subName);
   const layoutGameDescription = computed(() => `经典模式 · ${difficultyLabel.value}`);
   const layoutGameStatusText = computed(() => {
     if (isPaused.value && gameStatus.value === 'playing') {
@@ -278,7 +277,6 @@ export function createSudokuPresentation(context) {
     statusLabel,
     matchStatsMessage,
     layoutGameTitle,
-    layoutGameSubtitle,
     layoutGameDescription,
     layoutGameStatusText,
     actionItems,

@@ -3,13 +3,6 @@
 @import '../../../games/game2048/game2048.css';
 @import '../../../games/sudoku/styles/sudoku.css';
 
-.game-play-layout { display: grid; gap: 16px; min-width: 0; }
-.game-play-layout__side,.game-play-layout__main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.game-play-layout__board { min-width: 0; }
-.game-config-panel,.game-hud-panel { padding: 16px; background: var(--gh-surface); border: 1px solid var(--gh-line); border-radius: var(--gh-radius); }
-.game-config-panel__head { display: flex; align-items: center; gap: 8px; }
-.game-config-panel .game-card__title,.game-hud-panel .game-card__title { font-size: 14px; margin: 0 0 12px; }
-.game-hud-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .light-single-layout { --single-board-reserve: 280px; --single-board-size: clamp(260px, calc(var(--gh-viewport-height, 100dvh) - var(--single-board-reserve)), 440px); --single-mine-cell: clamp(28px, calc((var(--single-board-size) - 28px) / 9), 40px); width: 100%; max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .light-single-layout__main { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; width: 100%; padding: 14px; background: var(--gh-surface); border: 1px solid var(--gh-line); border-radius: var(--gh-radius); }
 .light-single-header { min-width: 0; margin-bottom: 0; }
@@ -88,11 +81,3 @@
 .game-result-kv__row dd { margin: 0; font-weight: 600; text-align: right; }
 .game-result-section--rewards { background: #f0faf3; }
 .game-result-kv__row--accent dd { color: #208442; }
-.game-stat-grid { display: grid; gap: 8px; }
-.game-stat-card { background: var(--gh-bg); border: 1px solid var(--gh-line); border-radius: 10px; padding: 10px; }
-.game-stat-card__main { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-.game-stat-card__label,.game-stat-card__helper { font-size: 12px; color: var(--gh-muted); }
-.game-stat-card__value { font-size: 15px; font-weight: 650; }
-.game-stat-quota-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.game-stat-quota-bar__item { display: flex; gap: 6px; font-size: 12px; color: var(--gh-muted); }
-.game-hud-stats__message { font-size: 12px; color: var(--gh-muted); }

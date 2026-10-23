@@ -177,7 +177,7 @@ class GameSettlementCommitService:
             if meta is None or str(meta.get("status", "")).strip() != "playing":
                 return SettlementExecutionResult(status=SettlementExecutionStatus.OBSOLETE)
             consistent_state = await self._state_reader.load_consistent(normalized_room_id)
-        except Exception as exc:
+        except Exception:
             logger.exception(
                 "settlement terminal failure state read failed, roomId=%s settlementId=%s "
                 "expectedVersion=%s failureCode=%s failureReason=%s terminalFailureCommitted=%s",

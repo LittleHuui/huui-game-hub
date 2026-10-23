@@ -52,7 +52,7 @@ class PropPurchaseRecordRepository:
         active_only: bool = True,
     ) -> Tuple[List[PropPurchaseRecord], int]:
         """
-        分页查询用户购买记录（按创建时间倒序）。
+        分页查询用户购买记录（按更新时间、创建时间依次倒序）。
 
         :param user_id: 用户主键。
         :param game_code: 可选游戏编码过滤。

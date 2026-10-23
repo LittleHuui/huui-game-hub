@@ -67,7 +67,7 @@ class MatchRecordRepository:
 
     def list_by_user(self, user_id: str, limit: int = 50, *, active_only: bool = True) -> List[MatchRecord]:
         """
-        按创建时间倒序列出用户最近对局。
+        按更新时间、创建时间依次倒序列出用户最近对局。
 
         :param user_id: 用户主键。
         :param limit: 返回条数上限。
@@ -166,7 +166,7 @@ class MatchRecordRepository:
         active_only: bool = True,
     ) -> List[MatchRecord]:
         """
-        分页查询用户历史对局（按 ``created_at`` 倒序）。
+        分页查询用户历史对局（按 ``updated_at``、``created_at`` 依次倒序）。
 
         :param user_id: 用户主键。
         :param game_code: 游戏编码，非空时过滤。

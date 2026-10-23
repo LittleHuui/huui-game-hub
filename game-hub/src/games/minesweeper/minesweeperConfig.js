@@ -23,13 +23,3 @@ export const HINT_LIMIT_BY_DIFFICULTY = {
   medium: 3,
   hard: 5
 };
-
-/** 客户端布局配置（仅展示，不改变规则） */
-export let clientLayoutConfigs = [];
-
-/**
- * @param {unknown} list
- */
-export function setClientLayoutConfigs(list) {
-  clientLayoutConfigs = Array.isArray(list) ? list : [];
-}

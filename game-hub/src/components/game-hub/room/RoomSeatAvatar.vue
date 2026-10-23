@@ -38,7 +38,6 @@ const props = defineProps({
   isOwner: { type: Boolean, default: false },
   isAi: { type: Boolean, default: false },
   isManaged: { type: Boolean, default: false },
-  managedReason: { type: String, default: null },
   showManagedBadge: { type: Boolean, default: true },
   removable: { type: Boolean, default: false },
   removeDisabled: { type: Boolean, default: false }

@@ -1,7 +1,7 @@
 """统一 API 返回结构。"""
 
 import time
-from typing import Any, Generic, Optional, TypeVar, Union
+from typing import Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 

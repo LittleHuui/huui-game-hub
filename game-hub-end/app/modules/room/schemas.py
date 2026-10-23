@@ -118,7 +118,7 @@ class RoomActionRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    baseVersion: int = Field(ge=0, description="客户端已知房间版本号")
+    baseVersion: int = Field(ge=0, description="客户端已知对局版本号")
     requestId: str = Field(min_length=1, description="客户端幂等请求 ID")
     submission: ActionSubmission = Field(description="动作提交意图")
 
@@ -128,7 +128,7 @@ class RoomActionPreviewRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    baseVersion: int = Field(ge=0, description="客户端已知房间版本号")
+    baseVersion: int = Field(ge=0, description="客户端已知对局版本号")
     submission: ActionSubmission = Field(description="动作提交意图")
 
 
@@ -137,7 +137,7 @@ class RoomActionSuggestionsRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    baseVersion: int = Field(ge=0, description="客户端已知房间版本号")
+    baseVersion: int = Field(ge=0, description="客户端已知对局版本号")
     actionType: str = Field(min_length=1, description="动作类型")
     cursor: Optional[str] = Field(default=None, description="分页游标")
     limit: int = Field(default=20, ge=1, le=100, description="返回数量")

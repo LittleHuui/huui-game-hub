@@ -2,7 +2,6 @@
   <div>
     <LightSingleGameLayout
       :game-title="layoutGameTitle"
-      :game-subtitle="layoutGameSubtitle"
       :game-description="layoutGameDescription"
       :game-status-text="layoutGameStatusText"
       :control-fields="controlFields"
@@ -10,10 +9,6 @@
       :show-shop="true"
       :show-ranking="true"
       :show-inventory="true"
-      :game-code="MINESWEEPER_GAME_CODE"
-      :mode="MINESWEEPER_MODE"
-      :difficulty-code="difficulty"
-      board-title="对局信息"
       board-frame-title="对局区域"
       board-subtitle="左键翻开 · 右键标记"
       :paused="isPaused"
@@ -45,7 +40,6 @@
           :summary-keys="['remainMines','duration','opened','flagged']"
           :quotas="matchQuotas"
           :message="gameMessage"
-          :theme-seed="statThemeSeed"
         />
       </template>
 

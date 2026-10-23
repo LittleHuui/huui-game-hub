@@ -132,7 +132,7 @@ class PropUsageRecordRepository:
         active_only: bool = True,
     ) -> List[PropUsageRecord]:
         """
-        分页列出用户使用记录（按创建时间倒序）。
+        分页列出用户使用记录（按更新时间、创建时间依次倒序）。
 
         :param user_id: 用户主键。
         :param game_code: 可选游戏过滤。

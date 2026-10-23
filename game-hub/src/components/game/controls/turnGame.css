@@ -26,6 +26,3 @@
 .selectable-item-hand__item--disabled { cursor:default; }
 .selectable-item-hand__item--shake { animation:selectable-item-hand-shake .36s ease; }
 @keyframes selectable-item-hand-shake { 20%,60% { transform:translateX(-4px); } 40%,80% { transform:translateX(4px); } }
-.turn-ranking-panel { color:var(--gh-ink); }
-.turn-ranking-panel__list { list-style:none; padding:0; margin:0; }
-.turn-ranking-panel__item { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--gh-line); }

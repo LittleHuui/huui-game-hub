@@ -21,10 +21,6 @@ defineProps({
     type: String,
     default: ''
   },
-  subtitle: {
-    type: String,
-    default: ''
-  },
   paused: {
     type: Boolean,
     default: false

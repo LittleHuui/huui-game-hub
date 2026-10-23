@@ -235,7 +235,6 @@ async function ensureRoomContext() {
   if (!id || !gameCode.value || onlineBlocked.value) {
     errorMessage.value = id ? '房间不可用' : '房间 ID 无效';
     await navigateLobby();
-    if (!operation.isCurrent()) return;
     return;
   }
   loading.value = true;
@@ -255,7 +254,6 @@ async function ensureRoomContext() {
     if (!room.value) {
       errorMessage.value = '房间不存在或已被删除';
       await navigateLobby();
-      if (!operation.isCurrent()) return;
       return;
     }
     if (!isRoomMember.value) {
@@ -265,7 +263,6 @@ async function ensureRoomContext() {
       }
       errorMessage.value = '你尚未加入该房间';
       await navigateLobby();
-      if (!operation.isCurrent()) return;
       return;
     }
     shellRejoinOffered.value = false;
@@ -281,18 +278,6 @@ async function ensureRoomContext() {
     if (operation.isCurrent()) loading.value = false;
   }
 }
-
-/**
- * @param {string} targetPlayerId
- */
-
-/**
- * @param {{ error?: string; maxPlayers?: number; roomConfig?: object }} payload
- */
-
-/**
- * @param {{ maxPlayers?: number; roomConfig?: object }} payload
- */
 
 const {
   onRejoinManagedRoom,

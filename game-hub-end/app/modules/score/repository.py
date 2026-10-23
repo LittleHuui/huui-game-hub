@@ -1,6 +1,6 @@
 """成绩域数据访问。"""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -60,7 +60,7 @@ class ScoreRecordRepository:
 
     def list_by_user(self, user_id: str, limit: int = 200, *, active_only: bool = True) -> List[ScoreRecord]:
         """
-        按创建时间倒序列出用户成绩记录。
+        按更新时间、创建时间依次倒序列出用户成绩记录。
 
         :param user_id: 用户主键。
         :param limit: 返回条数上限。

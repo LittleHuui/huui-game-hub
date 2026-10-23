@@ -2,7 +2,6 @@
   <div>
     <LightSingleGameLayout
       :game-title="layoutGameTitle"
-      :game-subtitle="layoutGameSubtitle"
       :game-description="layoutGameDescription"
       :game-status-text="layoutGameStatusText"
       :control-fields="controlFields"
@@ -12,10 +11,6 @@
       @action="onLayoutAction"
       :show-ranking="true"
       :show-inventory="true"
-      :game-code="MATCH3"
-      :mode="mode"
-      :difficulty-code="difficultyCode"
-      board-title="对局信息"
       board-frame-title="对局区域"
       board-subtitle="拖动相邻方块交换以消除"
       :paused="isPaused"
@@ -41,7 +36,6 @@
           :summary-keys="['score','time','moves','comboMax']"
           :quotas="matchQuotas"
           :message="gameMessage"
-          :theme-seed="statThemeSeed"
         />
       </template>
 

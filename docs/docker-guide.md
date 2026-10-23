@@ -257,6 +257,8 @@ docker push ghcr.io/littlehuui/huui-game-hub:1.0.0
 
 ### 5.2 在服务器拉取并启动
 
+上例发布到 GHCR；执行以下命令前，请将部署用 `compose.yaml` 的 `huui-game-hub.image` 改为实际推送的完整镜像名和标签。仓库默认镜像地址与上例不同，`docker compose pull` 只会拉取配置中的地址。
+
 ```bash
 git clone <你的仓库地址> huui-game-hub
 cd huui-game-hub

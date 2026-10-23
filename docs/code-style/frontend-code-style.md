@@ -94,7 +94,7 @@ game-hub/
 │   ├── api/                      # HTTP 封装
 │   ├── assets/                   # 全局样式、静态资源
 │   ├── components/               # 跨游戏通用 UI
-│   ├── constants/                # 注册表、种子配置、注入 key
+│   ├── constants/                # 种子配置、设置定义、注入 key
 │   ├── game-templates/           # 可选页面模板（如 light-single），不含业务/API
 │   ├── games/                    # 各游戏独立模块
 │   ├── mappers/                  # API/DTO → 领域对象映射
@@ -143,7 +143,8 @@ src/games/{gameCode}/
 | `repositories/` | save / get / query / merge；见 [§8](#8-repository-规范) |
 | `services/` | 编排、toast、同步时机；见 [§9](#9-service-规范) |
 | `stores/` | 可响应 UI 的状态快照；见 [§10](#10-store-规范) |
-| `constants/` | `GAME_REGISTRY`、`GAME_SEED_CONFIG`、`GAME_SETTING_DEFINITIONS`、`injectionKeys` |
+| `constants/` | `GAME_SEED_CONFIG`、`GAME_SETTING_DEFINITIONS`、`injectionKeys` |
+| `games/gameModuleRegistry.js` | 汇总各游戏 `gameModule.js`，提供 `GAME_FRONTEND_MODULES` 与元数据/能力查询 |
 | `utils/` | `idService`、`timeService`、`debounce` 等无领域语义工具 |
 
 ### 2.5 禁止的目录操作
@@ -530,7 +531,7 @@ await refreshRemoteAfterSettle({ includeRanking: true, gameCode, difficultyCode,
 
 ### 10.1 命名
 
-- 文件：`useXxxStore.js`
+- 文件：`xxxStore.js`；导出组合函数命名为 `useXxxStore`
 - `defineStore('xxx', { state, getters, actions })`
 - actions **仅** 做同步赋值：`setXxx`、`clear`、`append`
 
@@ -791,7 +792,7 @@ Page 触发使用意图
 | 面板 | `XxxPanel.vue` | `Match3BattlePanel.vue` |
 | Repository | `xxxRepository.js` | `rankingRepository.js` |
 | Service | `xxxService.js` | `gameSessionService.js` |
-| Store | `useXxxStore.js` | `useRankingStore.js` |
+| Store | `xxxStore.js` | `rankingStore.js` |
 | Engine | `xxxEngine.js` | `match3Engine.js` |
 | Config | `xxxConfig.js` | `minesweeperConfig.js` |
 | Mapper | `xxxMapper.js` | `rankingMapper.js` |
@@ -877,7 +878,7 @@ Page 触发使用意图
 
 ### 22.3 生成顺序建议
 
-1. 读 `GAME_REGISTRY` + `GAME_SEED_CONFIG` + 现有同类游戏。
+1. 读 `games/gameModuleRegistry.js`、游戏 `gameModule.js` + `GAME_SEED_CONFIG` + 现有同类游戏。
 2. 先 Engine / Config（纯逻辑）。
 3. 再 Repository / Service（若涉及持久化或榜）。
 4. 最后 Page / 组件 / 动画。
@@ -904,14 +905,14 @@ Page 触发使用意图
 
 | 类型 | 位置 | 定位 |
 |------|------|------|
-| `GamePlayLayout` | `src/components/game/layout/` | **平台基础游戏布局**：通用左右分栏；slots：`config` / `shop` / `ranking` / `hud` / `board` / `inventory` |
-| `LightSingleGameLayout` | `src/game-templates/light-single/` | **轻量单人模板层**：排版 + slot；侧栏经 `GameControlPanel`（`controls/`）展示信息与操作 |
+| `LightSingleGameLayout` | `src/game-templates/light-single/` | **轻量单人模板层**：页头、棋盘、统计和资源弹窗；`LightSingleGameSidePanel` 组合 `AppPageHeader`、配置弹窗及操作菜单 |
+| `StrategyTurnMultiplayerLayout` | `src/game-templates/strategy-turn-multiplayer/` | **策略回合多人模板层**：对局区域、玩家席位与操作区 |
 
 **选用原则**
 
-- **轻量单人游戏**（扫雷、消消乐、2048、数独等）**优先**使用 `LightSingleGameLayout` + `GameControlPanel`（左侧 `controlFields` / `actionItems`）+ `GameMatchStatsPanel`（右侧 `match-stats`）+ 平台 `GameShopPanel` / `GameRankingPanel` / `GameInventoryPanel`（经 slot 注入）。业务页负责把状态适配为 `fields` / `actions` / `stats` / `quotas`（参考 `MinesweeperPage.vue`、`Game2048Page.vue`、`Match3Page.vue`）。
-- **特殊游戏**（五子棋在线、飞行棋多人、Canvas / Pixi 重渲染、非常规页面结构）可继续使用 `GamePlayLayout` 或 **完全自定义** `{Game}Page.vue`。
-- **`light-single` 不是平台强制模板**；未在 `GAME_REGISTRY` 配置 `viewTemplate` 时，由页面自行选择布局。
+- **轻量单人游戏**（扫雷、消消乐、2048、数独等）**优先**使用 `LightSingleGameLayout`（`controlFields` / `actionItems`）+ `GameMatchStatsPanel`（`match-stats` slot）+ 平台 `GameShopPanel` / `GameRankingPanel` / `GameInventoryPanel`（经 slot 注入）。业务页负责把状态适配为 `fields` / `actions` / `stats` / `quotas`（参考 `MinesweeperPage.vue`、`Game2048Page.vue`、`Match3Page.vue`）。
+- **策略回合多人游戏**（五子棋、斗地主、UNO）使用 `StrategyTurnMultiplayerLayout`；其他非常规页面可自定义 `{Game}Page.vue`。
+- **`light-single` 不是平台强制模板**；未在游戏 `gameModule.js` 的 `displayMetadata` 配置 `viewTemplate` 时，由页面自行选择布局。
 - **任何页面模板或布局组件** 都 **不得** 写 `gameCode` 特判、不得 import 具体游戏文件。
 
 ### 23.2 `viewTemplate` 与种子边界
@@ -926,7 +927,7 @@ Page 触发使用意图
 | 允许 | 禁止 |
 |------|------|
 | 排版、props、slots、`emit('action')` / `emit('field-change')` | 调用 API / Repository |
-| 将 Page 组装的 `actionItems` / `fields` 传给底层 `GameControlPanel` | 读写 Pinia store |
+| 将 Page 组装的 `actionItems` / `controlFields` 传给侧栏，由 `GameActionBar`、`AppMenu`、`GameControlField` 展示 | 读写 Pinia store |
 | 棋盘外框等纯容器；`LightSingleGameBoardFrame` 承载 `GamePauseOverlay`（`paused` / `resume` 透传） | 调用 Engine、写游戏规则 |
 | 复用 `components/game/controls`、`stats` | `import` 具体游戏 Page / Board / Config |
 | — | 在模板层维护 `isPaused` 或暂停计时（由业务 Page 负责） |
@@ -935,26 +936,17 @@ Page 触发使用意图
 
 详见 [新游戏接入指南](../new-game-guide.md#前端接入)。
 
-### 23.4 `GamePlayLayout` 结构（基础布局）
+### 23.4 `LightSingleGameLayout` 结构
 
-沿用 `GamePlayLayout` 时，左右分栏约定不变：
-
-| 左侧 `game-layout__side` | 右侧 `game-layout__main` |
-|--------------------------|---------------------------|
-| `GameConfigPanel` — 难度 / 模式 / 开局配置 | `GameHudPanel` — 当前对局信息 |
-| `GameShopPanel` — 道具商城 | `game-board-area` — 棋盘 / 对战区 |
-| `GameRankingPanel` — 排行榜 | `GameInventoryPanel` — 背包 |
-
-```
-GamePlayLayout
-  left:  GameConfigPanel, GameShopPanel, GameRankingPanel
-  right: GameHudPanel, board slot, GameInventoryPanel
-```
+- `LightSingleGameSidePanel` 展示标题、配置摘要与操作；配置项放在弹窗中。
+- `match-stats` slot 展示本局统计；`board` slot 放入棋盘，由 `LightSingleGameBoardFrame` 承载暂停遮罩。
+- `inventory` slot 展示背包；商城、排行榜、玩法说明通过资源按钮打开弹窗。
+- `boardSubtitle` 用于玩法说明，不能当作无用的棋盘副标题删除。
 
 ### 23.5 样式
 
-- `GamePlayLayout` / 平台 `Game*Panel`：使用 `src/assets/game-layout.css`（`game-layout`、`game-card`、`game-empty` 等）。
-- `light-single`：使用 `src/game-templates/light-single/light-single.css`；卡片视觉与 `game-card` 对齐，**不**在模板 CSS 中写游戏特判。
+- 全局样式入口为 `src/assets/app.css`，聚合 `assets/styles/base/` 与各模板的 `styles/`。
+- `light-single` 使用 `src/game-templates/light-single/styles/{base,web,compact,mobile}.css`；设备断点统一在 `app.css` 声明，不在模板组件中写游戏特判。
 
 **禁止** 各游戏复制一套与平台商城 / 排行榜 / 背包同职责的独立 UI。
 
@@ -972,14 +964,13 @@ GamePlayLayout
 
 ## 24. 游戏公共组件规范
 
-目录：`src/components/game/`。组件实现位于 `layout/`、`panels/`、`stats/`、`controls/` 四个分包；`index.js` 为统一聚合导出入口。
+目录：`src/components/game/`。组件实现位于 `panels/`、`stats/`、`controls/` 三个分包；`index.js` 为统一聚合导出入口。
 
 ```
 src/components/game/
-├── layout/      GamePlayLayout
-├── panels/      GameConfigPanel、GameHudPanel、GameShopPanel、GameRankingPanel、GameInventoryPanel、GameResultModal、GamePauseOverlay
-├── stats/       GameHudStats、GameStatGrid、GameStatCard、GameStatQuotaBar、GameMatchStatsPanel
-├── controls/    GameControlPanel、GameControlField、GameActionBar、…、gameControlEnums.js
+├── panels/      GameShopPanel、GameRankingPanel、GameInventoryPanel、GameResultModal、GamePauseOverlay、TurnPlayerPanel
+├── stats/       GameMatchStatsPanel
+├── controls/    GameControlField、GameActionBar、…、gameControlEnums.js
 └── index.js     统一聚合导出入口（游戏页 / 模板优先从此 import）
 ```
 
@@ -992,11 +983,10 @@ src/components/game/
 
 | 层级 | 职责 |
 |------|------|
-| **模板层** `game-templates/light-single/` | 排版、slot、`emit('action')`；内部复用 `GameControlPanel`，**不**接管业务状态 |
+| **模板层** `game-templates/light-single/` | 排版、slot、`emit('action')`；内部复用配置控件、操作条与菜单，**不**接管业务状态 |
 | **底层 `controls/`** | 游戏信息、配置项、操作按钮；**只展示 + emit**；无 API/store/gameCode |
-| **底层 `stats/`** | 对局数据卡片；Page 传 `stats` 数组；`GameMatchStatsPanel` 组合网格，无具体游戏分支 |
+| **底层 `stats/`** | Page 传 `stats` 数组；`GameMatchStatsPanel` 展示摘要统计条及详情弹窗，无具体游戏分支 |
 | **底层 `panels/`** | 商城/榜/背包等业务面板（允许组件内 service/store） |
-| **底层 `layout/`** | 纯布局 slots |
 
 ### 24.0 枚举化样式（`gameControlEnums.js`）
 
@@ -1009,9 +999,9 @@ src/components/game/
 
 业务页在 computed 中赋值枚举；**禁止**以散落 CSS class 作为主要风格手段。`extraClass` 仅作附加扩展样式。
 
-### 24.0.1 GameControlPanel（`controls/`）
+### 24.0.1 LightSingleGameSidePanel（`game-templates/light-single/`）
 
-- **props**：`title`、`subtitle`、`description`、`statusText`、`infoStats`、`fields`、`actions`
+- **props**：`gameTitle`、`gameDescription`、`gameStatusText`、`infoStats`、`fields`、`actionItems`
 - **emit**：`field-change`（`{ key, value }`）、`action`（`key`）
 - **边界**：不调用 API/store；不判断 `gameCode`；`visible` / `disabled` / `value` / `options` 均由 Page 计算
 
@@ -1022,29 +1012,26 @@ src/components/game/
 - 已暂停：仅 `resume`（`RESUME`），**不**与 `pause` 共用同一 key；仍展示 `restart`、`end`。
 - `ended`：仅 `playAgain`（`PRIMARY`）。
 - `settling`：保留按钮可见，统一 `disabled`。
-- 禁止 `pauseOrResume` 混合 key；样式由枚举映射 `game-controls.css`，禁止业务页散落主色 class。
+- 禁止 `pauseOrResume` 混合 key；样式由枚举映射 `src/assets/styles/base/controls.css`，禁止业务页散落主色 class。
 
 ### 24.0.2 GameMatchStatsPanel（`stats/`）
 
-- **props**：`stats`、`quotas`、`message`、`themeSeed`、`columns`、`compact`
-- **stats 项**：`key`、`label`、`value`、`tone`（`GAME_STAT_TONE`）、`icon`、`helper`
-- **边界**：内部仅用 `GameStatGrid` + `GameStatCard` 渲染；禁止 `if (gameCode === 'xxx')`
+- **props**：`stats`、`summaryKeys`、`quotas`、`message`
+- **stats 项**：当前显示使用 `key`、`label`、`value`、`helper`；数据可保留 `tone`（`GAME_STAT_TONE`）、`icon` 等展示元数据
+- **边界**：内部展示摘要统计条，完整统计与道具次数使用 `AppModal`；禁止 `if (gameCode === 'xxx')`
 
 ### 24.0.3 GamePauseOverlay（`panels/`）
 
 - **props**：`visible`、`title`、`description`、`actionText`（均有默认中文文案）
-- **继续按钮**：使用 `game-action-btn--resume`（`GAME_ACTION_TYPE.RESUME`），样式由 `game-controls.css` 统一控制，不在组件内写死颜色
+- **继续按钮**：使用 `game-action-btn--resume`（`GAME_ACTION_TYPE.RESUME`），样式由 `src/assets/styles/base/controls.css` 统一控制，不在组件内写死颜色
 - **emit**：`resume`（点击遮罩空白或「继续游戏」按钮）
 - **边界**：只展示；不写 `gameCode`；不调 API/store；不改 `gameStatus`。`isPaused` 与 `pauseGame` / `resumeGame`、计时暂停由 `{Game}Page.vue` 负责；经 `LightSingleGameLayout` → `LightSingleGameBoardFrame` 叠加在棋盘 slot，仅覆盖对局区
 - 浏览器切页自动暂停用 `usePageVisibilityPause`（见 §6.4）；遮罩与 composable 均**不**在标签页重新可见时自动继续
 
 | 组件 | 职责 |
 |------|------|
-| `GamePlayLayout.vue` | 仅布局与 slots；不 import 具体游戏；不调 service |
-| `GameConfigPanel.vue` | 配置区外壳；具体内容由 slot 注入 |
 | `GameShopPanel.vue` | 统一商城 UI；商品来自 `shopStore`（由 `shopService` 根据 `propRules` + 定义合并写入） |
 | `GameRankingPanel.vue` | 统一排行榜 UI；仅当前 `gameCode + mode + difficultyCode` |
-| `GameHudPanel.vue` | HUD 外壳；统计与状态由 slot / 子组件注入 |
 | `GameInventoryPanel.vue` | 背包展示；数量来自 `inventoryStore` 流水聚合；使用 emit `use-prop` |
 
 ### 24.1 GameShopPanel
@@ -1058,7 +1045,7 @@ src/components/game/
 
 - **props**：`gameCode`、`usableProps`、`readonly`、`activeProp`、`disabledProps`、`useLabels`
 - **事件**：`use-prop`
-- **数量**：`inventoryStore` + `aggregateQuantitiesByGame`（`src/utils/inventoryQuantity.js`）
+- **数量**：`inventoryStore` + `quantitiesForUserGame`（`src/utils/inventoryQuantity.js`），合并本地流水与当前游戏背包快照
 - 道具效果由页面或游戏 service 处理
 
 ### 24.3 GameRankingPanel

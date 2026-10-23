@@ -36,20 +36,9 @@ class DoudizhuCandidateScorer(CandidateScorer):
     def __init__(self, config: Optional[DoudizhuActionScoreConfig] = None) -> None:
         """组装斗地主私有阶段评分器与出牌局面评分器。"""
         resolved = config or DOUDIZHU_ACTION_SCORE_CONFIG
-        self._config = resolved
         self._hand_evaluator = DoudizhuHandStrengthEvaluator(resolved)
         self._phase_scorer = DoudizhuPhaseScorer(resolved)
         self._play_scorer = DoudizhuPlayScorer(resolved)
-
-    def _build_context(self, state, player_id):
-        """
-        从运行时状态构建只读评分上下文。
-
-        :param state: 对局状态。
-        :param player_id: 玩家 ID。
-        :return: 评分上下文或 ``None``。
-        """
-        return build_score_context(state, player_id, self._hand_evaluator)
 
     def score_candidates(
         self,

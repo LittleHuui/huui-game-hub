@@ -119,7 +119,7 @@ export function toLocalMatchRecord(rec) {
   const mapped = mapMatchRecord(rec);
   return {
     ...mapped,
-    syncStatus: rec.syncStatus || mapped.syncStatus || 'pending'
+    syncStatus: rec.syncStatus || mapped.syncStatus
   };
 }
 

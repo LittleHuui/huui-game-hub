@@ -18,15 +18,6 @@ import { usePlatformStore } from '../stores/platformStore.js';
 import * as toastService from '../services/toastService.js';
 import { GAME_SWITCH_LOCK_DEFAULT_REASON } from '../composables/useGameSwitchLock.js';
 
-defineProps({
-  /** topbar：顶栏内紧凑排布；page：独立一行（预留） */
-  layout: {
-    type: String,
-    default: 'page',
-    validator: (v) => v === 'page' || v === 'topbar'
-  }
-});
-
 const platform = usePlatformStore();
 const router = useRouter();
 

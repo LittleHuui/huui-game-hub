@@ -20,8 +20,6 @@ const PALETTE = {
   blue: [30, 136, 229],
   white: [255, 255, 255],
   ink: [33, 33, 33],
-  back: [26, 35, 126],
-  backAccent: [57, 73, 171],
   wild: [66, 66, 66]
 };
 
@@ -471,7 +469,7 @@ function encodePng(width, height, rgba) {
     len.writeUInt32BE(data.length, 0);
     const body = Buffer.concat([typeBuf, data]);
     const crcBuf = Buffer.alloc(4);
-    crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
+    crcBuf.writeUInt32BE(crc32(body), 0);
     return Buffer.concat([len, body, crcBuf]);
   }
 

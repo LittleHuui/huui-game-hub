@@ -12,14 +12,10 @@ import { getDifficultyName, toDifficultySelectorOptions } from '../../services/g
 export function createMinesweeperPresentation(context) {
   const { difficulty, gameOver, isGameInProgress, isPaused, canUseSafeStartHint, matchPropRemaining, hintMatchLimit, reviveMatchLimit, user, remainMines, timer, openedCount, flaggedCount, canUseBattleProps, hintBackpackExhausted, activeTool, changeDifficulty, pauseGame, resumeGame, restartGame, playAgain, safeStartHint, endCurrentGame, useHintCard, resultModal } = context;
 
-  /** 统计区配色：0–9 | 主题名 | random */
-  const statThemeSeed = 'random';
-
   const displayMetadata = minesweeperGameModule.displayMetadata;
   const difficultyOptions = computed(() => toDifficultySelectorOptions(MINESWEEPER_GAME_CODE));
   const difficultyLabel = computed(() => getDifficultyName(MINESWEEPER_GAME_CODE, difficulty.value));
   const layoutGameTitle = computed(() => displayMetadata.name);
-  const layoutGameSubtitle = computed(() => displayMetadata.subName);
   const layoutGameDescription = computed(() => `单人模式 · ${difficultyLabel.value}`);
   const layoutGameStatusText = computed(() => {
     if (gameOver.value) {
@@ -285,12 +281,10 @@ export function createMinesweeperPresentation(context) {
   }
 
   return {
-    statThemeSeed,
     displayMetadata,
     difficultyOptions,
     difficultyLabel,
     layoutGameTitle,
-    layoutGameSubtitle,
     layoutGameDescription,
     layoutGameStatusText,
     controlFields,

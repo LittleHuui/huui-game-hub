@@ -105,7 +105,6 @@ export function useRoomWaitingDialogs({ roomId, room, isRoomMember, context, act
       return;
     }
     await saveRoomSettings(payload);
-    if (!operation.isCurrent()) return;
   }
 
   function onCancelAiRemoveConfirm() {

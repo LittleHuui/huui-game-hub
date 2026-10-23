@@ -35,15 +35,13 @@ _MAX_CANDIDATES = 1000
 _MAX_ATTACHMENT_VARIANTS = 4
 _MAX_SMALL_COMBO_PICKS = 8
 
-_BOMB_TYPES = frozenset([COMBO_BOMB, COMBO_LAIZI_BOMB, COMBO_ROCKET])
-
 
 def append_card_set(
     collector: List[List[DoudizhuCard]],
     cards: List[DoudizhuCard],
 ) -> None:
     """
-    向收集器追加一组候选牌（去重实例 ID）。
+    在数量上限内向收集器追加一组候选牌的副本；此处不去重。
 
     :param collector: 候选牌组列表。
     :param cards: 待追加牌组。

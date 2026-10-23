@@ -12,12 +12,8 @@ import { getDifficultyName } from '../../services/gameDifficultyService.js';
 export function createMatch3Presentation(context) {
   const { MATCH3, difficultyCode, mode, isPaused, gameStatus, canUseProps, propQuantity, propRemaining, activeTool, propLimit, isGameInProgress, animating, boardResolving, canPauseGame, canRestartGame, canEndGame, score, remainingSec, elapsedSec, moves, comboMax, changeMode, playAgain, restartGame, pauseGame, resumeGame, endCurrentGame, usedProps, resultModal } = context;
 
-  /** 统计区配色：0–9 | 主题名 | random */
-  const statThemeSeed = 'random';
-
   const displayMetadata = match3GameModule.displayMetadata;
   const layoutGameTitle = computed(() => displayMetadata.name);
-  const layoutGameSubtitle = computed(() => displayMetadata.subName);
   const layoutGameDescription = computed(() => {
     const diffName = getDifficultyName(MATCH3, difficultyCode.value);
     return mode.value === 'timed' ? `限时模式 · ${diffName}` : `无限模式 · ${diffName}`;
@@ -267,10 +263,8 @@ export function createMatch3Presentation(context) {
   }
 
   return {
-    statThemeSeed,
     displayMetadata,
     layoutGameTitle,
-    layoutGameSubtitle,
     layoutGameDescription,
     layoutGameStatusText,
     rankingSubtitle,

@@ -1,6 +1,6 @@
 """策略回合制平台运行时编排服务。"""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.common.exceptions import ValidationException
 from app.core.clock import Clock, system_clock

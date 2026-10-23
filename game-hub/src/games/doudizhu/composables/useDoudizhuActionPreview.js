@@ -134,7 +134,7 @@ export function useDoudizhuActionPreview(input) {
         return;
       }
       const parsed = ComposedActionAdapter.parsePreviewResponse(raw);
-      previewStatus.value = parsed.status === 'LOADING' ? 'LOADING' : parsed.status;
+      previewStatus.value = parsed.status;
       previewSummary.value = parsed.summary;
       previewReason.value = parsed.reason || '';
     } catch (err) {

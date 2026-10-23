@@ -31,8 +31,6 @@ import AppIcon from '../../ui/AppIcon.vue';
 
 const props = defineProps({
   title: { type: String, default: '房间列表' },
-  subtitle: { type: String, default: '' },
-  gameCode: { type: String, default: '' },
   rooms: { type: Array, default: () => [] },
   roomConfigSchema: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },

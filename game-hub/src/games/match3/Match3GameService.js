@@ -75,7 +75,7 @@ export function createMatch3Game({ resultModal, openResultModal }) {
   /** 连锁消除与计分结算中 */
   const boardResolving = ref(false);
 
-  /** 递增以作废进行中的结算协程，防止重开后旧分数写入新对局 */
+  /** 结束对局或提交结算期间锁定操作 */
   const isSettling = ref(false);
 
   const animationTimeline = createAnimationTimeline();

@@ -25,7 +25,6 @@
           :is-owner="item.isOwner"
           :is-ai="item.isAi"
           :is-managed="item.isManaged"
-          :managed-reason="item.managedReason"
           :show-managed-badge="showManagedBadge"
           :removable="canRemoveSeat(item)"
           :remove-disabled="disabled"

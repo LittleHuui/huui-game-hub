@@ -34,22 +34,6 @@ const props = defineProps({
   message: {
     type: String,
     default: ''
-  },
-  themeSeed: {
-    type: [Number, String],
-    default: 'random'
-  },
-  columns: {
-    type: Number,
-    default: 0
-  },
-  minColumnWidth: {
-    type: String,
-    default: '84px'
-  },
-  compact: {
-    type: Boolean,
-    default: true
   }
 });
 

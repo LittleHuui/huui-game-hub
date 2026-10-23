@@ -118,7 +118,6 @@ class AutoAdvanceTaskService(object):
         self._worker_tasks = set()  # type: Set[asyncio.Task]
         self._submit_handler = None  # type: Optional[Callable[[RoomAutoAdvanceTask], Awaitable[AutoAdvanceTaskSubmitResult]]]
         self._recovery_validator = None  # type: Optional[Callable[[RoomAutoAdvanceTask], Awaitable[Optional[str]]]]
-        self._handlers_bound = False
 
     def bind_submit_handler(
         self,
@@ -131,7 +130,6 @@ class AutoAdvanceTaskService(object):
         :return: 无。
         """
         self._submit_handler = submit_handler
-        self._handlers_bound = True
 
     def bind_recovery_validator(
         self,
@@ -151,7 +149,7 @@ class AutoAdvanceTaskService(object):
 
         :return: 无。
         """
-        if not self._handlers_bound or self._submit_handler is None:
+        if self._submit_handler is None:
             raise RuntimeError("自动推进任务 submit handler 未绑定")
         if self._running:
             return

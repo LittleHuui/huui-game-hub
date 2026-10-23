@@ -1,4 +1,3 @@
-.game-play-layout { grid-template-columns: minmax(0,1fr); }
 .light-single-layout { --single-board-reserve: 330px; --single-board-size: clamp(260px, calc(var(--gh-viewport-height, 100dvh) - var(--single-board-reserve)), 440px); gap: 8px; }
 .light-single-layout__main { border-radius: 12px; padding: 10px 6px; gap: 8px; }
 .light-single-header { margin-bottom: 0; }

@@ -8,11 +8,11 @@ import {
 
 /**
  * 解析斗地主 ActionOffer 展示数据。
- * @param {import('vue').Ref<import('../../services/action-interaction/actionOfferUtils.js').ActionOffer[]>} actionOffersRef
+ * @param {import('vue').Ref<import('../../../services/action-interaction/actionOfferUtils.js').ActionOffer[]>} actionOffersRef
  * @returns {{
  *   buttonActions: import('vue').ComputedRef<Array<{ actionType: string; actionId: string }>>;
- *   playCardsOffer: import('vue').ComputedRef<import('../../services/action-interaction/actionOfferUtils.js').ComposedActionOffer|null>;
- *   playCardsCapability: import('vue').ComputedRef<import('../../services/action-interaction/actionOfferUtils.js').ComposedActionCapability|null>;
+ *   playCardsOffer: import('vue').ComputedRef<import('../../../services/action-interaction/actionOfferUtils.js').ComposedActionOffer|null>;
+ *   playCardsCapability: import('vue').ComputedRef<import('../../../services/action-interaction/actionOfferUtils.js').ComposedActionCapability|null>;
  *   canPlayCards: import('vue').ComputedRef<boolean>;
  *   canTakeAction: import('vue').ComputedRef<boolean>;
  * }}

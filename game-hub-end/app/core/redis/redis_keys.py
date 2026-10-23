@@ -264,8 +264,9 @@ class RedisKeys(object):
     @staticmethod
     def managed_task_records(room_id: str) -> str:
         """
-        生成托管任务到期 sorted set key。
+        生成托管任务数据 hash key。
 
+        :param room_id: 房间 ID。
         :return: Redis key。
         """
         return RedisKeys.managed_task_records_shard(RedisKeys.room_shard(room_id))
@@ -273,8 +274,9 @@ class RedisKeys(object):
     @staticmethod
     def managed_task_records_shard(shard_index: int) -> str:
         """
-        生成托管任务执行中 sorted set key。
+        生成指定分片的托管任务数据 hash key。
 
+        :param shard_index: 分片索引。
         :return: Redis key。
         """
         return RedisKeys._shard_tagged(shard_index, "managed-task:records")
@@ -282,9 +284,9 @@ class RedisKeys(object):
     @staticmethod
     def managed_task_due(room_id: str) -> str:
         """
-        生成托管任务数据 key。
+        生成托管任务到期 sorted set key。
 
-        :param task_id: 任务 ID。
+        :param room_id: 房间 ID。
         :return: Redis key。
         """
         return RedisKeys.managed_task_due_shard(RedisKeys.room_shard(room_id))
@@ -292,9 +294,9 @@ class RedisKeys(object):
     @staticmethod
     def managed_task_due_shard(shard_index: int) -> str:
         """
-        生成托管任务房间执行锁 key。
+        生成指定分片的托管任务到期 sorted set key。
 
-        :param room_id: 房间 ID。
+        :param shard_index: 分片索引。
         :return: Redis key。
         """
         return RedisKeys._shard_tagged(shard_index, "managed-task:due")
@@ -336,8 +338,9 @@ class RedisKeys(object):
     @staticmethod
     def auto_advance_task_records(room_id: str) -> str:
         """
-        生成房间自动推进任务到期 sorted set key。
+        生成房间自动推进任务数据 hash key。
 
+        :param room_id: 房间 ID。
         :return: Redis key。
         """
         return RedisKeys.auto_advance_task_records_shard(RedisKeys.room_shard(room_id))
@@ -345,8 +348,9 @@ class RedisKeys(object):
     @staticmethod
     def auto_advance_task_records_shard(shard_index: int) -> str:
         """
-        生成房间自动推进任务执行中 sorted set key。
+        生成指定分片的房间自动推进任务数据 hash key。
 
+        :param shard_index: 分片索引。
         :return: Redis key。
         """
         return RedisKeys._shard_tagged(shard_index, "auto-advance-task:records")
@@ -354,9 +358,9 @@ class RedisKeys(object):
     @staticmethod
     def auto_advance_task_due(room_id: str) -> str:
         """
-        生成房间自动推进任务数据 key。
+        生成房间自动推进任务到期 sorted set key。
 
-        :param task_id: 任务 ID。
+        :param room_id: 房间 ID。
         :return: Redis key。
         """
         return RedisKeys.auto_advance_task_due_shard(RedisKeys.room_shard(room_id))
@@ -364,9 +368,9 @@ class RedisKeys(object):
     @staticmethod
     def auto_advance_task_due_shard(shard_index: int) -> str:
         """
-        生成房间自动推进任务房间执行锁 key。
+        生成指定分片的房间自动推进任务到期 sorted set key。
 
-        :param room_id: 房间 ID。
+        :param shard_index: 分片索引。
         :return: Redis key。
         """
         return RedisKeys._shard_tagged(shard_index, "auto-advance-task:due")

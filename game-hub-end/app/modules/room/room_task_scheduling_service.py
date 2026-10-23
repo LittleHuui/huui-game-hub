@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from app.common.exceptions import BizException
-from app.core.clock import Clock, system_clock
+from app.core.clock import Clock
 from app.core.id_utils import generate_server_id
 from app.modules.room.auto_advance_task_service import (
     AutoAdvanceScheduleResult,
@@ -171,7 +171,7 @@ class RoomTaskSchedulingService(object):
         reason: str,
     ) -> TaskSchedulingStatus:
         """
-        对局进行中且当前行动玩家为托管或 AI 时，按最新房间版本创建托管任务。
+        对局进行中且当前行动玩家为托管或 AI 时，按最新对局版本创建托管任务。
 
         :param room_id: 房间 ID。
         :param reason: 创建原因。
@@ -233,11 +233,11 @@ class RoomTaskSchedulingService(object):
         reason: str,
     ) -> str:
         """
-        对局阶段需自动推进时，按房间版本与阶段创建自动推进任务。
+        对局阶段需自动推进时，按对局版本与阶段创建自动推进任务。
 
         :param room_id: 房间 ID。
         :param snapshot: 当前运行时快照。
-        :param version: 当前房间版本号。
+        :param version: 当前对局版本号。
         :param reason: 创建原因。
         :return: 自动推进调度结果。
         """

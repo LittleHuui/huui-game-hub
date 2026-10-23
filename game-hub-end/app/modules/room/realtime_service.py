@@ -100,7 +100,7 @@ def build_views_for_members(
 
     :param enrich_view: 组装视图的回调。
     :param snapshot: 运行时快照。
-    :param version: 房间版本号。
+    :param version: 对局版本号。
     :param events: 本帧待播放事件。
     :param player_ids: 玩家 ID 列表。
     :return: 玩家 ID 到视图的映射。

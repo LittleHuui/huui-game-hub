@@ -522,7 +522,6 @@ class RoomRepository(object):
         """
         retry_count = max(1, int(max_retry))
         last_runtime = None
-        last_version = None
         for _index in range(retry_count):
             version_before = await self.get_game_version(room_id)
             runtime = await self.get_runtime(room_id)
@@ -535,7 +534,6 @@ class RoomRepository(object):
                     "version": int(version_after or 0),
                 }
             last_runtime = runtime
-            last_version = version_after
         if last_runtime is None:
             return None
         raise BizException(

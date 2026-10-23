@@ -31,7 +31,7 @@ function buildRequestHeaders(extraHeaders = {}, authSnapshot = {}) {
  * @param {object | null} body
  * @param {number} timeoutMs
  * @param {Record<string, string>} extraHeaders
- * @param {{ _retriedAuth?: boolean; signal?: AbortSignal }} [options]
+ * @param {{ signal?: AbortSignal }} [options]
  * @returns {Promise<unknown>}
  */
 export async function requestRawJson(
@@ -96,7 +96,7 @@ export async function requestRawJson(
  * @param {object | null} body
  * @param {number} timeoutMs
  * @param {Record<string, string>} extraHeaders
- * @param {{ _retriedAuth?: boolean; signal?: AbortSignal }} [options]
+ * @param {{ signal?: AbortSignal }} [options]
  * @returns {Promise<unknown>}
  */
 export async function requestJson(

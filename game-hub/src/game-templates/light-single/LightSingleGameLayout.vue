@@ -1,6 +1,6 @@
 <template>
   <div class="light-single-layout">
-    <LightSingleGameSidePanel :game-title="gameTitle" :game-subtitle="gameSubtitle"
+    <LightSingleGameSidePanel :game-title="gameTitle"
       :game-description="gameDescription" :game-status-text="gameStatusText"
       :info-stats="infoStats" :fields="controlFields" :action-items="actionItems"
       @field-change="$emit('field-change', $event)" @action="$emit('action', $event)">
@@ -9,7 +9,7 @@
     </LightSingleGameSidePanel>
     <main class="light-single-layout__main">
       <div v-if="$slots['match-stats']" class="light-single-match-panel"><slot name="match-stats" /></div>
-      <LightSingleGameBoardFrame :title="boardFrameTitle" :subtitle="boardSubtitle"
+      <LightSingleGameBoardFrame :title="boardFrameTitle"
         :paused="paused" :pause-title="pauseTitle" :pause-description="pauseDescription"
         :pause-action-text="pauseActionText" @resume="$emit('resume')">
         <slot name="board" />
@@ -37,13 +37,11 @@ import AppIcon from '../../components/ui/AppIcon.vue';
 import LightSingleGameSidePanel from './LightSingleGameSidePanel.vue';
 import LightSingleGameBoardFrame from './LightSingleGameBoardFrame.vue';
 defineProps({
-  gameTitle: { type: String, default: '' }, gameSubtitle: { type: String, default: '' },
+  gameTitle: { type: String, default: '' },
   gameDescription: { type: String, default: '' }, gameStatusText: { type: String, default: '' },
   infoStats: { type: Array, default: () => [] }, controlFields: { type: Array, default: () => [] },
   actionItems: { type: Array, default: () => [] }, showShop: { type: Boolean, default: true },
   showRanking: { type: Boolean, default: true }, showInventory: { type: Boolean, default: true },
-  gameCode: { type: String, default: '' }, mode: { type: String, default: '' },
-  difficultyCode: { type: String, default: '' }, boardTitle: { type: String, default: '对局信息' },
   boardFrameTitle: { type: String, default: '' }, boardSubtitle: { type: String, default: '' },
   paused: { type: Boolean, default: false }, pauseTitle: { type: String, default: '游戏已暂停' },
   pauseDescription: { type: String, default: '准备好后继续本局' }, pauseActionText: { type: String, default: '继续游戏' }

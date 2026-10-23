@@ -1,7 +1,7 @@
 """五子棋托管候选评分器。"""
 
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from app.modules.strategy_turn.decision.candidate_scorer import CandidateScorer
 from app.modules.strategy_turn.schemas import ActionCandidate, ActionDecisionContext, CandidateScore

@@ -39,10 +39,6 @@ const props = defineProps({
     type: Number,
     default: null
   },
-  lastAction: {
-    type: String,
-    default: ''
-  },
   isAi: {
     type: Boolean,
     default: false

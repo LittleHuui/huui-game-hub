@@ -4,8 +4,8 @@ import asyncio
 import logging
 from typing import Awaitable, Callable, Dict, List, Optional
 
-from app.core.clock import Clock, CancellableSleeper, Sleeper, system_clock
-from app.core.redis.redis_client import RedisClient, redis_client
+from app.core.clock import Clock, CancellableSleeper, Sleeper
+from app.core.redis.redis_client import RedisClient
 from app.core.redis.redis_keys import RedisKeys
 from app.core.websocket.connection_manager import connection_manager
 from app.core.websocket.message_types import MessageType

@@ -50,7 +50,6 @@ export function use2048Presentation({
       : state.gameMessage.value
   );
   const layoutGameTitle = computed(() => displayMetadata.name);
-  const layoutGameSubtitle = computed(() => displayMetadata.subName);
   const layoutGameDescription = computed(() => '经典模式 · 标准难度');
   const layoutGameStatusText = computed(() => {
     if (state.isPaused.value && state.gameStatus.value === 'playing') {
@@ -73,7 +72,6 @@ export function use2048Presentation({
     matchStats,
     matchStatsMessage,
     layoutGameTitle,
-    layoutGameSubtitle,
     layoutGameDescription,
     layoutGameStatusText,
     actionItems

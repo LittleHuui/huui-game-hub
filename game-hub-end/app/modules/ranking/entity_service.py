@@ -80,7 +80,7 @@ class RankingEntityService:
             return {}
         try:
             parsed = json.loads(game.config_json)
-        except (TypeError, ValueError, json.JSONDecodeError):
+        except (TypeError, ValueError):
             return {}
         if not isinstance(parsed, dict):
             return {}

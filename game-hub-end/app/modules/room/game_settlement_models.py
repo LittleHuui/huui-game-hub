@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Integer, Text, UniqueConstraint
+from sqlalchemy import Boolean, Integer, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, TimestampMixin

@@ -33,7 +33,7 @@ import AppIcon from '../../components/ui/AppIcon.vue';
 import GameControlField from '../../components/game/controls/GameControlField.vue';
 import GameActionBar from '../../components/game/controls/GameActionBar.vue';
 const props = defineProps({
-  gameTitle: { type: String, default: '' }, gameSubtitle: { type: String, default: '' },
+  gameTitle: { type: String, default: '' },
   gameDescription: { type: String, default: '' }, gameStatusText: { type: String, default: '' },
   infoStats: { type: Array, default: () => [] }, fields: { type: Array, default: () => [] },
   actionItems: { type: Array, default: () => [] }

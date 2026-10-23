@@ -2,8 +2,6 @@
   <div>
     <RoomListPage
       :title="pageTitle"
-      :subtitle="pageSubtitle"
-      :game-code="gameCode"
       :rooms="rooms"
       :room-config-schema="roomConfigSchema"
       :loading="loading || roomsLoading"
@@ -166,7 +164,6 @@ const loadError = ref('');
 const onlineBlocked = computed(() => !canFetchRemote());
 const gameCode = computed(() => String(route.params.gameCode || '').trim());
 const pageTitle = computed(() => '房间列表');
-const pageSubtitle = computed(() => '');
 const roomListErrorMessage = computed(() => {
   if (onlineBlocked.value) {
     return '当前为本地模式，在线房间不可用。';
@@ -331,7 +328,6 @@ async function onRefreshRooms() {
       roomQueryService.refreshRoomList(gameCode.value, { signal: operation.signal }),
       refreshActiveRoom()
     ]);
-    if (!operation.isCurrent()) return;
   } catch {
     // 错误信息已由 service 写入 store
   }

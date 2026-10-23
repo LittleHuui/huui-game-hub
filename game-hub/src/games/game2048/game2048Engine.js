@@ -342,12 +342,11 @@ function placeTileOnBoard(tile, direction, lineIndex, slot, size) {
  * @param {Game2048Direction} direction
  * @param {number} index
  * @param {number} size
- * @returns {{ lineTiles: Game2048Tile[]; scoreDelta: number; slides: Game2048Slide[]; merges: Game2048MergeMark[]; removedIds: number[]; moved: boolean }}
+ * @returns {{ lineTiles: Game2048Tile[]; scoreDelta: number; slides: Game2048Slide[]; merges: Game2048MergeMark[]; moved: boolean }}
  */
 function processTileLine(lineTiles, direction, index, size) {
   const slides = [];
   const merges = [];
-  const removedIds = [];
   let scoreDelta = 0;
   let moved = false;
   const result = [];
@@ -382,7 +381,6 @@ function processTileLine(lineTiles, direction, index, size) {
         toCol: target.col
       });
       merges.push({ id: current.id, row: target.row, col: target.col, value: mergedValue });
-      removedIds.push(partner.id);
       scoreDelta += mergedValue;
       result.push({ id: current.id, value: mergedValue, row: target.row, col: target.col });
       if (current.row !== target.row || current.col !== target.col) {
@@ -410,7 +408,7 @@ function processTileLine(lineTiles, direction, index, size) {
     }
   }
 
-  return { lineTiles: result, scoreDelta, slides, merges, removedIds, moved };
+  return { lineTiles: result, scoreDelta, slides, merges, moved };
 }
 
 /**
@@ -423,7 +421,6 @@ function processTileLine(lineTiles, direction, index, size) {
 export function moveTiles(tiles, direction, size = GAME2048_SIZE) {
   const slides = [];
   const merges = [];
-  const removedIds = new Set();
   let scoreDelta = 0;
   let moved = false;
   let nextTiles = [];
@@ -437,9 +434,6 @@ export function moveTiles(tiles, direction, size = GAME2048_SIZE) {
     }
     slides.push(...lineResult.slides);
     merges.push(...lineResult.merges);
-    for (const id of lineResult.removedIds) {
-      removedIds.add(id);
-    }
     nextTiles.push(...lineResult.lineTiles);
   }
 

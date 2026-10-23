@@ -9,7 +9,7 @@ class PostTurnPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     roomId: str = Field(min_length=1, description="房间 ID")
-    version: int = Field(ge=0, description="提交后的房间版本号")
+    version: int = Field(ge=0, description="提交后的对局版本号")
     reason: str = Field(min_length=1, description="调度原因")
     gameCode: str = Field(default="", description="游戏编码")
     currentPlayerId: str = Field(default="", description="当前行动玩家 ID")

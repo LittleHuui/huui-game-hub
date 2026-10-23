@@ -202,7 +202,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
         listDetailVisible.value = false;
         selectedListRoom.value = null;
         await navigateToRoom(roomId);
-        if (!operation.isCurrent()) return;
         return;
       }
       if (selectedRoomStatus.value === 'playing') {
@@ -242,7 +241,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
         listDetailVisible.value = false;
         selectedListRoom.value = null;
         await navigateToRoom(roomId);
-        if (!operation.isCurrent()) return;
         return;
       }
       const joinedRoom = await roomService.joinRoom(roomId, { signal: operation.signal });
@@ -250,7 +248,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
       listDetailVisible.value = false;
       selectedListRoom.value = null;
       await navigateToRoom(joinedRoom.roomId);
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       if (err?.name !== 'AbortError') loadError.value = err?.message || '加入房间失败';
@@ -277,7 +274,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
     try {
       activePlayingConfirmVisible.value = false;
       await navigateToPlay(roomId, activeRoom.value.gameCode || '');
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       activePlayingConfirmError.value = err?.message || '进入对局失败';
@@ -322,7 +318,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
       listDetailVisible.value = false;
       selectedListRoom.value = null;
       await navigateToPlay(roomId);
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       listResumeConfirmError.value = err?.message || '进入对局失败';
@@ -365,14 +360,12 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
         managedShellConfirmVisible.value = false;
         managedShellRoom.value = null;
         await navigateToPlay(room.roomId);
-        if (!operation.isCurrent()) return;
         return;
       }
       if (String(currentActiveRoom.roomId || '').trim() === roomId) {
         managedShellConfirmVisible.value = false;
         managedShellRoom.value = null;
         await navigateToPlay(roomId);
-        if (!operation.isCurrent()) return;
         return;
       }
       pendingManagedShellRoomId.value = roomId;
@@ -411,7 +404,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
       listDetailVisible.value = false;
       selectedListRoom.value = null;
       await navigateToRoom(joinedRoom.roomId);
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       switchRoomConfirmError.value = err?.message || '切换房间失败';
@@ -453,7 +445,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
       managedShellConfirmVisible.value = false;
       managedShellRoom.value = null;
       await navigateToPlay(room.roomId);
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       managedShellSwitchConfirmError.value = err?.message || '恢复对局失败';
@@ -519,7 +510,6 @@ export function useRoomLobbyDialogs({ gameCode, onlineBlocked, context, loading,
       if (!operation.isCurrent()) return;
       createDialogVisible.value = false;
       await navigateToRoom(room.roomId);
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       createError.value = err?.message || '创建房间失败';

@@ -1,5 +1,5 @@
 import { GAME_SEED_CONFIG } from '../../constants/gameSeedConfig.js';
-import { MINESWEEPER_PRESETS, setClientLayoutConfigs } from './minesweeperConfig.js';
+import { MINESWEEPER_PRESETS } from './minesweeperConfig.js';
 import { getEnabledDifficulties, setGameDifficulties } from '../../services/gameDifficultyService.js';
 import { getSeedGameConfig } from '../../mappers/gameConfigMapper.js';
 
@@ -57,5 +57,4 @@ export function applyMinesweeperServerConfig(data) {
       MINESWEEPER_PRESETS[code].mines = cfg.mines ?? 100;
     }
   }
-  setClientLayoutConfigs(data.clientConfigs);
 }

@@ -22,7 +22,6 @@ export function useRoomWaitingCommands({ roomId, room, isRoomMember, context, ac
       const status = String(room.value?.status || '').trim();
       if (status === 'playing') {
         await navigatePlayRoom();
-        if (!operation.isCurrent()) return;
       }
     } catch (err) {
       if (!operation.isCurrent()) return;
@@ -36,7 +35,6 @@ export function useRoomWaitingCommands({ roomId, room, isRoomMember, context, ac
     const operation = context.capture();
     if (!operation.isCurrent()) return;
     await navigateLobby();
-    if (!operation.isCurrent()) return;
   }
 
   async function onLeaveRoom() {
@@ -46,7 +44,6 @@ export function useRoomWaitingCommands({ roomId, room, isRoomMember, context, ac
     const id = roomId.value;
     if (!id) {
       await navigateLobby();
-      if (!operation.isCurrent()) return;
       return;
     }
     actionBusy.value = true;
@@ -55,7 +52,6 @@ export function useRoomWaitingCommands({ roomId, room, isRoomMember, context, ac
       await roomService.leaveRoom(id, { signal: operation.signal });
       if (!operation.isCurrent()) return;
       await navigateLobby();
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       errorMessage.value = err?.message || '离开房间失败';
@@ -78,7 +74,6 @@ export function useRoomWaitingCommands({ roomId, room, isRoomMember, context, ac
       await roomService.addRoomAi(id, { signal: operation.signal });
       if (!operation.isCurrent()) return;
       await roomQueryService.loadRoomDetail(id, { signal: operation.signal });
-      if (!operation.isCurrent()) return;
     } catch (err) {
       if (!operation.isCurrent()) return;
       errorMessage.value = err?.message || '添加 AI 失败';
@@ -105,7 +100,6 @@ export function useRoomWaitingCommands({ roomId, room, isRoomMember, context, ac
       const status = String(room.value?.status || '').trim();
       if (status === 'playing') {
         await navigatePlayRoom();
-        if (!operation.isCurrent()) return;
       }
     } catch (err) {
       if (!operation.isCurrent()) return;

@@ -356,7 +356,7 @@ function isPartialCandidateMatch(candidate, selectedCards, selection) {
     return selectedCards.length === 0;
   }
   if (selectedCards.length === 0) {
-    return items.length > 0 || mode === 'click';
+    return items.length > 0;
   }
 
   const { matchFields, ignoreFields, requiredGroups } = resolveFieldConfig(candidate, selection);

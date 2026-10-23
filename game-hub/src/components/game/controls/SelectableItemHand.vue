@@ -27,7 +27,7 @@
         'selectable-item-hand__item--shake':
           !interactionBlocked && !isItemDisabled(item) && shakeItemId === item.id
       }"
-      :style="stackItems ? { zIndex: resolveStackOrder(item, index) } : undefined"
+      :style="stackItems ? { zIndex: resolveStackOrder(index) } : undefined"
       role="listitem"
       tabindex="0"
       @keydown.enter.prevent="onItemClick(item, { detail: 0 })"
@@ -174,12 +174,10 @@ function isSelected(id) {
 
 /**
  * 计算手牌层级。每张牌始终按从左到右的顺序覆盖，选中和悬停只改变垂直位置。
- * @param {{ id?: string }} item
  * @param {number} index
  * @returns {number}
  */
-function resolveStackOrder(item, index) {
-  void item;
+function resolveStackOrder(index) {
   return Math.max(0, Number(index) || 0) + 1;
 }
 

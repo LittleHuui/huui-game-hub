@@ -12,7 +12,7 @@ import * as bootService from './bootService.js';
 import * as onlineService from './onlineService.js';
 import * as realtimeService from './realtimeService.js';
 import { canFetchRemote } from './remoteGate.js';
-import { getDefaultDifficultyCode, isDifficultyEnabled } from './gameDifficultyService.js';
+import { getDefaultDifficultyCode } from './gameDifficultyService.js';
 import { getGameDisplayMetadata } from '../games/gameModuleRegistry.js';
 import { resolvePlatformGameCode } from './platformContextService.js';
 
@@ -65,10 +65,7 @@ function buildActivateOptions(gameCode) {
   if (!mode) {
     throw new Error(`游戏 ${gameCode} 缺少 mode`);
   }
-  const stored = getDefaultDifficultyCode(gameCode);
-  const difficultyCode = isDifficultyEnabled(gameCode, stored)
-    ? stored
-    : getDefaultDifficultyCode(gameCode);
+  const difficultyCode = getDefaultDifficultyCode(gameCode);
   if (!difficultyCode) {
     throw new Error(`游戏 ${gameCode} 缺少 difficultyCode`);
   }

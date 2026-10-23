@@ -17,8 +17,6 @@ export function useDoudizhuRoomLifecycle(input) {
     ...lifecycle,
     onRejoinRoom: lifecycle.rejoin,
     onExitRoomWithShell: lifecycle.exitWithShell,
-    onBackToRoom: lifecycle.backToRoomOrLobby,
-    reset: lifecycle.reset,
-    dispose: lifecycle.dispose
+    onBackToRoom: lifecycle.backToRoomOrLobby
   };
 }

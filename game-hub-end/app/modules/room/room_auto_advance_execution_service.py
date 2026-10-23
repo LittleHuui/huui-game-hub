@@ -192,7 +192,7 @@ class RoomAutoAdvanceExecutionService(object):
                     bool(final_snapshot.isGameOver),
                     int(room_version),
                 )
-            except Exception as exc:
+            except Exception:
                 logger.exception(
                     "auto advance game view push failed, roomId=%s expectedVersion=%s committedVersion=%s phase=%s taskId=%s",
                     normalized_room_id,
@@ -201,5 +201,4 @@ class RoomAutoAdvanceExecutionService(object):
                     str(task.expectedPhase or ""),
                     str(task.taskId or ""),
                 )
-                del exc
             return AutoAdvanceTaskSubmitResult(status="done")

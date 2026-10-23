@@ -1,8 +1,7 @@
 """purchase 领域对外响应模型。"""
 
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-from pydantic import BaseModel, Field
 
 from app.common.base_entity import BaseEntityResponse
 

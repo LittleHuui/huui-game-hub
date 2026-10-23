@@ -56,7 +56,7 @@ import {
 import { STRATEGY_TURN_ACTION_TYPE, TURN_ACTION_BAR_KEY } from './turnControlEnums.js';
 
 const props = defineProps({
-  /** @type {import('vue').PropType<import('../../services/action-interaction/actionOfferUtils.js').ActionOffer[]>} */
+  /** @type {import('vue').PropType<import('../../../services/action-interaction/actionOfferUtils.js').ActionOffer[]>} */
   actionOffers: {
     type: Array,
     default: () => []

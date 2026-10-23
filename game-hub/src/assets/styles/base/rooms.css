@@ -179,12 +179,6 @@
   gap: 8px;
 }
 
-.room-hub-form__switch-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .room-hub-detail__section,.room-hub-detail__config {
   display: grid;
   gap: 12px;
